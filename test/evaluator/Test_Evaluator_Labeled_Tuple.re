@@ -24,6 +24,31 @@ let tests = (
     test_case("Labeled tuple field access", `Quick, () =>
       parse_and_evaluate_test("1", {|(a=1,b=2).a|})
     ),
+    test_case(
+      "A value lifted into a singleton tuple keeps its elaboration's labels",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f = fun (t : (a=(b=Int, c=Int))) -> t.a.b in f((1, 2))|},
+      )
+    ),
+    test_case(
+      "A module lifted into a singleton tuple runs as if labelled by hand",
+      `Quick,
+      () =>
+      evaluation_test(
+        "lifted module",
+        evaluate(
+          elaborate(
+            parse_exp({|let x : (a=(y=Int)) = (a={ let y = 1 }) in x.a.y|}),
+          ),
+        ),
+        elaborate(
+          parse_exp({|let x : (a=(y=Int)) = { let y = 1 } in x.a.y|}),
+        ),
+      )
+    ),
     test_case("Anonymous function with explicit label", `Quick, () => {
       parse_and_evaluate_test(
         "5",

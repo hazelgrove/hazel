@@ -265,6 +265,23 @@ let ci_of =
     });
   };
 
+/* The ci of what the indicated term presents: its own, except that the
+   parentheses around a tuple present the tuple, as they are part of its
+   syntax. */
+let presented_ci =
+    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
+    : option(Language.Statics.Info.t) =>
+  switch (ci_of(z, info_map)) {
+  | Some(
+      InfoExp({
+        user_term: {term: Parens({term: Tuple(_), _} as tuple), _},
+        _,
+      }),
+    ) =>
+    Id.Map.find_opt(Language.Exp.rep_id(tuple), info_map)
+  | ci => ci
+  };
+
 /* For type-directed completion (TyDi): returns the ci of the
  * left neighbor tile, which is the token being completed.
  * Falls back to ci_of when no suitable left neighbor exists. */

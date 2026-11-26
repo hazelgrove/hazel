@@ -141,6 +141,7 @@ let add_binder_infos =
       cls: Cls.Pat(ApFunc),
       ty: f_info.ana,
       elab_syn_ty: f_info.ana,
+      syn_ty: f_info.ana,
     };
     let add_for = (pat, m) =>
       StaticsBase.Map.add_info(

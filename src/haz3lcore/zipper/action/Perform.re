@@ -401,13 +401,18 @@ let rec go =
       ~statics=statics.info_map,
       ~problem_ids=
         Stdlib.Seq.append(
-          Stdlib.List.to_seq(statics.error_ids),
-          Stdlib.Seq.append(
-            Stdlib.List.to_seq(statics.warning_ids),
-            Stdlib.Seq.filter_map(
-              (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-              Stdlib.List.to_seq(Segment.holes(syntax.segment)),
+          /* A mark on syntax a projector folds away is reached at the
+             projector. */
+          Stdlib.Seq.filter_map(
+            ErrorSites.located(
+              ~info_map=statics.info_map,
+              ~measured=syntax.measured,
             ),
+            Stdlib.List.to_seq(statics.error_ids @ statics.warning_ids),
+          ),
+          Stdlib.Seq.filter_map(
+            (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
+            Stdlib.List.to_seq(Segment.holes(syntax.segment)),
           ),
         ),
       ~col_target=Option.value(col_target, ~default=0),

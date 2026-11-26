@@ -14,10 +14,12 @@ let expected_ty = (info: Info.t): option(Typ.t) =>
   | _ => None
   };
 
+/* The type of what is written: not its elab syn type, which is settled on
+   the expected type exactly where the two disagree. */
 let self_ty = (info: Info.t): option(Typ.t) =>
   switch (info) {
-  | InfoExp({elab_syn_ty, _})
-  | InfoPat({elab_syn_ty, _}) => Some(elab_syn_ty)
+  | InfoExp({syn_ty, _})
+  | InfoPat({syn_ty, _}) => Some(syn_ty)
   | _ => None
   };
 

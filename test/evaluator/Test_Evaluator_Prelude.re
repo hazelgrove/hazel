@@ -106,8 +106,10 @@ let elaborate = u => {
 
 let elaborated_type = (info_map: Statics.Map.t, exp: Exp.t): Typ.t =>
   switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
-  | Some({ana, ty, ctx, _}) =>
-    Typ.match_synswitch(ana, ty) |> Typ.normalize(ctx) |> Typ.all_ids_temp
+  | Some({ana, elab_syn_ty, ctx, _}) =>
+    Typ.match_synswitch(ana, elab_syn_ty)
+    |> Typ.normalize(ctx)
+    |> Typ.all_ids_temp
   | None =>
     Alcotest.fail(
       "Preservation check failed: No type information found for expression",

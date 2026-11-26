@@ -24,3 +24,13 @@ let show = (cls: t) =>
   | Sig(cls) => Sig.show_cls(cls)
   | MPat(cls) => MPat.show_cls(cls)
   };
+
+/* What the parts of a form whose types must meet are called, for messages. */
+let elements_noun: t => string =
+  fun
+  | Exp(Match | If) => "Branches"
+  | Exp(ListLit)
+  | Pat(ListLit) => "Elements"
+  | Exp(ListConcat)
+  | Exp(BinOp(Poly(_))) => "Operands"
+  | _ => "Sub-expressions";

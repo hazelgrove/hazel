@@ -179,7 +179,7 @@ module Map = {
 
   let ty_of = (id: Id.t, m: t): option(Typ.t) =>
     switch (lookup(id, m)) {
-    | Some(InfoExp({ty, _}))
+    | Some(InfoExp({elab_syn_ty, _})) => Some(elab_syn_ty)
     | Some(InfoPat({ty, _})) => Some(ty)
     | _ => None
     };
@@ -285,6 +285,15 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
     }
   };
 
+/* The syn type of several things written together (list elements, branches):
+   their meet. If they have none, the type they were settled to, `settled`:
+   where they disagree, the disagreement is marked on whichever of them
+   failed, or on the whole where they could not be settled, so it is not
+   what this node's syn type should report. */
+let meet_syn_types = (ctx: Ctx.t, ~settled: Typ.t, tys: list(Typ.t)): Typ.t =>
+  Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys)
+  |> Option.value(~default=settled);
+
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
@@ -293,7 +302,7 @@ let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
       InfoExp({
         ...info,
         elab_syn_ty: new_syn_ty,
-        ty: fixed_typ(info.ctx, info.ana, new_syn_ty),
+        syn_ty: new_syn_ty,
       }),
       m,
     )
@@ -308,32 +317,42 @@ let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
   | _ => ty_ana
   };
 
+/* Whether a list whose elements do not meet, so that it synthesizes
+   `syn_no_meet`, is marked for it. In synthesis it is: nothing else gives
+   its elements a type. Against an expectation its elements were each checked
+   against the element type, so they can only fail to meet where the
+   expectation is not a list, and the mark says the list does not fit. */
 let should_emit_nomeet_mark =
-    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): bool =>
-  switch (
-    Typ.meet(
-      ctx,
-      ana_skip_explicit_nonlabel(ana),
-      ana_skip_explicit_nonlabel(elab_syn_ty),
+    (ctx: Ctx.t, ana: Typ.t, syn_no_meet: Typ.t): bool => {
+  let ana = ana_skip_explicit_nonlabel(ana);
+  switch (ana.term) {
+  | Unknown(SynSwitch) => true
+  | _ =>
+    Option.is_none(
+      Typ.meet(ctx, ana, ana_skip_explicit_nonlabel(syn_no_meet)),
     )
-  ) {
-  | Some(_) => false
-  | None => true
   };
+};
 
 let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
+    (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
-  | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
+  | Unknown(SynSwitch) => Message.Syn(syn_ty)
   | _ =>
-    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
-    | None => Message.Syn(elab_syn_ty)
+    switch (Typ.meet(ctx, ana, syn_ty)) {
+    | None =>
+      Message.Ana(
+        Message.Inconsistent({
+          ana,
+          syn: syn_ty,
+        }),
+      )
     | Some(meet) =>
       Message.Ana(
         Message.Consistent({
           ana,
-          syn: elab_syn_ty,
+          syn: syn_ty,
           meet,
         }),
       )
@@ -393,20 +412,41 @@ let prepend_pat_mark =
   };
 };
 
-/* Add an ascription wrapper if the types differ after normalization. */
-let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
-  IdTagged.FreshGrammar.Exp.(
-    switch (t') {
-    | Some({term: Unknown(Internal), _}) => d
-    /* Settle the common case before resolving anything: equal types
-       need no ascription, and comparing normalized forms expands every
-       alias on both sides first. */
-    | Some(ty) when Typ.fast_equal(ty, t) => d
-    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
-    | _ => d
-    }
-  );
+let elab_ascription_salt = "elab-ascription";
+
+/* Ascribe `d`, of type `t`, with `t'` when the two differ up to aliases. The
+   ascription's id derives from `d`'s, and its type is canonical, like every
+   type embedded in an elaboration (see Typ.canonicalize). */
+let ascribe = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
+  switch (t') {
+  | Some({term: Unknown(Internal), _}) => d
+  /* Settle the common case before resolving anything: equal types
+     need no ascription, and comparing normalized forms expands every
+     alias on both sides first. */
+  | Some(ty) when Typ.fast_equal(ty, t) => d
+  | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) =>
+    let ty = Typ.canonicalize(ctx, ty) |> Typ.all_ids_temp;
+    IdTagged.derived(
+      ~salt=elab_ascription_salt,
+      Exp.rep_id(d),
+      Asc(d, ty): Exp.term,
+    );
+  | _ => d
+  };
 };
+
+/* What `d` wraps, if `d` is an ascription that `ascribe` inserted. */
+let inserted_ascription = (d: Exp.t): option(Exp.t) =>
+  switch (d.term) {
+  | Asc(inner, _)
+      when
+        Id.equal(
+          Exp.rep_id(d),
+          Id.derive(~salt=elab_ascription_salt, Exp.rep_id(inner)),
+        ) =>
+    Some(inner)
+  | _ => None
+  };
 
 /* Fold patterns with expected modes using the provided analyzer callback. */
 let fold_patterns_with_modes =
@@ -461,6 +501,7 @@ module type ExpressionStatics = {
       ~user_term: Exp.t=?,
       ~elab_term: Exp.t,
       ~elab_syn_ty: Typ.t,
+      ~syn_ty: Typ.t=?,
       ~marks: list(Mark.t)=?,
       ~warnings: list(Warning.list_item)=?,
       ~ctx: Ctx.t=?,
@@ -473,6 +514,7 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
+      ~mismatch_marked_within: bool=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

@@ -29,19 +29,42 @@ module Print = {
 
 let prn = sprintf;
 
-let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
+let core_mark_string =
+    (~cls: option(Cls.t)=?, ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
-    prn(
-      "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
-    );
+    switch (
+      LabeledTupleStaticsHelpers.shape_mismatch_message(ctx, ~ana, ~syn)
+    ) {
+    | Some(message) => message
+    | None =>
+      prn(
+        "Expecting type %s but got inconsistent type %s",
+        Print.typ(ana),
+        Print.typ(syn),
+      )
+    };
   switch (m) {
-  | BadLabel(_)
-  | InvalidLabel(_, _) => "Invalid label"
+  | BadLabel(_) => "Invalid label"
+  | InvalidLabel(name, []) =>
+    prn(
+      "Unexpected label %s; no labels were expected",
+      Token.quote_label_when_necessary(name),
+    )
+  | InvalidLabel(name, expected) =>
+    prn(
+      "Unexpected label %s; expecting labels %s",
+      Token.quote_label_when_necessary(name),
+      String.concat(
+        ~sep=", ",
+        List.map(~f=Token.quote_label_when_necessary, expected),
+      ),
+    )
   | DuplicateLabel(_, _) => "Duplicate label"
   | DuplicateVar(_, _) => "Duplicate variable"
+  | TupleLabelError({malformed_labels: [], duplicate_labels: [], typ, _}) =>
+    LabeledTupleStaticsHelpers.shape_mismatch_message(ctx, ~ana, ~syn=typ)
+    |> Option.value(~default="Invalid tuple label")
   | TupleLabelError(_) => "Invalid tuple label"
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
@@ -53,7 +76,11 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | NoMeet(PolyEq, tys)
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
     prn(
-      "Expecting branches to have consistent types but got types: %s",
+      "Expecting %s to have consistent types but got types: %s",
+      cls
+      |> Option.value_map(~default="branches", ~f=cls =>
+           String.lowercase(Cls.elements_noun(cls))
+         ),
       List.map(~f=Print.typ, Typ.of_source(tys)) |> String.concat(~sep=", "),
     )
   | NoMeet(wrap, _tys) =>
@@ -89,8 +116,9 @@ let drv_error: DrvInfo.error => string =
       List.map(~f=DrvSort.to_string, actuals) |> String.concat(~sep=", "),
     );
 
-let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
-  let common_from_core = () => core_mark_string(ctx, ana, m);
+let exp_mark_to_string =
+    (~cls: option(Cls.t)=?, ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
+  let common_from_core = () => core_mark_string(~cls?, ctx, ana, m);
   switch (m) {
   | Free(name) => "Variable " ++ name ++ " is not bound"
   | InexhaustiveMatch(_) => "Match is not exhaustive"
@@ -168,18 +196,20 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
 };
 
 let pat_marks_to_string =
-    (ctx: Ctx.t, ana: Typ.t, marks: list(Mark.t)): string =>
+    (~cls: option(Cls.t)=?, ctx: Ctx.t, ana: Typ.t, marks: list(Mark.t))
+    : string =>
   switch (marks) {
   | [Redundant, ...tl] =>
     switch (Mark.highest(tl)) {
     | None => "Redundant"
-    | Some(m) => core_mark_string(ctx, ana, m) ++ "; pattern is redundant"
+    | Some(m) =>
+      core_mark_string(~cls?, ctx, ana, m) ++ "; pattern is redundant"
     }
   | [ExpectedConstructor, ..._] => "Expected a constructor"
   | _ =>
     switch (Mark.highest(marks)) {
     | None => "(static error)"
-    | Some(m) => core_mark_string(ctx, ana, m)
+    | Some(m) => core_mark_string(~cls?, ctx, ana, m)
     }
   };
 
@@ -225,12 +255,12 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
     | Some(err) => drv_error(err)
     | None => "(static error)"
     }
-  | InfoExp({ctx, ana, _}) =>
+  | InfoExp({ctx, ana, cls, _}) =>
     switch (Mark.highest(marks)) {
-    | Some(m) => exp_mark_to_string(ctx, ana, m)
+    | Some(m) => exp_mark_to_string(~cls, ctx, ana, m)
     | None => "(static error)"
     }
-  | InfoPat({ctx, ana, _}) => pat_marks_to_string(ctx, ana, marks)
+  | InfoPat({ctx, ana, cls, _}) => pat_marks_to_string(~cls, ctx, ana, marks)
   | InfoTyp(_) =>
     switch (marks) {
     | [] => "(static error)"

@@ -215,6 +215,7 @@ let tests = [
           let cursor: Cursor.cursor(unit) = {
             ...Cursor.empty,
             info: normal,
+            inspected: normal,
             implied_hole:
               Lazy.from_fun(() => ImpliedHole.at_caret(~statics, z)),
             editor_read_only: false,

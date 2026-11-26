@@ -100,23 +100,18 @@ let tests = (
     test_case("Invalid constructor match", `Quick, () => {
       evaluation_test(
         "let T = 1 in ?",
-        let_(
-          Pat.(
-            constructor(
-              "T",
-              Some(
-                Some(
-                  Typ.sum([
-                    Variant("T", ConstructorMap.empty_variant_ann, None),
-                    BadEntry(Typ.unknown(Internal)),
-                  ]),
-                ),
-              ),
-            )
-          ),
-          int(1),
-          empty_hole(),
-        ),
+        {
+          let t =
+            Typ.sum([
+              Variant("T", ConstructorMap.empty_variant_ann, None),
+              BadEntry(Typ.unknown(Internal)),
+            ]);
+          let_(
+            Pat.(constructor("T", Some(Some(t)))),
+            asc(int(1), t),
+            empty_hole(),
+          );
+        },
         elaborate(
           let_(Pat.(constructor("T", Some(None))), int(1), empty_hole()),
         ),
@@ -188,8 +183,8 @@ let tests = (
           "Indet when unboxing constructor as bool",
           if_(
             constructor("B", Some(Some(Typ.bool()))),
-            asc(bool(false), Typ.unknown(SynSwitch)),
-            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch)),
+            bool(false),
+            constructor("A", Some(None)),
           ),
           elaborate(
             parse_exp("type y = + B(Float) in if B then false else A"),

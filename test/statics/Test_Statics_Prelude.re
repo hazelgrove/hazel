@@ -167,6 +167,23 @@ let collect_errors = (map: Statics.Map.t): errors_map =>
     map,
   );
 
+/* The Info of an expression in `map` of the form `matches` picks out. */
+let info_where = (map: Statics.Map.t, matches: Exp.term => bool): Info.exp =>
+  switch (
+    Id.Map.fold(
+      (_, info: Info.t, found) =>
+        switch (info) {
+        | InfoExp(info) when matches(info.user_term.term) => Some(info)
+        | _ => found
+        },
+      map,
+      None,
+    )
+  ) {
+  | Some(info) => info
+  | None => fail("no expression of the expected form")
+  };
+
 let parse_exp = (s: string) => {
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e

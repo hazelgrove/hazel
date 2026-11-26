@@ -323,6 +323,7 @@
 }
 
 #cursor-inspector .status.ok,
+#cursor-inspector .status.neutral,
 #cursor-inspector .status.error,
 #cursor-inspector .status.warning {
   display: flex;

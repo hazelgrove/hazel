@@ -59,6 +59,11 @@ module Model = {
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    inspected:
+      Indicated.presented_ci(
+        model.editor.state.zipper,
+        model.statics.info_map,
+      ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
@@ -300,7 +305,11 @@ module View = {
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         ~completion,
-        model.statics.error_ids,
+        ErrorSites.drawn(
+          ~info_map=model.statics.info_map,
+          ~measured=model.editor.syntax.measured,
+          model.statics.error_ids,
+        ),
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
@@ -312,7 +321,11 @@ module View = {
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         ~completion,
-        warning_ids,
+        ErrorSites.drawn(
+          ~info_map=model.statics.info_map,
+          ~measured=model.editor.syntax.measured,
+          warning_ids,
+        ),
       );
     let container_classes =
       ["code-container"]

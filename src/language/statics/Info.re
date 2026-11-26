@@ -3,12 +3,21 @@ open OptUtil.Syntax;
 
 /* INFO.re — cursor statics bundle per AST node.
 
-   Statics supplies elab_syn_ty, marks, optional warnings, and inspector message
+   Statics supplies the types, marks, optional warnings, and inspector message
    payloads; Info stores/queries the resulting per-node data.
 
-   elab_syn_ty is the synthesized type of the elaborated expression (before
-   hole fixing). Note: it can be influenced by the analytic type in some cases
-   (e.g. via expectation/meet interaction), so it is not purely synthetic.
+   An expression has three types. ana is what its parent expects, passed
+   down. syn_ty is the type of what is written, passed up with any errors in
+   it. elab_syn_ty is the type its elaboration synthesizes, which parents
+   build theirs from: the type this node's rule builds from its children's
+   elab_syn_ty, or ana where that is inconsistent with ana. The
+   inconsistency is marked here and goes no further up. Where ana agrees
+   with it but says more (a hole expected to be an Int), elab_syn_ty stays as
+   the rule built it: the elaboration is not ascribed for that.
+
+   A pattern's elab_syn_ty is not settled this way: it is what the pattern
+   demands on its own. A pattern also records ty, its elab syn type refined
+   by ana, which is the type of the value it matches.
    Marks on Info are statics errors; use marks_of for problem display.
 
    See Message.re for inspector payload types; statics computes marks/messages.
@@ -39,13 +48,13 @@ type exp = {
   ctx: Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
+  syn_ty: Typ.t, /* Synthesized type of the user's expression, errors included */
   marks: list(Mark.t), /* Error marks from statics */
   co_ctx: CoCtx.t, /* Locally free variables */
   probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
-  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
@@ -62,6 +71,7 @@ type pat = {
   probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   ana: Typ.t,
   elab_syn_ty: Typ.t,
+  syn_ty: Typ.t,
   marks: list(Mark.t),
   cls: Cls.t,
   message: Message.t, /* DERIVED: non-error inspector payload (Pat only) */
@@ -321,7 +331,6 @@ let exp_probe_targets: exp => SubexpProbeTargets.t =
   ({probe_targets, _}) => probe_targets;
 let pat_probe_targets: pat => SubexpProbeTargets.t =
   ({probe_targets, _}) => probe_targets;
-let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;

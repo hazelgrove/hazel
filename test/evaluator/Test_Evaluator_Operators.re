@@ -69,7 +69,10 @@ let tests = (
       )
     ),
     test_case("Inconsistent type ascription in subterm", `Quick, () =>
-      parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
+      parse_and_evaluate_test(
+        "1 + ((4 : String) : Int)",
+        {|1 + (4 : String)|},
+      )
     ),
     test_case(
       "Ascriptions around indet operators collapse",
