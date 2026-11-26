@@ -131,9 +131,9 @@ depends: [
   "ocamlbuild" {= "0.16.1"}
   "ocamlc-loc" {= "3.19.1"}
   "ocamlfind" {= "1.9.8"}
-  "ocamlformat" {= "0.29.0"}
-  "ocamlformat-lib" {= "0.29.0"}
-  "ocamlformat-rpc-lib" {= "0.29.0"}
+  "ocamlformat" {= "0.30.0"}
+  "ocamlformat-lib" {= "0.30.0"}
+  "ocamlformat-rpc-lib" {= "0.30.0"}
   "ocp-indent" {= "1.8.1"}
   "octavius" {= "1.2.2"}
   "odoc" {= "3.1.0" & with-doc}
