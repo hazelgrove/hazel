@@ -446,7 +446,10 @@ let collect_print_entries =
          sample.Sample.value
          |> ExpToSegment.exp_to_segment(
               ~settings=
-                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+                ExpToSegment.Settings.of_core(
+                  ~inline=Inline,
+                  CoreSettings.off,
+                ),
             )
          |> Printer.of_segment(~holes="");
        let line =

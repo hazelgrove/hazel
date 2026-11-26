@@ -250,7 +250,7 @@ module Make =
           secondary: AutoFormat,
           parenthesization: Defensive,
           label_format: QuoteWhenNecessary,
-          inline: true,
+          inline: Inline,
           fold_case_clauses: false,
           project_tables: false,
           show_ascriptions: true,

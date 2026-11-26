@@ -93,7 +93,7 @@ let flagpole_edges =
                                     ] =>
                                     let origin_x =
                                       float_of_int(col)
-                                      *. font_metrics.FontMetrics.col_width;
+                                      *. font_metrics.Util.col_width;
                                     let origin_y =
                                       float_of_int(row)
                                       *. font_metrics.row_height;
@@ -131,7 +131,7 @@ let flagpole_edges =
           ),
       [
         font_metrics,
-        FontMetrics.{
+        Util.{
           row_height: 25.135,
           col_width: 10.405,
         },

@@ -72,6 +72,8 @@ module QueryParams: {
   let get_param: string => option(string);
   let set_param: (string, string) => unit;
 };
+let add_message_listener: ('a => 'b) => unit;
+let post_to_iframe: (string, string, Js_of_ocaml.Js.t('a)) => unit;
 let navigate_probes:
   (
     ~skip_unaligned: bool=?,

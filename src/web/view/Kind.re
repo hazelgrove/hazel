@@ -14,7 +14,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             secondary: AutoFormat,
             parenthesization: Defensive,
             label_format: QuoteWhenNecessary,
-            inline: true,
+            inline: Inline,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,
             hide_fixpoints: false,

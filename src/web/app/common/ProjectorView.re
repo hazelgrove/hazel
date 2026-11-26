@@ -168,6 +168,7 @@ module Model = {
       (
         p: Base.projector,
         ~editor_active: bool,
+        ~shape_map: ProjectorCore.Shape.Map.t,
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
@@ -176,6 +177,7 @@ module Model = {
       )
       : status => {
     sort,
+    shape: ProjectorCore.Shape.Map.lookup(p.id, shape_map),
     error:
       Option.map(~f=Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
@@ -198,7 +200,7 @@ module Model = {
         ~editor_active: bool,
         ~elaborated: option(Language.Exp.t),
       ) => {
-    let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+    let {projectors, measured, term_data, selection_ids, shape_map, _}: CachedSyntax.t = syntax;
     List.filter_map(
       ~f=
         ((id, _)) => {
@@ -223,6 +225,7 @@ module Model = {
                 p,
                 ~sort=TermData.sort(id, term_data),
                 ~editor_active,
+                ~shape_map,
                 ~indicated,
                 ~selection_ids,
                 ~info,
@@ -255,9 +258,14 @@ let backing_deco =
 let projector_clss =
     (
       ~view_error: bool=false,
-      {kind, sort, indication, selected, error, warning}: Model.status,
+      {kind, sort, shape, indication, selected, error, warning}: Model.status,
     ) =>
-  ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
+  [
+    "projector",
+    ProjectorCore.Kind.name(kind),
+    Sort.show(sort),
+    ProjectorShape.s(shape),
+  ]
   @ (selected ? ["selected"] : [])
   @ (error || view_error ? ["error"] : [])
   @ (warning ? ["warning"] : [])

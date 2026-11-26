@@ -19,6 +19,17 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Color => (module Cook(ColorProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
+  | Exo(a) =>
+    (module
+     Cook(
+
+         ExoProj.M({
+           let exo = Exo.module_of_kind(a);
+         }),
+
+     ))
+  | Graph => (module Cook(GraphProj.M))
+  | ObservablePlot => (module Cook(ObservablePlotProj.M))
   };
 
 let init =
