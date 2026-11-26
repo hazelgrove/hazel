@@ -1181,6 +1181,10 @@ and syn_asc = (env: env, e: Exp.t, inner: Exp.t, ann: Typ.t, query: Typ.t): t =>
 
 and explains = (ctx: Ctx.t, query: Typ.t, psi: Typ.t): bool =>
   !SliceQuery.is_empty(Typ.overlap(ctx, query, psi))
+  || SliceQuery.is_empty(query)
+  && !SliceQuery.is_gap(query)
+  && !SliceQuery.is_gap(SliceQuery.whnf(ctx, psi))
+  && Typ.meet(ctx, query, psi) != None
 
 and syn_if =
     (
@@ -1385,7 +1389,9 @@ and syn_match =
   let (omitted, gamma, psi, scrut_demand) =
     List.fold_left(
       ((omitted, gamma, psi, scrut_demand), (p, body)) => {
-        let residual = SliceQuery.residual(ctx, query, psi);
+        let residual =
+          SliceQuery.is_gap(psi)
+            ? query : SliceQuery.residual(ctx, query, psi);
         if (SliceQuery.is_gap(residual)) {
           (
             unions([omitted, omit_pat(p), omit_exp(body)]),
