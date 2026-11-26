@@ -181,49 +181,116 @@ let exp_focus_at = (e: Exp.t, k: int): Id.t =>
   | ids => List.nth(ids, k mod List.length(ids))
   };
 
+let tally: Hashtbl.t((string, string), int) = Hashtbl.create(16);
+let note = (direction, outcome) => {
+  let key = (direction, outcome);
+  Hashtbl.replace(
+    tally,
+    key,
+    1 + Option.value(~default=0, Hashtbl.find_opt(tally, key)),
+  );
+};
+let tally_of = (direction, outcome) =>
+  Option.value(~default=0, Hashtbl.find_opt(tally, (direction, outcome)));
+
+let direction_name =
+  fun
+  | `Syn => "syn"
+  | `Ana => "ana";
+
 let validity_check = (~direction, ~ty_of: Info.exp => Typ.t, (e, k, j)): bool => {
+  let dir = direction_name(direction);
+  let skip = reason => {
+    note(dir, reason);
+    true;
+  };
   let focus = exp_focus_at(e, k);
   switch (statics_map(base_ctx(), e)) {
-  | None => true
+  | None => skip("statics failed on program")
   | Some(m) =>
     switch (Statics.Map.lookup_exp(focus, m)) {
-    | None => true
-    | Some(info) when Info.marks_of(Info.InfoExp(info)) != [] => true
+    | None => skip("focus has no info")
+    | Some(info) when Info.marks_of(Info.InfoExp(info)) != [] =>
+      skip("focus marked")
+    | Some({user_term: {term: Label(_), _}, _}) => skip("focus is a label")
     | Some(info) =>
       let chain = descending_chain(ty_of(info));
       let query = List.nth(chain, j mod List.length(chain));
       switch (safe_slice(~focus, ~direction, e, query)) {
-      | None => true
+      | None => skip("slice declined")
       | Some(result) =>
-        let sliced = reconstruct(result.omitted, e);
+        let omitted =
+          direction == `Ana
+            ? Id.Set.remove(focus, result.omitted) : result.omitted;
+        let sliced = reconstruct(omitted, e);
         let ctx = slice_ctx(result);
         switch (statics_map(ctx, sliced)) {
-        | None => true
+        | None => skip("statics failed on slice")
         | Some(sliced_m) =>
-          switch (Statics.Map.lookup_exp(focus, sliced_m)) {
-          | None => true
-          | Some(sliced_info) =>
-            precision_geq(ctx, ty_of(sliced_info), query)
-              ? true
-              : QCheck.Test.fail_reportf(
-                  "slice loses query precision\nprogram: %s\nfocus type: %s\nquery: %s\nsliced: %s\nsliced focus type: %s\nmeet: %s",
-                  show_exp_src(e),
-                  render_any(Typ(ty_of(info))),
-                  render_any(Typ(query)),
-                  show_exp_src(sliced),
-                  render_any(Typ(ty_of(sliced_info))),
-                  switch (Typ.meet(ctx, ty_of(sliced_info), query)) {
-                  | Some(met) => render_any(Typ(met))
-                  | None => "<inconsistent>"
-                  | exception _ => "<exception>"
-                  },
-                )
-          }
+          let (sliced_ty, presence) =
+            switch (Statics.Map.lookup_exp(focus, sliced_m)) {
+            | Some(sliced_info) => (ty_of(sliced_info), "focus present")
+            | None => (S.gap, "focus absent")
+            };
+          note(dir, "checked, " ++ presence);
+          precision_geq(ctx, sliced_ty, query)
+            ? true
+            : {
+              note(dir, "FAILED");
+              QCheck.Test.fail_reportf(
+                "slice loses query precision (%s)\nprogram: %s\nfocus type: %s\nquery: %s\npsi: %s\nsliced: %s\nsliced focus type: %s\nmeet: %s",
+                presence,
+                show_exp_src(e),
+                render_any(Typ(ty_of(info))),
+                render_any(Typ(query)),
+                render_any(Typ(result.psi)),
+                show_exp_src(sliced),
+                render_any(Typ(sliced_ty)),
+                switch (Typ.meet(ctx, sliced_ty, query)) {
+                | Some(met) => render_any(Typ(met))
+                | None => "<inconsistent>"
+                | exception _ => "<exception>"
+                },
+              );
+            };
         };
       };
     }
   };
 };
+
+let validity_coverage =
+  Alcotest.test_case(
+    "validity checks are not vacuous",
+    `Quick,
+    () => {
+      let reasons = Hashtbl.fold((key, _, acc) => [key, ...acc], tally, []);
+      List.sort_uniq(compare, reasons)
+      |> List.iter(((dir, reason)) =>
+           Printf.printf(
+             "  %s  %-28s %d\n",
+             dir,
+             reason,
+             tally_of(dir, reason),
+           )
+         );
+      List.iter(
+        dir => {
+          let checked =
+            tally_of(dir, "checked, focus present")
+            + tally_of(dir, "checked, focus absent");
+          if (checked < 1000) {
+            Alcotest.failf(
+              "%s validity checked only %d slices; the property is mostly vacuous",
+              dir,
+              checked,
+            );
+          };
+        },
+        ["syn", "ana"],
+      );
+    },
+  );
 
 // Slicing the focus at a query drawn from its own type keeps enough of the
 // program that the reconstruction still carries a type at least as precise
@@ -231,6 +298,7 @@ let random_synthesis_validity =
   QCheck.Test.make(
     ~name="random synthesis slicing is valid",
     ~count=3000,
+    ~max_fail=3000,
     QCheck.triple(arb_exp, QCheck.small_nat, QCheck.small_nat),
     validity_check(~direction=`Syn, ~ty_of=info => info.elab_syn_ty),
   );
@@ -239,6 +307,7 @@ let random_analysis_validity =
   QCheck.Test.make(
     ~name="random analysis slicing is valid",
     ~count=3000,
+    ~max_fail=3000,
     QCheck.triple(arb_exp, QCheck.small_nat, QCheck.small_nat),
     validity_check(~direction=`Ana, ~ty_of=info => info.ana),
   );
@@ -317,5 +386,6 @@ let tests = (
         random_analysis_validity,
         monotonicity,
       ],
-    ),
+    )
+  @ [validity_coverage],
 );

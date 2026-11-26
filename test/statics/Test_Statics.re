@@ -24,4 +24,5 @@ let tests =
     Test_Statics_Slicing_Properties.tests,
     Test_Statics_Slicing_Probe.tests,
     Test_Statics_Slicing_NewType.tests,
+    Test_Statics_Slicing_Minimality.tests,
   ];
