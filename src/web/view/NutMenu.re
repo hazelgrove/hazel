@@ -349,12 +349,6 @@ let developer = (~globals: Globals.t): section => {
         "Enable probes on all top-level definitions",
       ),
       toggle(
-        "Cap undo stack",
-        globals.settings.cap_undo_stack,
-        CapUndoStack,
-        "Cap the undo history stack size",
-      ),
-      toggle(
         "Ruled lines",
         globals.settings.show_row_lines,
         ShowRowLines,
