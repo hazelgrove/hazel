@@ -18,6 +18,32 @@ open Util.OptUtil.Syntax;
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
+/* Whether a constructor's own sum type is consistent with the type it is
+   ascribed, remembered by the two types' Merkle hashes (TypHash). Every
+   constructor application the evaluator ascribes asks this of two copies
+   of the same sum type, a full meet each time; the copies are fresh
+   objects, so only their hashes recognize them. The context here is always
+   Ctx.empty, and is_consistent ignores an Unknown's provenance, as the hash
+   does, so the answer depends only on the two hashes. */
+let consistent_memo: Hashtbl.t((TypHash.t, TypHash.t), bool) =
+  Hashtbl.create(64);
+let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
+  switch (TypHash.hash(a), TypHash.hash(b)) {
+  | (Some(ha), Some(hb)) =>
+    let key = (ha, hb);
+    switch (Hashtbl.find_opt(consistent_memo, key)) {
+    | Some(r) => r
+    | None =>
+      let r = compute();
+      if (Hashtbl.length(consistent_memo) > 4096) {
+        Hashtbl.reset(consistent_memo);
+      };
+      Hashtbl.replace(consistent_memo, key, r);
+      r;
+    };
+  | _ => compute()
+  };
+
 /* Whether pushing an ascription through a list's or tuple's parts gave
    back the very same parts. Then the value already had the type -- plain
    data, well typed, no function to wrap -- and the push gives the value
@@ -184,7 +210,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when unrolled_consistent(sumt, sumt' |> Typ.temp) =>
+        when
+          consistent_by_hash(sumt, t, () =>
+            unrolled_consistent(sumt, sumt' |> Typ.temp)
+          ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
