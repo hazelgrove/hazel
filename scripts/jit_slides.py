@@ -299,8 +299,18 @@ DRAG_DONE = r"""
     for (const [x, v] of Object.entries(m))
       if (typeof v === 'number' && x !== 'ms' && x !== 'at') { s.x = s.x || {}; s.x[x] = (s.x[x] || 0) + v; }
   }
+  /* (^ticket(887)) each livelit's draws over the drag, by its id, and the names the page knows ids by */
+  const byid = {};
+  for (const m of (window.hazelBenchMarks || [])) {
+    if (m.ms === undefined || m.what !== 'view: a projector drawn') continue;
+    const k = (m.kind || '?') + ' ' + (m.id || '?');
+    const s = byid[k] || (byid[k] = { n: 0, ms: 0 });
+    s.n++; s.ms += m.ms;
+  }
+  const names = (globalThis.hazelJit && globalThis.hazelJit.views) ? Object.keys(globalThis.hazelJit.views) : [];
   delete window.hazelBenchMarks;
-  return { label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames, marks: sums };
+  return { label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames, marks: sums,
+           byid, names };
 """
 DRAGS = [("neck", 0, 60)]
 
@@ -318,7 +328,9 @@ def drags(d, sid, shots):
     then once more with the picture in view and a screenshot halfway (a screenshot can itself hold up a frame, so it is
     not taken in the timed drag)."""
     out = {}
-    for mode in ("on", "off"):
+    # (^ticket(887)) the drag with compiling off repeated on fresh loads: on some checks it draws in 4-7 ms a frame,
+    # on most in 13-19, the same commit both ways
+    for run, mode in enumerate(("on", "off", "off", "off")):
         load(d, sid, mode, hud=True)
         rows = []
         for label, lo, hi in DRAGS:
@@ -343,6 +355,13 @@ def drags(d, sid, shots):
             if pv:
                 print("      the projectors' views' counters over the drag: " + "; ".join(
                     f"{k} {v:.0f}" for k, v in sorted(pv.items())), flush=True)
+            # (^ticket(887)) which livelits were drawn, and what each draw cost
+            names = {n.split(" ")[-1][:8]: n for n in (got.get("names") or [])}
+            byid = sorted((got.get("byid") or {}).items(), key=lambda kv: -kv[1]["ms"])[:8]
+            if byid:
+                print("      the draws by livelit: " + "; ".join(
+                    f"{names.get(k.split(' ')[-1], k)} {v['ms']:.0f} ms x{v['n']} ({v['ms'] / max(1, v['n']):.2f} each)"
+                    for k, v in byid), flush=True)
             D.settled(d)
             time.sleep(1)
             if shots and d.js(DRAG, [label, lo, hi, 3000, "picture"]):
@@ -351,7 +370,7 @@ def drags(d, sid, shots):
                 wait_for_value(d, DRAG_DONE, 120)
                 D.settled(d)
             rows.append(got)
-        out[mode] = rows
+        out[mode if run < 2 else f"{mode} {run}"] = rows
     return out
 
 
@@ -537,10 +556,10 @@ def main():
     ap.add_argument("--only", help="substring filter on slide names")
     ap.add_argument("--out", default="jit.json")
     ap.add_argument("--shots")
-    ap.add_argument("--bench", default="Witch", help="substring filter on the slides whose views are benched (empty: none)")
+    ap.add_argument("--bench", default="", help="substring filter on the slides whose views are benched (empty: none)")
     ap.add_argument("--bench-n", type=int, default=15)
     ap.add_argument("--bench-views", default="picture|polygons", help="a regex on the views benched (empty: every one)")
-    ap.add_argument("--edit", default="Witch", help="substring filter on the slides where small edits are timed (empty: none)")
+    ap.add_argument("--edit", default="", help="substring filter on the slides where small edits are timed (empty: none)")
     ap.add_argument("--drag", default="Witch", help="substring filter on the slides where a slider's drag is timed, with the HUD (empty: none)")
     args = ap.parse_args()
     if args.shots:

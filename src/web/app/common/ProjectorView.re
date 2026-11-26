@@ -1547,8 +1547,15 @@ let all =
   let (base_views, overlay_views) =
     Util.BenchMarks.time(
       ~extra=
-        () =>
+        () => {
+          /* (^ticket(887)) the views' call memo over this pass */
+          let (memo_lookups, memo_hits) = LivelitProj.view_calls_since();
           [
+            (
+              "memo lookups",
+              Util.BenchMarks.num(float_of_int(memo_lookups)),
+            ),
+            ("memo hits", Util.BenchMarks.num(float_of_int(memo_hits))),
             ("remade", Util.BenchMarks.num(float_of_int(remade^))),
             ("kept: lookup ms", Util.BenchMarks.num(ViewCache.lookup_ms^)),
             ("splices walk ms", Util.BenchMarks.num(ViewCache.splices_ms^)),
@@ -1596,7 +1603,8 @@ let all =
                 float_of_int(List.length(projector_data)),
               ),
             ),
-          ],
+          ];
+        },
       "view: projectors' views",
       () =>
         projector_data

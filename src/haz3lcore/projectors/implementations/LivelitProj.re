@@ -416,6 +416,25 @@ let shape_def_ms = ref(0.);
 let shape_value_ms = ref(0.);
 let shape_values_walked = ref(0);
 
+/* A view is evaluated again after each change of its model, mostly
+   making the same calls with the same arguments as last time: those
+   give what they gave (CallMemo), shared by every view on the page. */
+let view_calls = lazy(CallMemo.create());
+/* (^ticket(887)) the view memo's lookups and hits since the last ask, for
+   the check's "view: projectors' views" mark: whether a drag on the
+   interpreter reuses its views' calls or has given up looking them up */
+let view_calls_seen = ref((0, 0));
+let view_calls_since = (): (int, int) =>
+  if (Lazy.is_val(view_calls)) {
+    let m = Lazy.force(view_calls);
+    let (l0, h0) = view_calls_seen^;
+    let (l, h) = (m.CallMemo.lookups^, m.CallMemo.hits^);
+    view_calls_seen := (l, h);
+    (l - l0, h - h0);
+  } else {
+    (0, 0);
+  };
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -1045,10 +1064,7 @@ module M: Projector = {
      steps cannot drift apart. */
   /* Not finished: a view's handlers close over the whole livelit, and
      finishing copied all of it into each, every render. */
-  /* A view is evaluated again after each change of its model, mostly
-     making the same calls with the same arguments as last time: those
-     give what they gave (CallMemo), shared by every view on the page. */
-  let view_calls = lazy(CallMemo.create());
+  /* (the views' call memo, view_calls, is above M, for the check's counters) */
   /* (^ticket(694), hazel-jit) With the setting on (Compiled views, on by
      default), a definition's view runs as JS compiled from its Hazel,
      compiled once per definition: the model goes in as JS and the command
