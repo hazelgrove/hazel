@@ -68,7 +68,7 @@ let make_problem_context =
   let measured = syntax.measured;
   /* Build row→display-line mapping: skip empty rows added by projectors */
   let row_to_line = {
-    let reversed = List.rev(measured.piece_rows);
+    let reversed = List.rev(Measured.piece_rows(measured));
     let (line_numbers_rev, _) =
       List.fold_left(
         ~f=
@@ -313,6 +313,22 @@ type problem_collection = {
   counts: list((problem_category, int)),
 };
 
+/* single-slot memo: the sidebar rebuilds this every render (the tab
+   badge reads counts even when collapsed) at O(program) per source;
+   sources are pointer-stable between edits, so repeats are identity
+   compares */
+let memo: Slot.t((bool, list(editor_group_input)), problem_collection) =
+  Slot.mk();
+
+let same_inputs =
+    (a: list(editor_group_input), b: list(editor_group_input)): bool => {
+  let same_source = (x: editor_source, y: editor_source) =>
+    phys_equal(x.statics, y.statics) && phys_equal(x.syntax, y.syntax);
+  let same_group = (x: editor_group_input, y: editor_group_input) =>
+    x.label == y.label && List.equal(same_source, x.sources, y.sources);
+  List.equal(same_group, a, b);
+};
+
 /* Collect problems across several sidebar groups into a single coherent
    payload. De-duplicates by `(id, category)` in caller-provided order
    (groups in order, sources within each group in order) — the first
@@ -322,7 +338,7 @@ type problem_collection = {
    coincide): shared structural problems land in exactly one group while
    any context-specific static error still surfaces in the group where it
    actually occurs. */
-let make =
+let make_uncached =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
   let seen: Stdlib.Hashtbl.t((Id.t, problem_category), unit) =
@@ -433,3 +449,15 @@ let make =
     counts,
   };
 };
+
+let make =
+    (~display_warnings: bool, inputs: list(editor_group_input))
+    : problem_collection =>
+  Slot.get(
+    ~same=
+      ((dw, prev), (dw', inputs')) =>
+        dw == dw' && same_inputs(prev, inputs'),
+    memo,
+    (display_warnings, inputs),
+    () => make_uncached(~display_warnings, inputs),
+  );

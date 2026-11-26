@@ -48,10 +48,13 @@ module Js = {
   };
 
   let client_height = (): float =>
-    Js.Optdef.get(
-      Js.Unsafe.get(Dom_html.document, "documentElement")##.clientHeight, _ =>
-      0.0
-    );
+    try(
+      JsUtil.cached_client_height(
+        Js.Unsafe.get(Dom_html.document, "documentElement"),
+      )
+    ) {
+    | _ => 0.0
+    };
 
   let inner_height = (): float =>
     Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
@@ -166,7 +169,7 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
 let go = (): unit =>
-  if (tracked_elems^ != []) {
+  if (!List.is_empty(tracked_elems^)) {
     tracked_elems^ |> filter_visible_elements |> List.iter(~f=animate_elem);
     tracked_elems := [];
   };

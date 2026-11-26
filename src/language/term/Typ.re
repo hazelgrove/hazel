@@ -181,7 +181,16 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(~f=has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
-  | Sig(_) => false
+  | Sig(s) =>
+    List.exists(
+      ~f=
+        (m: Sig.member) =>
+          switch (m) {
+          | Val(_, ty) => has_fun(ty)
+          | TypeManifest(_) => false
+          },
+      Sig.closed_members(s),
+    )
   };
 
 let is_void = (typ: t) =>
@@ -287,29 +296,100 @@ let match_tup_label = ty => {
   };
 };
 
-let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
+/* What a substituted name is bound as: a type variable, replaced wherever it
+   occurs, or a module, replaced only where it roots a path (`m.T`). */
+type binder = [
+  | `TVar
+  | `Var
+];
+
+/* The free variables of [ty] that substituting for a [binder] would
+   replace: every one for a type variable, only path roots for a module.
+   A closed signature's members bind nothing: see [close]. */
+let rec free_vars =
+        (~binder: binder=`TVar, ~bound=[], ~bound_roots=[], ty: t)
+        : list(Var.t) => {
+  let go = free_vars(~binder, ~bound, ~bound_roots);
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel => []
-  | Var(v) => List.mem(bound, v, ~equal=String.equal) ? [] : [v]
+  | Var(v) =>
+    switch (binder) {
+    | `TVar when !List.mem(bound, v, ~equal=Poly.equal) => [v]
+    | `TVar
+    | `Var => []
+    }
   | Parens(ty)
-  | Projector(_, ty) => free_vars(~bound, ty)
-  | List(ty) => free_vars(~bound, ty)
+  | Projector(_, ty) => go(ty)
+  | List(ty) => go(ty)
   | ProdExtension(t1, t2)
-  | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-  | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
-  | Prod(tys) => List.concat_map(~f=free_vars(~bound), tys)
-  | ProdProjection(t1, _) => free_vars(~bound, t1)
-  | TupLabel(_, ty) => free_vars(~bound, ty)
+  | Arrow(t1, t2) => go(t1) @ go(t2)
+  | Sum(sm) => ConstructorMap.free_variables(go, sm)
+  | Prod(tys) => List.concat_map(~f=go, tys)
+  | ProdProjection(t1, _) =>
+    switch (term_of(t1)) {
+    | Var(v) =>
+      List.mem(bound, v, ~equal=Poly.equal)
+      || List.mem(bound_roots, v, ~equal=Poly.equal)
+        ? [] : [v]
+    | _ => go(t1)
+    }
+  | TupLabel(_, ty) => go(ty)
   | Rec(x, ty)
   | Poly(x, ty) =>
-    free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+    free_vars(
+      ~binder,
+      ~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound,
+      ~bound_roots,
+      ty,
+    )
   | ProofOf(_) => []
-  | Sig(_) => []
+  | Sig(Closed(items)) =>
+    List.concat_map(
+      ~f=
+        (m: Sig.member) =>
+          switch (m) {
+          | Val(_, ty)
+          | TypeManifest(_, ty) => go(ty)
+          },
+      Sig.members(ClosedSig.items(items)),
+    )
+  /* Written items scope sequentially: a later item may mention an earlier
+     type member or root a path at an earlier value member, and a type
+     member's name is in scope in its own definition. */
+  | Sig(Open(items)) =>
+    let (_, _, vs) =
+      List.fold(
+        items,
+        ~init=(bound, bound_roots, []),
+        ~f=((bound, bound_roots, acc), item: Sig.t) => {
+          let member = Sig.member_of_item(item);
+          let bound =
+            switch (member) {
+            | Some(TypeManifest(name, _)) => [name, ...bound]
+            | Some(Val(_))
+            | None => bound
+            };
+          let vs =
+            switch (Sig.typ_of_item(item)) {
+            | Some(ty) => free_vars(~binder, ~bound, ~bound_roots, ty)
+            | None => []
+            };
+          let bound_roots =
+            switch (member) {
+            | Some(Val(name, _)) => [name, ...bound_roots]
+            | Some(TypeManifest(_))
+            | None => bound_roots
+            };
+          (bound, bound_roots, acc @ vs);
+        },
+      );
+    vs;
   };
+};
 
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
@@ -352,7 +432,15 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
-  | Sig(_) => 0
+  /* A hole item could declare anything, so it counts as one. */
+  | Sig(s) =>
+    List.fold(
+      ClosedSig.items(Sig.closed(s)), ~init=0, ~f=(acc, item: Sig.t) =>
+      switch (Sig.member_of_item(item)) {
+      | Some(Val(_, ty) | TypeManifest(_, ty)) => acc + count_unknowns(ty)
+      | None => Sig.is_hole(item) ? acc + 1 : acc
+      }
+    )
   };
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
@@ -364,68 +452,74 @@ let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
    that name introduced by substituting `s` be captured by the binder. To
    avoid this, we alpha-rename the clashing binder to a fresh name (via
    `fresh_var`) before recursing. The inner subst used for renaming is itself
-   capture-avoiding, so repeated collisions are handled naturally. */
-let rec subst = (s: t, x: TPat.t, ty: t): t => {
-  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
-    switch (TPat.tyvar_of_utpat(tp2)) {
-    | Some(name) when List.mem(free_vars(s), name, ~equal=String.equal) =>
-      let fresh = fresh_var(name);
-      let tp2': TPat.t = Var(fresh) |> TPat.fresh;
-      let body' = subst(Var(fresh) |> temp, tp2, body);
-      (tp2', body');
-    | _ => (tp2, body)
-    };
+   capture-avoiding, so repeated collisions are handled naturally.
+
+   A signature's members bind nothing (see [close]), so its items are
+   substituted into independently. */
+let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
   switch (TPat.tyvar_of_utpat(x)) {
-  | Some(str) =>
-    let (term, rewrap) = Annotated.unwrap(ty);
-    switch (term) {
-    | Atom(_) => ty
-    | Label(name) => Grammar.Label(name) |> rewrap
-    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
-    | Unknown(prov) => Unknown(prov) |> rewrap
-    | Arrow(ty1, ty2) =>
-      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-    | Prod(tys) => Prod(List.map(~f=subst(s, x), tys)) |> rewrap
-    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
-    | Sum(sm) =>
-      Sum(ConstructorMap.map(Option.map(~f=subst(s, x)), sm)) |> rewrap
-    | Poly(tp2, ty)
-        when
-          Option.equal(
-            String.equal,
-            TPat.tyvar_of_utpat(x),
-            TPat.tyvar_of_utpat(tp2),
-          ) =>
-      Poly(tp2, ty) |> rewrap
-    | Poly(tp2, ty) =>
-      let (tp2', ty') = avoid_capture(tp2, ty);
-      Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | Rec(tp2, ty)
-        when
-          Option.equal(
-            String.equal,
-            TPat.tyvar_of_utpat(x),
-            TPat.tyvar_of_utpat(tp2),
-          ) =>
-      Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) =>
-      let (tp2', ty') = avoid_capture(tp2, ty);
-      Rec(tp2', subst(s, x, ty')) |> rewrap;
-    | List(ty) => List(subst(s, x, ty)) |> rewrap
-    | Var(y) => String.equal(str, y) ? s : Var(y) |> rewrap
-    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
-    | ProdProjection(t1, t2) =>
-      ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProdExtension(t1, t2) =>
-      ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProofOf(e) => ProofOf(e) |> rewrap
-    | Sig(_) => ty
-    | DrvQuoteTy(_) => ty
-    };
   | None => ty
+  | Some(str) =>
+    let avoid_capture = (s: t, tp2: TPat.t, body: t): (TPat.t, t) =>
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(name) when List.mem(free_vars(s), name, ~equal=String.equal) =>
+        let fresh = fresh_var(name);
+        let tp2': TPat.t = Var(fresh) |> TPat.fresh;
+        (tp2', subst(Var(fresh) |> temp, tp2, body));
+      | _ => (tp2, body)
+      };
+    let rec go = (ty: t): t => {
+      let (term, rewrap) = unwrap(ty);
+      switch (term) {
+      | Atom(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | Unknown(_)
+      | ProofOf(_)
+      | DrvQuoteTy(_) => ty
+      | Arrow(ty1, ty2) => Arrow(go(ty1), go(ty2)) |> rewrap
+      | Prod(tys) => Prod(List.map(~f=go, tys)) |> rewrap
+      | TupLabel(label, ty) => TupLabel(label, go(ty)) |> rewrap
+      | Sum(sm) => Sum(ConstructorMap.map(Option.map(~f=go), sm)) |> rewrap
+      | Poly(tp2, _)
+      | Rec(tp2, _)
+          when
+            Option.equal(
+              String.equal,
+              TPat.tyvar_of_utpat(x),
+              TPat.tyvar_of_utpat(tp2),
+            ) => ty
+      | Poly(tp2, ty) =>
+        let (tp2', ty') = avoid_capture(s, tp2, ty);
+        Poly(tp2', go(ty')) |> rewrap;
+      | Rec(tp2, ty) =>
+        let (tp2', ty') = avoid_capture(s, tp2, ty);
+        Rec(tp2', go(ty')) |> rewrap;
+      | List(ty) => List(go(ty)) |> rewrap
+      | Var(y) =>
+        switch (binder) {
+        | `TVar when String.equal(str, y) => s
+        | `TVar
+        | `Var => ty
+        }
+      | Parens(ty) => Parens(go(ty)) |> rewrap
+      | Projector(data, ty) => Projector(data, go(ty)) |> rewrap
+      | ProdProjection(t1, t2) =>
+        let t1 =
+          switch (binder, term_of(t1)) {
+          | (`Var, Var(y)) when String.equal(str, y) => s
+          | _ => go(t1)
+          };
+        ProdProjection(t1, go(t2)) |> rewrap;
+      | ProdExtension(t1, t2) => ProdExtension(go(t1), go(t2)) |> rewrap
+      /* Closed members are independent, so a substitution reaches each. */
+      | Sig(s) =>
+        Sig(Closed(ClosedSig.map(Sig.map_typ(go), Sig.closed(s))))
+        |> rewrap
+      };
+    };
+    go(ty);
   };
-};
 
 /* A recursive type whose body, under any binders, parentheses, projectors
    and non-labels, is one of its own bound variables: `rec x -> x`,
@@ -465,6 +559,284 @@ let non_contractive = (ty: t): option(TPat.t) => {
   go([], ty);
 };
 
+/* `ty` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not under a binder of `x`, nor in the signature
+   items after one. A module path's root is a type variable too, but it
+   names the newest type or value of its name, so below a value of that
+   name (a signature's `let x` or `module x`), [~roots=false] leaves path
+   roots `x` alone. */
+let rec rename_var = (~roots=true, x: string, x': string, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (continue, ty) => {
+        let (term, rewrap) = unwrap(ty);
+        switch (term) {
+        | Var(y) when String.equal(x, y) => Var(x') |> rewrap
+        | ProdProjection({term: Var(y), _}, _)
+            when !roots && String.equal(x, y) => ty
+        | Rec(tp, _)
+        | Poly(tp, _) when TPat.binds(x, tp) => ty
+        | Sig(Open(items)) =>
+          Sig(Open(rename_var_in_items(~roots, x, x', items))) |> rewrap
+        | Sig(Closed(items)) =>
+          /* closed items mention no sibling, so none scopes over another */
+          Sig(
+            Closed(ClosedSig.map(rename_var_in_item(~roots, x, x'), items)),
+          )
+          |> rewrap
+        | _ => continue(ty)
+        };
+      },
+    ty,
+  )
+and rename_var_in_item =
+    (~roots, x: string, x': string, item: TermBase.Sig.t): TermBase.Sig.t =>
+  TermBase.Sig.map_term(
+    ~f_typ=(_, ty) => rename_var(~roots, x, x', ty),
+    item,
+  )
+and rename_var_in_items =
+    (~roots, x: string, x': string, items: list(TermBase.Sig.t))
+    : list(TermBase.Sig.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: SigType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] =>
+    let roots =
+      roots
+      && (
+        switch (Sig.member_of_item(item)) {
+        | Some(Val(name, _)) => !String.equal(x, name)
+        | Some(TypeManifest(_))
+        | None => true
+        }
+      );
+    [
+      rename_var_in_item(~roots, x, x', item),
+      ...rename_var_in_items(~roots, x, x', items),
+    ];
+  };
+
+/* The name a binder renamed by `unshadow` was written as. */
+let surface_name = (x: string): string =>
+  switch (String.index(x, '#')) {
+  | Some(i) => String.sub(x, ~pos=0, ~len=i)
+  | None => x
+  };
+
+/* The types a signature item is written with: a type member's
+   definition, a value member's type. */
+let item_types = (item: Sig.t): list(t) =>
+  switch (item.term) {
+  | SigType(_, ty) => [ty]
+  | SigLet(_)
+  | SigModule(_) =>
+    switch (Sig.member_of_item(item)) {
+    | Some(Val(_, ty)) => [ty]
+    | Some(TypeManifest(_))
+    | None => []
+    }
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => []
+  };
+
+/* Each occurrence of a type variable in a type, with the occurrence's id. */
+let rec var_ids = (ty: t): list((string, Id.t)) =>
+  switch (term_of(ty)) {
+  | Var(x) => [(x, rep_id(ty))]
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => []
+  | Rec(_, ty)
+  | Poly(_, ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => var_ids(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2) => var_ids(t1) @ var_ids(t2)
+  | Sum(sm) => ConstructorMap.free_variables(var_ids, sm)
+  | Prod(tys) => List.concat_map(~f=var_ids, tys)
+  | Sig(s) =>
+    List.concat_map(
+      ~f=item => List.concat_map(~f=var_ids, item_types(item)),
+      Sig.items(s),
+    )
+  };
+
+/* The type variables a type binds, with their binders' ids. */
+let rec binders = (ty: t): list((string, Id.t)) => {
+  let binder = tp =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(x) => [(x, TPat.rep_id(tp))]
+    | None => []
+    };
+  switch (term_of(ty)) {
+  | Rec(tp, ty)
+  | Poly(tp, ty) => binder(tp) @ binders(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => []
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => binders(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2) => binders(t1) @ binders(t2)
+  | Sum(sm) => ConstructorMap.free_variables(binders, sm)
+  | Prod(tys) => List.concat_map(~f=binders, tys)
+  | Sig(s) =>
+    List.concat_map(
+      ~f=
+        (item: Sig.t) =>
+          (
+            switch (item.term) {
+            | SigType(tp, _) => binder(tp)
+            | SigLet(_)
+            | SigModule(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => []
+            }
+          )
+          @ List.concat_map(~f=binders, item_types(item)),
+      Sig.items(s),
+    )
+  };
+};
+
+/* Every type variable name in a type, bound or free. */
+let var_names = (ty: t): list(string) =>
+  List.map(~f=fst, var_ids(ty) @ binders(ty));
+
+/* For types shown together, the name a type variable in them shows as:
+   the name written for it, tagged with its binder's id, as `T~3f2`, when
+   that name would read as another binding. In [ctx] the name reads as the
+   binding it means there; otherwise, where two bindings in the types share
+   it, as the one written as is. */
+let surface_name_in =
+    (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (string => string) => {
+  let names =
+    List.dedup_and_sort(
+      ~compare=String.compare,
+      List.concat_map(~f=var_names, tys),
+    );
+  let local = List.concat_map(~f=binders, tys);
+  let homonyms = x =>
+    List.filter(
+      ~f=y => String.equal(surface_name(y), surface_name(x)),
+      names,
+    );
+  /* The binding a written name means in ctx. */
+  let meant = written =>
+    List.find_map(
+      ~f=
+        fun
+        | Ctx.TVarEntry({name, _})
+            when String.equal(surface_name(name), written) =>
+          Some(name)
+        | _ => None,
+      ctx.entries,
+    );
+  let tag = x =>
+    switch (
+      List.Assoc.find(local, x, ~equal=Poly.equal),
+      Ctx.lookup_tvar_id(ctx, x),
+    ) {
+    | (Some(id), _)
+    | (None, Some(id)) => Some(Id.str3(id))
+    | (None, None) =>
+      String.index(x, '#')
+      |> Option.map(~f=i =>
+           String.sub(x, ~pos=i + 1, ~len=String.length(x) - i - 1)
+         )
+    };
+  let shown = x => {
+    let written = surface_name(x);
+    let group = homonyms(x);
+    let plain =
+      switch (meant(written), group) {
+      | (Some(y), _) => String.equal(x, y)
+      | (None, [_]) => true
+      | (None, _) => String.equal(x, written)
+      };
+    switch (tag(x)) {
+    | Some(tag) when !plain => written ++ "~" ++ tag
+    | _ => written
+    };
+  };
+  shown;
+};
+
+/* Where each type variable in [typ] is bound, by the name it shows as
+   among [tys] (see `surface_name_in`): by a binder in [typ], whose id is
+   that of the `typfun`, alias or annotation it came from, or else in [ctx].
+   Builtins, bound nowhere in the program, are left out. */
+let binding_sites_in =
+    (~ctx: Ctx.t=Ctx.empty, tys: list(t), typ: t): list((string, Id.t)) => {
+  let shown = surface_name_in(~ctx, tys);
+  let in_type = binders(typ);
+  var_names(typ)
+  |> List.dedup_and_sort(~compare=String.compare)
+  |> List.filter_map(~f=x =>
+       switch (
+         List.Assoc.find(in_type, x, ~equal=Poly.equal),
+         Ctx.lookup_tvar_id(ctx, x),
+       ) {
+       | (Some(id), _)
+       | (None, Some(id)) when Id.compare(id, Id.invalid) != 0 =>
+         Some((shown(x), id))
+       | _ => None
+       }
+     );
+};
+
+/* A name `surface_name_in` shows, split into the written name and the tag
+   telling it apart from another binding of that name, `~` included. */
+let split_tag = (shown: string): (string, option(string)) =>
+  switch (String.index(shown, '~')) {
+  | Some(i) => (
+      String.sub(shown, ~pos=0, ~len=i),
+      Some(String.sub(shown, ~pos=i, ~len=String.length(shown) - i)),
+    )
+  | None => (shown, None)
+  };
+
+/* `surface_name_in`'s names applied to a type shown among [tys]. */
+let surface_names_in = (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (t => t) => {
+  let shown = surface_name_in(~ctx, tys);
+  ty =>
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          let (term, rewrap) = unwrap(ty);
+          switch (term) {
+          | Var(x) => Var(shown(x)) |> rewrap
+          | _ => continue(ty)
+          };
+        },
+      ~f_tpat=
+        (_, tp) =>
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(x) => TPat.rename(shown(x), tp)
+          | None => tp
+          },
+      ty,
+    );
+};
+
+let surface_names = (ty: t): t => surface_names_in([ty], ty);
+
 /* Unroll a recursive type until its head is not a Rec; None when it is
    non-contractive. */
 let rec unroll = (ty: t): option(t) =>
@@ -496,6 +868,29 @@ let rec unroll = (ty: t): option(t) =>
   | ProdExtension(_)
   | Sig(_) => Some(ty)
   };
+
+/* Substitute each [(binder, name, def)] for [name] where it is free in
+   [ty], latest binder first. */
+let apply_sig_subst = (sigma: list((binder, Var.t, t)), ty: t): t => {
+  let fv = free_vars(ty);
+  List.fold(sigma, ~init=ty, ~f=(ty, (binder, name, def)) =>
+    List.exists(~f=String.equal(name), fv)
+      ? subst(~binder, def, Var(name) |> TPat.fresh, ty) : ty
+  );
+};
+
+/* Whether two signatures' members have the same value names and the same
+   type names, in any order. */
+let same_member_names = (a: list(Sig.member), b: list(Sig.member)): bool => {
+  let same = (a, b) =>
+    List.equal(
+      String.equal,
+      List.sort(~compare=String.compare, a),
+      List.sort(~compare=String.compare, b),
+    );
+  same(Sig.value_names(a), Sig.value_names(b))
+  && same(Sig.type_names(a), Sig.type_names(b));
+};
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
@@ -576,115 +971,404 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+/* The walk below runs on one budget of fuel. When it runs out the whole
+   walk is abandoned, and the entry points after it answer `?` (or no path
+   head): a path with no weak head normal form, like `m.T` in
+   `let m : { type T = m.T }` with an outer `m`, normalizes to `?` instead
+   of crashing, and a cyclic alias is not explored once per branch. */
+exception Out_of_fuel;
+
+let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
-    failwith("weak_head_normalize exceeded 1000 recursive calls");
-  };
+    raise(Out_of_fuel);
+  } else {
+    switch (term_of(ty)) {
+    | Parens(t)
+    | Projector(_, t) =>
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+    | Var(x) =>
+      switch (Ctx.lookup_alias(ctx, x)) {
+      | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+      | None => ty
+      }
+    | TupLabel({term: ExplicitNonlabel, _}, ty) =>
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | ProdProjection(t, label) =>
+      let (_, rewrap) = unwrap(ty);
+      let default = Unknown(Internal) |> rewrap;
+      switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
+      | (Label(l), Some({term: Sig(s), _})) =>
+        /* `M.T`: type member of a module path or of a signature alias. */
+        switch (Sig.find_type_def(Sig.closed_members(s), l)) {
+        | Some(ty') =>
+          weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
+        | None => default
+        }
+      | (Label(l), Some({term: Prod(tys), _})) =>
+        /* `P.x`: label of a labeled tuple type. */
+        project_type(tys, l) |> Option.value(~default)
+      | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
+      };
+    | Prod(ts) =>
+      let (_, rewrap) = unwrap(ty);
+      let duplicate_labels =
+        LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+      if (List.is_empty(duplicate_labels)) {
+        ty;
+      } else {
+        let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
+        Prod(cleaned_ts) |> rewrap;
+      };
+    | ProdExtension(t1, t2) =>
+      let (_, rewrap) = unwrap(ty);
+
+      let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+      let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
+      switch (t1.term, t2.term) {
+      | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+      | _ =>
+        // It would be better to do this via a more direct error recovery mechanism in statics
+        Unknown(Internal) |> rewrap
+      };
+    | _ => ty
+    };
+  }
+/* What the left of a projection denotes, weak-head normalized: a module
+   path's signature, or the expansion of a type. A variable root is
+   whichever of a type and a value of that name was bound later; a value
+   root counts only if it is a module, so `m.x` is no type. A mid-path label
+   (`M.P.T`) names a sub-module, else a type member or a tuple label. Never
+   uses Ctx.lookup_alias: it returns an invalid-hole type for unbound
+   names, which would shadow the value namespace. */
+and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
+  if (rec_counter > 1000) {
+    raise(Out_of_fuel);
+  } else {
+    let module_type = ty => {
+      let ty = head_type(~rec_counter, ctx, ty);
+      switch (term_of(ty)) {
+      | Sig(_) => Some(ty)
+      | _ => None
+      };
+    };
+    switch (term_of(t)) {
+    | Parens(t)
+    | Projector(_, t) => path_head(~rec_counter=rec_counter + 1, ctx, t)
+    | Var(n) =>
+      switch (Ctx.newest_tvar_or_var(ctx, n)) {
+      | Some(`TVar(_)) => Some(head_type(~rec_counter, ctx, t))
+      | Some(`Var({typ, _})) => module_type(typ)
+      | None => None
+      }
+    | ProdProjection(p, {term: Label(l), _}) =>
+      switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
+      | Some({term: Sig(s), _}) =>
+        let members = Sig.closed_members(s);
+        switch (Option.bind(Sig.find_value(members, l), ~f=module_type)) {
+        | Some(ty) => Some(ty)
+        | None =>
+          Sig.find_type_def(members, l)
+          |> Option.map(~f=head_type(~rec_counter, ctx))
+        };
+      | Some({term: Prod(tys), _}) =>
+        project_type(tys, l) |> Option.map(~f=head_type(~rec_counter, ctx))
+      | _ => None
+      }
+    | ProdProjection(_) => None
+    | _ => Some(head_type(~rec_counter, ctx, t))
+    };
+  }
+/* Weak head normal form, a recursive type unrolled to its head; a
+   non-contractive one stays as it is. */
+and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
+  let ty = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
   switch (term_of(ty)) {
-  | Parens(t)
-  | Projector(_, t) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
+  | Rec(_) =>
+    switch (unroll(ty)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
-  | TupLabel({term: ExplicitNonlabel, _}, ty) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-  | ProdProjection(ty, label) =>
-    let (_, rewrap) = unwrap(ty);
-
-    let normalized_ty =
-      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
-
-    (
-      switch (normalized_ty.term, label.term) {
-      | (Prod(tys), Label(l)) => project_type(tys, l)
-      | _ => None // It would be better to do this via a more direct error recovery mechanism in statics
-      }
-    )
-    |> Option.value(~default=Unknown(Internal) |> rewrap);
-  | Prod(ts) =>
-    let (_, rewrap) = unwrap(ty);
-    let duplicate_labels =
-      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
-    if (List.is_empty(duplicate_labels)) {
-      ty;
-    } else {
-      let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
-      Prod(cleaned_ts) |> rewrap;
-    };
-  | ProdExtension(t1, t2) =>
-    let (_, rewrap) = unwrap(ty);
-
-    let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
-    let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
-    switch (t1.term, t2.term) {
-    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
-    | _ =>
-      // It would be better to do this via a more direct error recovery mechanism in statics
-      Unknown(Internal) |> rewrap
-    };
   | _ => ty
   };
 };
 
-/* The field a signature's `let` item declares: `let x : T` gives
-   ("x", Some(T)) and `let x` gives ("x", None), looking through Parens and
-   Projector on both the item and the bound variable. Other patterns
-   declare no field. */
-let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
-  let var_of = (p: Pat.t): option(Var.t) =>
-    switch (Pat.strip_wrappers(p).term) {
-    | Var(name) => Some(name)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | ExplicitNonlabel
-    | Atom(_)
-    | ListLit(_)
-    | Constructor(_)
-    | Cons(_)
-    | Tuple(_)
-    | Label(_)
-    | TupLabel(_)
-    | Parens(_)
-    | Projector(_)
-    | Ap(_)
-    | Asc(_) => None
+let weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
+  switch (weak_head_normalize(~rec_counter=0, ctx, ty)) {
+  | ty => ty
+  | exception Out_of_fuel =>
+    let (_, rewrap) = unwrap(ty);
+    Unknown(Internal) |> rewrap;
+  };
+
+let head_type = (ctx: Ctx.t, ty: t): t =>
+  switch (head_type(~rec_counter=0, ctx, ty)) {
+  | ty => ty
+  | exception Out_of_fuel =>
+    let (_, rewrap) = unwrap(ty);
+    Unknown(Internal) |> rewrap;
+  };
+
+/* The signature items a module path denotes, if any. A type alias whose
+   expansion is a signature also counts, so `S.T` resolves on
+   `type S = { type T = Int }`. */
+let path_sig = (ctx: Ctx.t, t: t): option(ClosedSig.t(Sig.t)) =>
+  switch (path_head(~rec_counter=0, ctx, t)) {
+  | Some({term: Sig(s), _}) => Some(Sig.closed(s))
+  | _ => None
+  | exception Out_of_fuel => None
+  };
+
+let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
+  switch (term_of(head_type(ctx, ty))) {
+  | Sig(s) => Some(Sig.closed(s))
+  | _ => None
+  };
+
+/* Whether binding `name` over ctx would change what a type already in
+   ctx means: the name is bound as a type, or as a module (a value whose
+   type is a signature), which roots paths, or an alias mentions it while
+   it is unbound. */
+let would_capture = (ctx: Ctx.t, name: string): bool =>
+  Option.is_some(Ctx.lookup_tvar(ctx, name))
+  || (
+    switch (Ctx.lookup_var(ctx, name)) {
+    | Some({typ, _}) => Option.is_some(as_sig(ctx, typ))
+    | None => false
+    }
+  )
+  || List.exists(
+       ~f=
+         fun
+         | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
+           List.exists(~f=String.equal(name), free_vars(ty))
+         | _ => false,
+       ctx.entries,
+     );
+
+/* When binding `name` over ctx would capture, the fresh name to bind it
+   under instead: `name#1`, `name#2`, ..., the first that would not
+   capture. `#` cannot occur in a written name, so no name in the binder's
+   scope is taken; `surface_name` recovers the written one. None when the
+   name binds as written. */
+let unshadow = (ctx: Ctx.t, name: string): option(string) =>
+  if (would_capture(ctx, name)) {
+    let rec fresh = k => {
+      let name' = name ++ "#" ++ string_of_int(k);
+      would_capture(ctx, name') ? fresh(k + 1) : name';
     };
-  switch (Pat.strip_wrappers(pat).term) {
-  | Var(name) => Some((name, None))
-  | Asc(p, typ) => var_of(p) |> Option.map(~f=name => (name, Some(typ)))
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | ExplicitNonlabel
-  | Atom(_)
-  | ListLit(_)
-  | Constructor(_)
-  | Cons(_)
-  | Tuple(_)
-  | Label(_)
-  | TupLabel(_)
-  | Parens(_)
-  | Projector(_)
-  | Ap(_) => None
+    Some(fresh(1));
+  } else {
+    None;
+  };
+
+/* A `Rec` or `Poly` binder and its body, renamed by `unshadow` when the
+   binder's name would capture. */
+let unshadow_binder = (ctx: Ctx.t, tp: TPat.t, body: t): (TPat.t, t) =>
+  switch (
+    Option.bind(TPat.tyvar_of_utpat(tp), ~f=name =>
+      Option.map(~f=name' => (name, name'), unshadow(ctx, name))
+    )
+  ) {
+  | Some((name, name')) => (
+      TPat.rename(name', tp),
+      rename_var(name, name', body),
+    )
+  | None => (tp, body)
+  };
+
+/* Bind [entry] without changing what the types already in [ctx] mean.
+   Those types name aliases and modules that are looked up where the types
+   are used, so a binding that shadows one would capture their mentions of
+   it. Those mentions, and the entry's own, are first replaced by what the
+   shadowed binding stood for: a path root (`N` in `N.T`) by the newest
+   alias or module of that name, a type by the newest alias. An abstract
+   type variable has nothing to stand for, so its mentions stay captured. */
+let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
+  let root = name =>
+    switch (Ctx.newest_tvar_or_var(ctx, name)) {
+    | Some(`TVar(Ctx.Singleton(def))) => Some(def)
+    | Some(`Var({typ, _})) when Option.is_some(as_sig(ctx, typ)) =>
+      Some(typ)
+    | Some(`TVar(Ctx.Abstract))
+    | Some(`Var(_))
+    | None => None
+    };
+  let bare = name =>
+    switch (Ctx.lookup_tvar(ctx, name)) {
+    | Some(Ctx.Singleton(def)) => Some(def)
+    | Some(Ctx.Abstract)
+    | None => None
+    };
+  let shadowed: list((binder, Var.t, option(t))) =
+    switch (entry) {
+    | VarEntry({name, _}) => [(`Var, name, root(name))]
+    | TVarEntry({name, _}) => [
+        (`Var, name, root(name)),
+        (`TVar, name, bare(name)),
+      ]
+    | ConstructorEntry(_)
+    | LivelitEntry(_) => []
+    };
+  switch (
+    List.filter_map(
+      ~f=
+        ((binder, name, def)) =>
+          Option.map(~f=def => (binder, name, def), def),
+      shadowed,
+    )
+  ) {
+  | [] => Ctx.extend(ctx, entry)
+  | sigma =>
+    let closed = apply_sig_subst(sigma);
+    let close_entry = (entry: Ctx.entry): Ctx.entry =>
+      switch (entry) {
+      | VarEntry(v) =>
+        VarEntry({
+          ...v,
+          typ: closed(v.typ),
+        })
+      | ConstructorEntry(c) =>
+        ConstructorEntry({
+          ...c,
+          typ: closed(c.typ),
+        })
+      | TVarEntry({kind: Singleton(def), _} as v) =>
+        TVarEntry({
+          ...v,
+          kind: Singleton(closed(def)),
+        })
+      | TVarEntry({kind: Abstract, _})
+      | LivelitEntry(_) => entry
+      };
+    Ctx.extend(
+      {
+        ...ctx,
+        entries: List.map(~f=close_entry, ctx.entries),
+      },
+      close_entry(entry),
+    );
   };
 };
 
-/* ~expand restricts which alias names get expanded (default: all). Used
-   by module lowering to expand only module-LOCAL aliases when a member
-   type escapes its scope, keeping global/builtin aliases compact. */
-let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("normalize exceeded 1000 recursive calls");
+/* Bind the member declared by a closed signature item, if any. Written
+   items scope sequentially: later items may mention earlier type members,
+   and root paths at earlier modules (`m.T`). A member named like an outer
+   alias or module leaves the earlier members' meaning alone. */
+let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
+  switch (item.term) {
+  | SigType({term: Var(name), _} as tp, ty) =>
+    extend_ctx(
+      ctx,
+      TVarEntry({
+        name,
+        id: IdTagged.rep_id(tp),
+        kind: Singleton(ty),
+      }),
+    )
+  | SigLet(_)
+  | SigModule(_) =>
+    switch (Sig.member_of_item(item)) {
+    | Some(Val(name, typ)) =>
+      extend_ctx(
+        ctx,
+        VarEntry({
+          name,
+          id: IdTagged.rep_id(item),
+          typ,
+          custom_statics: None,
+        }),
+      )
+    | Some(TypeManifest(_))
+    | None => ctx
+    }
+  | SigType(_, _)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => ctx
   };
+
+/* [tvar]'s variable bound at its own id, for the body of a binder read
+   from the syntax; a hole binds nothing. */
+let extend_tvar_of_utpat = (ctx: Ctx.t, tvar: TPat.t, kind: Ctx.kind): Ctx.t =>
+  switch (TPat.tyvar_of_utpat(tvar)) {
+  | Some(name) =>
+    extend_ctx(
+      ctx,
+      TVarEntry({
+        name,
+        id: TPat.rep_id(tvar),
+        kind,
+      }),
+    )
+  | None => ctx
+  };
+
+/* Bind the binder of a `Rec` or `Poly` for a walk over its [bodies]. Only
+   a body that names something other than the binder can look up an entry
+   that mentions the binder's name, so only then does the binding go
+   through extend_ctx. A recursive alias's `Rec` binder is the alias's own
+   name, which is bound wherever the alias is used; this keeps that from
+   rewriting the context at every use. */
+let extend_binder = (ctx: Ctx.t, tp: TPat.t, bodies: list(t)): Ctx.t =>
+  switch (TPat.tyvar_of_utpat(tp)) {
+  | None => ctx
+  | Some(name) =>
+    let entry: Ctx.entry =
+      TVarEntry({
+        name,
+        id: TPat.rep_id(tp),
+        kind: Abstract,
+      });
+    List.exists(
+      ~f=
+        body =>
+          List.exists(~f=v => !String.equal(v, name), free_vars(body)),
+      bodies,
+    )
+      ? extend_ctx(ctx, entry) : Ctx.extend(ctx, entry);
+  };
+
+/* Members of a signature a type-level path may continue through
+   (`M.P.T`), as path_head reads them: value members whose type is a
+   signature, type members defined as a signature or a labeled tuple, and
+   either kind when its type is unknown. */
+let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
+  let members = Sig.members(items);
+  let continues = (~through_tuple, ty) =>
+    switch (term_of(head_type(ctx, ty))) {
+    | Sig(_)
+    | Unknown(_) => true
+    | Prod(_) => through_tuple
+    | _ => false
+    };
+  let continuing = (~through_tuple, names, find) =>
+    List.filter(
+      ~f=
+        x =>
+          Option.value_map(
+            find(members, x),
+            ~default=false,
+            ~f=continues(~through_tuple),
+          ),
+      names,
+    );
+  continuing(~through_tuple=false, Sig.value_names(members), Sig.find_value)
+  @ continuing(
+      ~through_tuple=true,
+      Sig.type_names(members),
+      Sig.find_type_def,
+    );
+};
+
+/* ~expand restricts which alias names get expanded (default: all): a
+   signature's expectations expand only the type names the module body
+   declares, keeping outer aliases as written. */
+let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t => {
   let normalize = normalize(~rec_counter=rec_counter + 1, ~expand);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
+  /* as in weak_head_normalize */
+  | _ when rec_counter > 1000 => ty
   | Var(x) when expand(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
@@ -717,105 +1401,23 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Sum(ts) =>
     Sum(ConstructorMap.map(Option.map(~f=normalize(ctx)), ts)) |> rewrap
   | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
+    Rec(tpat, normalize(extend_binder(ctx, tpat, [ty]), ty)) |> rewrap
   | Poly(name, ty) =>
-    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+    Poly(name, normalize(extend_binder(ctx, name, [ty]), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
-  | Sig(items) =>
-    /* Desugar signature to labeled tuple type:
-       { let x : Int; let y : Bool } => (x=Int, y=Bool)
-       Type aliases (SigType) don't contribute to the exported type. */
-    let fields =
-      items
-      |> List.filter_map(~f=(item: Sig.t) =>
-           switch (item.term) {
-           | SigLet(pat) =>
-             /* Extract name and type from pattern.
-                let x : T => name="x", typ=T
-                let x     => name="x", typ=Unknown */
-             sig_let_field(pat)
-             |> Option.map(~f=((name, typ)) =>
-                  TupLabel(
-                    Label(name) |> temp,
-                    switch (typ) {
-                    | Some(typ) => normalize(ctx, typ)
-                    | None => Unknown(Internal) |> temp
-                    },
-                  )
-                  |> temp
-                )
-           | SigType(_, _)
-           | Invalid(_)
-           | EmptyHole
-           | MultiHole(_) => None
-           }
-         );
-    switch (fields) {
-    | [] => Prod([]) |> rewrap
-    | _ => normalize(ctx, Prod(fields) |> rewrap)
-    };
-  };
-};
-
-/* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
-   preserving Parens and everything else. Use this instead of normalize when
-   you need to desugar Sig types without stripping Parens wrappers. */
-let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
-  let (term, rewrap) = unwrap(ty);
-  switch (term) {
-  | Sig(items) =>
-    let fields =
-      items
-      |> List.filter_map(~f=(item: Sig.t) =>
-           switch (item.term) {
-           | SigLet(pat) =>
-             sig_let_field(pat)
-             |> Option.map(~f=((name, typ)) =>
-                  TupLabel(
-                    Label(name) |> temp,
-                    switch (typ) {
-                    | Some(typ) => desugar_sig(ctx, typ)
-                    | None => Unknown(Internal) |> temp
-                    },
-                  )
-                  |> temp
-                )
-           | SigType(_, _)
-           | Invalid(_)
-           | EmptyHole
-           | MultiHole(_) => None
-           }
-         );
-    switch (fields) {
-    | [] => Prod([]) |> rewrap
-    | _ => Prod(fields) |> rewrap
-    };
-  | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
-  | Projector(_, t) => desugar_sig(ctx, t)
-  | Arrow(t1, t2) =>
-    Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(~f=desugar_sig(ctx), ts)) |> rewrap
-  | List(t) => List(desugar_sig(ctx, t)) |> rewrap
-  | TupLabel(label, ty) =>
-    TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
-  | Sum(sm) =>
-    Sum(ConstructorMap.map(Option.map(~f=desugar_sig(ctx)), sm)) |> rewrap
-  | Rec(tpat, t) => Rec(tpat, desugar_sig(ctx, t)) |> rewrap
-  | Poly(tpat, t) => Poly(tpat, desugar_sig(ctx, t)) |> rewrap
-  | ProdProjection(t, label) =>
-    ProdProjection(desugar_sig(ctx, t), label) |> rewrap
-  | ProdExtension(t1, t2) =>
-    ProdExtension(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
-  | Unknown(_)
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Var(_)
-  | ExplicitNonlabel
-  | Label(_)
-  | ProofOf(_) => ty
+  | Sig(s) =>
+    /* An item that declares no member is dropped from the normal form,
+       except a hole, which could declare any. */
+    Sig(
+      Closed(
+        Sig.closed(s)
+        |> ClosedSig.filter(item =>
+             Option.is_some(Sig.member_of_item(item)) || Sig.is_hole(item)
+           )
+        |> ClosedSig.map(Sig.map_typ(normalize(ctx))),
+      ),
+    )
+    |> rewrap
   };
 };
 
@@ -823,51 +1425,76 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
    but we're now calling it 'meet' to clarify that Unknown represents the top
    (least precise) element in the precision ordering: specific types dominate Unknown. */
 
-/* [has_fun] with lazy alias resolution: resolves Var heads on demand
-   instead of pre-normalizing the whole type. Rec binders shadow their
-   name, so bound occurrences don't re-expand through the outer context. */
-let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
-  let rec go = (~depth, ctx: Ctx.t, ty: t): bool =>
+/* A function inside a type: its type, and the signature members it is
+   found under, outermost first (none when the type itself is a function,
+   or the function sits in a tuple, list or sum). */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type fun_in = {
+  members: list(Var.t),
+  ty: t,
+};
+
+/* The first function in [ty], resolving aliases on demand rather than
+   normalizing the whole type. Rec binders shadow their name, so bound
+   occurrences don't re-expand through the outer context. Functions have no
+   equality, so a type with one in it cannot be compared. */
+let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
+  let rec go = (~depth, ~members, ctx: Ctx.t, ty: t): option(fun_in) =>
     depth > 256
-      ? false
-      : (
+      ? None
+      : {
+        let go = go(~depth=depth + 1);
         switch (term_of(ty)) {
         | Parens(t)
         | Projector(_, t)
         | TupLabel(_, t)
-        | ProdProjection(t, _) => go(~depth=depth + 1, ctx, t)
+        | ProdProjection(t, _) => go(~members, ctx, t)
         | Arrow(_)
         | Poly(_)
-        | ProofOf(_) => true
+        | ProofOf(_) =>
+          Some({
+            members,
+            ty,
+          })
         | Var(x) =>
           switch (Ctx.lookup_alias(ctx, x)) {
-          | Some(t) => go(~depth=depth + 1, ctx, t)
-          | None => false
+          | Some(t) => go(~members, ctx, t)
+          | None => None
           }
         | Unknown(_)
         | Atom(_)
         | DrvQuoteTy(_)
         | Label(_)
-        | Sig(_)
-        | ExplicitNonlabel => false
-        | List(t) => go(~depth=depth + 1, ctx, t)
-        | Rec(tp, t) =>
-          go(~depth=depth + 1, Ctx.extend_dummy_tvar(ctx, tp), t)
+        | ExplicitNonlabel => None
+        | Sig(s) =>
+          List.find_map(
+            ~f=
+              (m: Sig.member) =>
+                switch (m) {
+                | Val(x, t) => go(~members=members @ [x], ctx, t)
+                | TypeManifest(_) => None
+                },
+            Sig.closed_members(s),
+          )
+        | List(t) => go(~members, ctx, t)
+        | Rec(tp, t) => go(~members, extend_binder(ctx, tp, [t]), t)
         | Sum(sm) =>
-          List.exists(
+          List.find_map(
             ~f=
               fun
-              | ConstructorMap.Variant(_, _, Some(t)) =>
-                go(~depth=depth + 1, ctx, t)
-              | _ => false,
+              | ConstructorMap.Variant(_, _, Some(t)) => go(~members, ctx, t)
+              | _ => None,
             sm,
           )
-        | Prod(tys) => List.exists(~f=go(~depth=depth + 1, ctx), tys)
+        | Prod(tys) => List.find_map(~f=go(~members, ctx), tys)
         | ProdExtension(t1, t2) =>
-          go(~depth=depth + 1, ctx, t1) || go(~depth=depth + 1, ctx, t2)
-        }
-      );
-  go(~depth=0, ctx, ty);
+          switch (go(~members, ctx, t1)) {
+          | Some(f) => Some(f)
+          | None => go(~members, ctx, t2)
+          }
+        };
+      };
+  go(~depth=0, ~members=[], ctx, ty);
 };
 
 /* Equality up to alias expansion, WITHOUT deep normalization: the decision
@@ -890,17 +1517,30 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       true;
     } else {
       let go = go(~depth=depth + 1);
-      let head = ty => {
-        let ty = weak_head_normalize(ctx, ty);
-        switch (term_of(ty)) {
-        | Sig(_) => desugar_sig(ctx, ty)
-        | _ => ty
-        };
-      };
-      let a = head(a);
-      let b = head(b);
+      let a = weak_head_normalize(ctx, a);
+      let b = weak_head_normalize(ctx, b);
       switch (term_of(a), term_of(b)) {
       | (Var(n1), Var(n2)) => String.equal(n1, n2) /* both unresolvable in ctx */
+      | (Sig(Open(_)), _)
+      | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
+      | (Sig(sx), Sig(sy)) =>
+        /* Order-insensitive, as in [meet]. */
+        let mx = Sig.closed_members(sx);
+        let my = Sig.closed_members(sy);
+        same_member_names(mx, my)
+        && List.for_all(
+             ~f=
+               (m: Sig.member) =>
+                 switch (m) {
+                 | Val(x, t1) =>
+                   Sig.find_value(my, x)
+                   |> Option.value_map(~default=false, ~f=go(ctx, t1))
+                 | TypeManifest(n, t1) =>
+                   Sig.find_type_def(my, n)
+                   |> Option.value_map(~default=false, ~f=go(ctx, t1))
+                 },
+             mx,
+           );
       | (List(x), List(y)) => go(ctx, x, y)
       | (Arrow(x1, y1), Arrow(x2, y2)) =>
         go(ctx, x1, x2) && go(ctx, y1, y2)
@@ -914,32 +1554,36 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (Poly(tp1, x), Poly(tp2, y)) =>
         switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
         | (Some(n1), Some(n2)) when String.equal(n1, n2) =>
-          go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
+          go(extend_binder(ctx, tp1, [x, y]), x, y)
         | _ => fast_equal(a, b)
         }
-      /* Atoms, Unknowns, Labels, and anything alias-free: fast_equal
-         already said false above, and heads are now alias-resolved, so
-         differing constructors are genuinely unequal. */
-      | _ => false
+      /* Atoms, Unknowns, Labels: compared again now that their heads are
+         alias-resolved. */
+      | _ => fast_equal(a, b)
       };
     };
   go(~depth=0, ctx, a, b);
 };
 
-/* Whether a type alias [name] is recursive, given its definition [def]:
-   Recursive(`rec name -> def`) when [def] mentions [name], and Plain, with
-   [def] standing as written, otherwise. `type T = T` is Recursive, with the
-   non-contractive `rec T -> T`. Only [def]'s own free variables are read,
-   so a definition reaching [name] through another alias, as in
-   `type y = x in type x = y`, is Plain. */
+/* Whether a type alias bound by [tpat] is recursive, given its definition
+   [def]: Recursive(`rec tpat -> def`) when [def] mentions the alias's name,
+   and Plain, with [def] standing as written, otherwise. The `rec` binds
+   [tpat] itself, so the alias and its recursive type share one binder.
+   `type T = T` is Recursive, with the non-contractive `rec T -> T`. Only
+   [def]'s own free variables are read, so a definition reaching the alias
+   through another alias, as in `type y = x in type x = y`, is Plain. */
 [@deriving show({with_path: false})]
 type alias_def =
   | Plain
   | Recursive(t);
 
-let recursive_def = (name: Var.t, def: t): alias_def =>
-  List.exists(free_vars(def), ~f=String.equal(name))
-    ? Recursive(Rec(TPat.fresh(Var(name)), def) |> temp) : Plain;
+let recursive_def = (tpat: TPat.t, def: t): alias_def =>
+  switch (TPat.tyvar_of_utpat(tpat)) {
+  | Some(name) when List.exists(~f=String.equal(name), free_vars(def)) =>
+    Recursive(Rec(tpat, def) |> temp)
+  | Some(_)
+  | None => Plain
+  };
 
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
    computes tuple projections/extensions, dedups labels, strips wrapper
@@ -949,6 +1593,158 @@ let recursive_def = (name: Var.t, def: t): alias_def =>
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
+
+/* A signature item's closed form, or why it has none and binds nothing. */
+type sig_item_closed =
+  | Item(Sig.t)
+  /* Repeats an earlier member's name and kind; the first is the member. */
+  | Duplicate(Sig.member)
+  /* A `let` whose pattern names no member. */
+  | NotAName;
+
+/* An item of a signature as written, its closed form, and the context it is
+   read in: the one outside the signature extended with the earlier members,
+   closed. */
+type sig_item_scope = {
+  written: Sig.t,
+  closed: sig_item_closed,
+  ctx: Ctx.t,
+};
+
+/* The closed items of [scopes], as a closed signature. */
+let closed_of_scopes = (scopes: list(sig_item_scope)): ClosedSig.t(Sig.t) =>
+  scopes
+  |> List.filter_map(~f=(scope: sig_item_scope) =>
+       switch (scope.closed) {
+       | Item(item) => Some(item)
+       | Duplicate(_)
+       | NotAName => None
+       }
+     )
+  |> ClosedSig.of_items;
+
+/* [ty] with every signature in it closed: each member's type written in
+   terms of the context outside its signature alone, so the members are
+   independent and the signature is a record. Signature items are written
+   sequentially: a later item may mention an earlier type member by name or
+   root a path at an earlier module member, and a type member's name is in
+   scope in its own definition. Closing substitutes the earlier members in,
+   makes a self-mentioning type member recursive, and expands an outer alias
+   named like one of the signature's type members, so no member type
+   mentions a name a sibling binds. Every signature type statics works with
+   is closed, here, when it is read from the syntax. */
+let rec close = (ctx: Ctx.t, ty: t): t => {
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_)
+  | ProofOf(_) => ty
+  | Parens(t) => Parens(close(ctx, t)) |> rewrap
+  | Projector(d, t) => Projector(d, close(ctx, t)) |> rewrap
+  | List(t) => List(close(ctx, t)) |> rewrap
+  | Arrow(t1, t2) => Arrow(close(ctx, t1), close(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(~f=close(ctx), ts)) |> rewrap
+  | TupLabel(l, t) => TupLabel(l, close(ctx, t)) |> rewrap
+  | ProdProjection(t1, t2) =>
+    ProdProjection(close(ctx, t1), close(ctx, t2)) |> rewrap
+  | ProdExtension(t1, t2) =>
+    ProdExtension(close(ctx, t1), close(ctx, t2)) |> rewrap
+  | Sum(sm) =>
+    Sum(ConstructorMap.map(Option.map(~f=close(ctx)), sm)) |> rewrap
+  | Rec(tp, t) => Rec(tp, close(extend_binder(ctx, tp, [t]), t)) |> rewrap
+  | Poly(tp, t) =>
+    Poly(tp, close(extend_binder(ctx, tp, [t]), t)) |> rewrap
+  | Sig(Open(items)) => Sig(Closed(close_items(ctx, items))) |> rewrap
+  /* Already closed: its members are independent, so each is closed alone,
+     never re-read as mentioning a sibling. */
+  | Sig(Closed(items)) =>
+    Sig(Closed(ClosedSig.map(Sig.map_typ(close(ctx)), items))) |> rewrap
+  };
+}
+and close_items = (ctx: Ctx.t, items: list(Sig.t)): ClosedSig.t(Sig.t) =>
+  closed_of_scopes(sig_item_scopes(ctx, items))
+/* The type an alias [tp] defined as [def] stands for: [def] closed with
+   the alias's own name abstract, then recursive as recursive_def says. */
+and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t => {
+  let def = close(extend_binder(ctx, tp, [def]), def);
+  switch (recursive_def(tp, def)) {
+  | Recursive(ty_rec) => ty_rec
+  | Plain => def
+  };
+}
+and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => {
+  let type_members = Sig.type_names(Sig.members(items));
+  let is_type_member = n => List.exists(~f=String.equal(n), type_members);
+  let close_item = (ctx, item: Sig.t) => {
+    let closed =
+      switch (item.term) {
+      | SigType(tp, _) => alias_def(ctx, tp)
+      | SigLet(_)
+      | SigModule(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => close(ctx)
+      };
+    Sig.map_typ(
+      ty => normalize(~expand=is_type_member, ctx, closed(ty)),
+      item,
+    );
+  };
+  /* The first item declaring a name and kind is the member. A later one,
+     and a `let` that names no member, are marked where they are written
+     (Statics) and are left out here. */
+  let (_, _, rev) =
+    List.fold(
+      items,
+      ~init=(ctx, [], []),
+      ~f=((ctx, seen, acc), written: Sig.t) => {
+        let closed = close_item(ctx, written);
+        let (closed, seen, ctx_after) =
+          switch (Sig.read_item(closed)) {
+          | Member(m) when List.exists(~f=Sig.same_kind(m), seen) => (
+              Duplicate(m),
+              seen,
+              ctx,
+            )
+          | Member(m) => (
+              Item(closed),
+              [m, ...seen],
+              extend_sig_item(ctx, closed),
+            )
+          | Incomplete => (Item(closed), seen, ctx)
+          | NotAName => (NotAName, seen, ctx)
+          };
+        /* A type member's name is in scope in its own definition; a value
+           or module member's is not. */
+        let read_in =
+          switch (written.term) {
+          | SigType(_) => ctx_after
+          | SigLet(_)
+          | SigModule(_)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => ctx
+          };
+        (
+          ctx_after,
+          seen,
+          [
+            {
+              written,
+              closed,
+              ctx: read_in,
+            },
+            ...acc,
+          ],
+        );
+      },
+    );
+  List.rev(rev);
+};
 
 /* One binder to compare the bodies of two binding forms under, [body1]
    bound by [tp1] and [body2] by [tp2], with each body renamed to it. Its
@@ -1055,7 +1851,8 @@ let rec meet =
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, body1), Rec(tp2, body2)) =>
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    let+ ty_body =
+      meet(~seen, extend_binder(ctx, tp, [body1, body2]), body1, body2);
     Rec(tp, ty_body) |> temp;
   /* A recursive type meets a structural one through its unrolling; a
      non-contractive type has no unrolling and meets nothing. */
@@ -1065,7 +1862,8 @@ let rec meet =
     through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
   | (Poly(tp1, body1), Poly(tp2, body2)) =>
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    let+ ty_body =
+      meet(~seen, extend_binder(ctx, tp, [body1, body2]), body1, body2);
     Poly(tp, ty_body) |> temp;
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when Atom.equal_cls(c1, c2) => Some(ty1)
@@ -1124,6 +1922,68 @@ let rec meet =
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
+  | (Sig(Closed(xs)), Sig(Closed(ys))) =>
+    /* Exact consistency: the same value-member names and the same
+       type-member names (order-insensitive), members pairwise consistent,
+       except that a hole item on one side stands for the members the
+       other side has beyond it. The result is built from the left
+       operand's items, so each keeps its form, and its type as written
+       where the meet refines nothing; then the right's members the left
+       lacks; then a hole, if both sides keep one. */
+    let xs = ClosedSig.items(xs);
+    let ys = ClosedSig.items(ys);
+    let x_items =
+      xs |> List.filter(~f=item => Option.is_some(Sig.member_of_item(item)));
+    let mx = Sig.members(x_items);
+    let my = Sig.members(ys);
+    let hole_x = Sig.has_hole_item(xs);
+    let hole_y = Sig.has_hole_item(ys);
+    let within = (a: list(Sig.member), b: list(Sig.member)) =>
+      List.for_all(
+        ~f=x => Option.is_some(Sig.find_value(b, x)),
+        Sig.value_names(a),
+      )
+      && List.for_all(
+           ~f=t => Option.is_some(Sig.find_type_def(b, t)),
+           Sig.type_names(a),
+         );
+    if (!(hole_y || within(mx, my)) || !(hole_x || within(my, mx))) {
+      None;
+    } else {
+      /* Rebuilt from the left operand's items so each keeps its form, and
+         its type as written where the meet refines nothing. */
+      let meet_item = (item: Sig.t) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(m) =>
+          let (t1, t2) =
+            switch (m) {
+            | Val(x, t1) => (t1, Sig.find_value(my, x))
+            | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
+            };
+          switch (t2) {
+          | None => Some(item)
+          | Some(t2) =>
+            let+ t = meet'(t1, t2);
+            equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+          };
+        | None => Some(item)
+        };
+      let+ items = OptUtil.traverse(meet_item, x_items);
+      let extra =
+        my
+        |> List.filter(~f=(m: Sig.member) =>
+             switch (m) {
+             | Val(x, _) => Option.is_none(Sig.find_value(mx, x))
+             | TypeManifest(n, _) =>
+               Option.is_none(Sig.find_type_def(mx, n))
+             }
+           )
+        |> List.map(~f=Sig.item_of_member);
+      let hole = hole_x && hole_y ? [TempGrammar.Sig.empty_hole()] : [];
+      Sig(Closed(ClosedSig.of_items(items @ extra @ hole))) |> temp;
+    };
+  | (Sig(Open(_)), _)
+  | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
   | (Sig(_), _) => None
   };
 };
@@ -1395,7 +2255,7 @@ let rec pretty_print = (ty: t): string =>
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
-  | Sig(items) =>
+  | Sig(s) =>
     let sig_item_str = (item: Sig.t) =>
       switch (item.term) {
       | SigLet(p) =>
@@ -1417,12 +2277,22 @@ let rec pretty_print = (ty: t): string =>
         )
       | SigType(tp, t) =>
         "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | SigModule(mp) =>
+        let rec mpat_str = (mp: TermBase.MPat.t) =>
+          switch (IdTagged.term_of(mp)) {
+          | Var(x) => x
+          | Asc(inner, t) => mpat_str(inner) ++ " : " ++ pretty_print(t)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => "?"
+          };
+        "module " ++ mpat_str(mp);
       | EmptyHole => "?"
       | Invalid(s) => s
       | MultiHole(_) => "?"
       };
     "{ "
-    ++ String.concat(~sep="; ", List.map(~f=sig_item_str, items))
+    ++ String.concat(~sep="; ", List.map(~f=sig_item_str, Sig.items(s)))
     ++ " }";
   }
 and ctr_pretty_print =
@@ -1488,8 +2358,14 @@ let all_ids = (ty: t): list(Id.t) => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_)
-    | Sig(_) => ()
+    | ProofOf(_) => ()
+    /* Syntactic, not `Sig.members`: an item whose name is a hole still
+       prints. */
+    | Sig(s) =>
+      List.iter(
+        ~f=item => Option.iter(~f=collect_ann_ids, Sig.typ_of_item(item)),
+        Sig.items(s),
+      )
     };
   };
   collect_ann_ids(ty);

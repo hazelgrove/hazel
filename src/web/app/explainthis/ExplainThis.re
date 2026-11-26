@@ -380,7 +380,7 @@ let expander_deco =
             ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
               let code_view = CodeViewable.view_segment(~globals, segment);
               let classes =
-                id == doc.id
+                Poly.equal(id, doc.id)
                   ? ["selected"] @ get_clss(segment) : get_clss(segment);
               let update_group_selection = _ =>
                 inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
@@ -441,7 +441,7 @@ let example_view =
       ~examples: list(ExplainThisForm.example),
       ~model: ExplainThisModel.t,
     ) => {
-  examples == []
+  List.is_empty(examples)
     ? []
     : [
       div(
@@ -785,7 +785,7 @@ let decide =
       /* A form carries its own colorings; `~colorings` overrides them for the
          least specific form of a group, which is shared across a family of
          groups and so is not built for this particular call site. */
-      let colorings = colorings == [] ? doc.colorings : colorings;
+      let colorings = List.is_empty(colorings) ? doc.colorings : colorings;
       Doc({
         group,
         form: doc,
@@ -838,13 +838,6 @@ let decide =
     | _ => Prose("Signature item")
     }
   | Some(InfoMPat(_)) => Prose("Module name")
-  | Some(InfoExp({cls: Mod(ModLet), _})) =>
-    message_single(ModLetDecl.single)
-  | Some(InfoExp({cls: Mod(ModType), _})) =>
-    message_single(ModTypeDecl.single)
-  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
-    message_single(ModuleKeywordDecl.single)
-  | Some(InfoExp({cls: Mod(_), _})) => Prose("Module item")
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp = (term): decision =>
       switch ((term: Exp.term)) {
@@ -1864,7 +1857,7 @@ let view =
       ),
     ]
     @ (
-      example == []
+      List.is_empty(example)
         ? []
         : [section(~section_clss="examples", ~title="Examples", example)]
     ),

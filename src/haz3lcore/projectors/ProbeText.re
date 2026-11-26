@@ -28,7 +28,7 @@ let get_probes_by_line =
   List.fold_right(
     ~f=
       ((tile_id, entry: Zipper.Refractor.entry), acc) =>
-        if (entry.kind != Probe) {
+        if (!Poly.equal(entry.kind, Probe)) {
           acc;
         } else {
           switch (Measured.find_by_id(tile_id, measured)) {
@@ -95,14 +95,14 @@ let get_empty_status =
   | _ => None
   };
 
-/* Format probe values for a line */
-let format_probe_values =
+/* Each probe's values, formatted */
+let probe_values =
     (
       ~window: Sample.Window.mode,
       ~probe_map: Sample.Map.t,
       probe_ids: list(Id.t),
     )
-    : string => {
+    : list(string) => {
   let format_one = (probe_id: Id.t): option(string) => {
     let samples =
       Dynamics.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
@@ -132,15 +132,24 @@ let format_probe_values =
     };
   };
 
-  let formatted_probes = List.filter_map(~f=format_one, probe_ids);
-  switch (formatted_probes) {
+  List.filter_map(~f=format_one, probe_ids);
+};
+
+/* Format probe values for a line */
+let format_probe_values =
+    (
+      ~window: Sample.Window.mode,
+      ~probe_map: Sample.Map.t,
+      probe_ids: list(Id.t),
+    )
+    : string =>
+  switch (probe_values(~window, ~probe_map, probe_ids)) {
   | [] => ""
   | values =>
     value_spacing
     ++ value_divider
     ++ String.concat(~sep=value_separator, values)
   };
-};
 
 /* Main entry point: generate text representation of program with probes */
 let of_segment =

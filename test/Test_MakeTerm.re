@@ -406,5 +406,70 @@ let tests =
           ();
         },
       ),
+      test_case("Signature with module item", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(
+              Pat.var("m"),
+              Typ.sig_([
+                Sig.sig_module(
+                  MPat.asc(
+                    MPat.var("Inner"),
+                    Typ.sig_([
+                      Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int())),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+            module_([
+              Mod.module_mod(
+                MPat.var("Inner"),
+                module_([Mod.mod_let(Pat.var("x"), int(1))]),
+              ),
+            ]),
+            var("m"),
+          ),
+          {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
+        )
+      ),
+      test_case(
+        "Signature of only a hole keeps the hole as an item", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(Pat.var("m"), Typ.sig_([Sig.empty_hole()])),
+            empty_hole(),
+            var("m"),
+          ),
+          {|let m : { ? } = ? in m|},
+        )
+      ),
+      test_case(
+        "map_term reaches a nested signature's items",
+        `Quick,
+        () => {
+          let int_to_bool = (continue, t: Language.Typ.t): Language.Typ.t =>
+            switch (t.term) {
+            | Atom(Int) => {
+                ...t,
+                term: Atom(Bool),
+              }
+            | _ => continue(t)
+            };
+          check(
+            exp_typ,
+            "Inner's `let x : Int` is retyped",
+            parse_exp(
+              {|let m : { module Inner : { let x : Bool } } = { module Inner = { let x = 1 } } in m|},
+            ),
+            Language.Exp.map_term(
+              ~f_typ=int_to_bool,
+              parse_exp(
+                {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
+              ),
+            ),
+          );
+        },
+      ),
     ],
   );

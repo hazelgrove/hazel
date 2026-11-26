@@ -24,7 +24,7 @@
  (name workerServer)
  (flags
   (:standard -open Core))
- (modules WorkerServer CoverageHook)
+ (modules WorkerServer EvalPieces CoverageHook)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
@@ -49,6 +49,7 @@
   \
   Worker
   WorkerServer
+  EvalPieces
   CoverageHook
   Migrate_exercises)
  (libraries

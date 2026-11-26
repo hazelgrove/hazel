@@ -80,14 +80,14 @@ let show_delims = (ds: list(CanonicalCompletion.delimiter_info)) =>
 
 /* Tab's paste text at this caret, if the caret owns a chip */
 let tab_head = (z: Zipper.t): option(string) =>
-  CompletionQuery.chip_at_caret(z)
+  CompletionQuery.chip_at_caret(~root=Exp, z)
   |> Option.map(~f=ins => CompletionQuery.tab_text(z, ins))
   |> Option.join;
 
 /* the completed program, whitespace and holes erased */
 let completed_text = (z: Zipper.t): string => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  CanonicalCompletion.for_editor(seg).completed_seg
+  CanonicalCompletion.for_editor(~root=Exp, seg).completed_seg
   |> Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[])
   |> Stdlib.String.to_seq
   |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
@@ -130,17 +130,18 @@ let show_action = (a: Action.t) =>
      an empty pair (`[?]`) where typing the closer yields the empty
      literal (`[]`). Cosmetic.
    - completion-time re-indent × child-relative indentation (the
-     `[ ( ⏎ i¦` pin): typing `]` closes the list, auto re-indent
-     moves `i` in two spaces, and inside the list's child the
-     partition heuristic counts the `(`'s indent from the child's
-     start (1), not its screen column (2), so the indented `i` now
-     reads as the paren's continuation: `[ (?) ⏎ i?]` becomes
-     `[ ( ⏎ i)]`. Holds with re-indent off. Candidate fix: compare
-     screen columns in nested partitions (untested).
+     `[ ( ⏎ + 1¦` pin, first found as `[ ( ⏎ i¦` while `i` read as an
+     operator): typing `]` closes the list, auto re-indent moves the
+     line in two spaces, and inside the list's child the partition
+     heuristic counts the `(`'s indent from the child's start (1), not
+     its screen column (2), so the indented line now reads as the
+     paren's continuation: `[ (?) + 1]` becomes `[ (+ 1)]`. Holds with
+     re-indent off. Candidate fix: compare screen columns in nested
+     partitions (untested).
    The pins below keep the first and third visible; when either
    changes, flip the pin. */
 let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
-  switch (CompletionQuery.tab_action(z)) {
+  switch (CompletionQuery.tab_action(~root=Exp, z)) {
   | None => None
   | Some(a) =>
     switch (go(z, a)) {
@@ -194,9 +195,10 @@ let display_broken = (z: Zipper.t): option(string) => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let caret = Zipper.Caret.point(syntax.measured, z);
   let caret_pos = Some((caret.row, caret.col));
-  let owned = CompletionQuery.chips_at_caret(~seg, z);
+  let owned = CompletionQuery.chips_at_caret(~root=Exp, ~seg, z);
   let bs =
     QuiverDec.bubbles(
+      ~root=Exp,
       ~measured=syntax.measured,
       ~font_metrics,
       ~caret_pos,
@@ -395,7 +397,7 @@ let curated = [
         bool,
         "ApplyCompletion(One)",
         true,
-        switch (CompletionQuery.tab_action(z)) {
+        switch (CompletionQuery.tab_action(~root=Exp, z)) {
         | Some(ApplyCompletion(One(_))) => true
         | _ => false
         },
@@ -411,7 +413,7 @@ let curated = [
       true,
       type_string(Zipper.init(), "?) x\na) ?")
       |> positions
-      |> List.exists(~f=z => unfaithful(~strict=true, z) != None),
+      |> List.exists(~f=z => Option.is_some(unfaithful(~strict=true, z))),
     )
   ),
   test_case(
@@ -422,10 +424,16 @@ let curated = [
       bool,
       "strict sweep still finds it",
       true,
-      type_string(dedent(type_string(Zipper.init(), " [ (\n")), "i")
+      type_string(dedent(type_string(Zipper.init(), " [ (\n")), "+ 1")
       |> positions
-      |> List.exists(~f=z => unfaithful(~strict=true, z) != None),
+      |> List.exists(~f=z => Option.is_some(unfaithful(~strict=true, z))),
     )
+  ),
+  /* a keyword's prefix starting the line starts something new, so the
+     line no longer continues the paren */
+  check_sweep(
+    "`i` starting the line below `[ (`",
+    type_string(dedent(type_string(Zipper.init(), " [ (\n")), "i"),
   ),
   /* coalescing geometry (fuzz-found): the merged bubble is drawn at
      the owned member's pin, not the group's leftmost — overlap must
@@ -485,7 +493,7 @@ let padding_case = (input, preview, expected) =>
     () => {
       let z = padding_zipper(input);
       let chip =
-        switch (CompletionQuery.chip_at_caret(z)) {
+        switch (CompletionQuery.chip_at_caret(~root=Exp, z)) {
         | Some(i) => i
         | None => fail("No completion at " ++ input)
         };
@@ -508,7 +516,7 @@ let padding_case = (input, preview, expected) =>
         |> String.concat(~sep="");
       check(string, "preview (including spaces and holes)", preview, text);
       let action =
-        switch (CompletionQuery.tab_action(z)) {
+        switch (CompletionQuery.tab_action(~root=Exp, z)) {
         | Some(a) => a
         | None => fail("No Tab action")
         };

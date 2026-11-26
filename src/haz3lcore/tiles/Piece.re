@@ -105,12 +105,6 @@ let shapes =
     p => Some(ProjectorCore.shapes(p)),
   );
 
-let is_convex = (p: t): bool =>
-  switch (shapes(p)) {
-  | Some((Convex, Convex)) => true
-  | _ => false
-  };
-
 let is_space: t => bool =
   fun
   | Secondary(s) => Secondary.is_space(s)

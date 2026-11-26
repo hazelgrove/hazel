@@ -24,6 +24,10 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
+  /* made by the ⇓ toggle: marks its probe through a pin, step-into or
+     reload (ProjectorInfo.is_program_value) */
+  [@default false]
+  bare: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -32,7 +36,18 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
+  bare: false,
 };
+
+/* the ⇓ probe: an open drawer, marked bare */
+let tail_model: string =
+  {
+    ...init_probe_model,
+    drawer_mode: true,
+    bare: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
 
 /* Any deserialization failure resets to defaults (transient UI state). */
 let probe_model_of_sexp = sexp =>
@@ -45,6 +60,13 @@ let probe_model_of_sexp = sexp =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
     init_probe_model;
   | exception _ => init_probe_model
+  };
+
+/* the ⇓ probe's model, whatever local state it has picked up since */
+let is_bare = (model: string): bool =>
+  switch (Sexplib.Sexp.of_string(model)) {
+  | sexp => probe_model_of_sexp(sexp).bare
+  | exception _ => false
   };
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
@@ -177,19 +199,22 @@ module Settings = {
       }
     | ToggleBeforeCutoff => {
         ...settings,
-        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+        before_cutoff:
+          Option.is_none(settings.before_cutoff) ? Some(1) : None,
       }
     | ToggleAfterCutoff => {
         ...settings,
-        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+        after_cutoff: Option.is_none(settings.after_cutoff) ? Some(1) : None,
       }
     | ToggleCallerCutoff => {
         ...settings,
-        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+        caller_cutoff:
+          Option.is_none(settings.caller_cutoff) ? Some(1) : None,
       }
     | ToggleCalleeCutoff => {
         ...settings,
-        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+        callee_cutoff:
+          Option.is_none(settings.callee_cutoff) ? Some(1) : None,
       }
     };
 
@@ -206,6 +231,31 @@ module Settings = {
    * dispatch a global Settings update. */
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+
+  /* Set by the web layer each render: the stepper a stepping drawer
+   * shows for a probe id, once its sample is ready. */
+  let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
+  /* Set by the web layer each render: for the ⇓ probe, what its drawer
+   * shows when the program stopped before reaching it (no value of its
+   * own), or None. */
+  let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
+  /* drawers print values at the editor's visible width */
+  let set_drawer_width = (width: int) =>
+    if (width != s^.drawer.width) {
+      s :=
+        {
+          ...s^,
+          drawer: {
+            width: width,
+          },
+        };
+      version := version^ + 1;
+      DrawerFit.layout := DrawerFit.layout^ + 1;
+    };
 
   let set_sticky = (b: bool) => {
     sticky := b;
@@ -334,7 +384,7 @@ let select_samples =
       dynamics.sample_focus,
       samples,
     );
-  if (first_idx == None && settings.window == Single) {
+  if (Option.is_none(first_idx) && Poly.equal(settings.window, Single)) {
     [];
   } else {
     let cursor_idx = first_idx |> Option.value(~default=0);
@@ -373,7 +423,7 @@ module DrawerHeight = {
    * because reassemble re-nests the formatter's flat output). */
   let row_count = (seg: Segment.t): int =>
     Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
-    |> Measured.total_rows;
+    |> Measured.num_rows;
 
   let sample_rows = (utility: utility, sample: Sample.t): int => {
     let width =
@@ -446,12 +496,16 @@ let depth_clss =
   switch (relation.relative_level_to_cursor) {
   | Same => ["depth-same"]
   | Below(n)
-      when settings.before_cutoff == None || Some(n) <= settings.before_cutoff => [
+      when
+        Option.is_none(settings.before_cutoff)
+        || Some(n) <= settings.before_cutoff => [
       "depth-below",
       "depth-" ++ string_of_int(n),
     ]
   | Above(n)
-      when settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+      when
+        Option.is_none(settings.after_cutoff)
+        || Some(n) <= settings.after_cutoff => [
       "depth-above",
       "depth-" ++ string_of_int(n),
     ]
@@ -492,23 +546,24 @@ let color_clss =
     ) {
     | (true, _, _) => ["focus"]
     | (_, Some(0), _) => ["related-before"]
-    | (_, Some(_), _) when settings.caller_cutoff == None => [
+    | (_, Some(_), _) when Option.is_none(settings.caller_cutoff) => [
         "related-before",
       ]
     | (_, _, Some(0)) => ["related-after"]
-    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+    | (_, _, Some(_)) when Option.is_none(settings.callee_cutoff) => [
         "related-after",
       ]
     | (_, _, _) =>
       switch (relation.relative_level_to_cursor) {
       | Above(n)
           when
-            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+            Option.is_none(settings.after_cutoff)
+            || Some(n) <= settings.after_cutoff => [
           "tangent-before",
         ]
       | Below(n)
           when
-            settings.before_cutoff == None
+            Option.is_none(settings.before_cutoff)
             || Some(n) <= settings.before_cutoff => [
           "tangent-after",
         ]
@@ -517,7 +572,7 @@ let color_clss =
     };
   | StepRange => step_range_clss()
   | Hybrid =>
-    if (sample.call_stack == []) {
+    if (List.is_empty(sample.call_stack)) {
       step_range_clss();
     } else {
       let relation =
@@ -587,7 +642,7 @@ let pin_call = (ctx: probe_ctx) =>
 
 let focus_call = (ctx: probe_ctx) =>
   switch (Dynamics.Info.is_in(ctx.dynamics)) {
-  | Some(sample) when sample.call_stack != [] =>
+  | Some(sample) when !List.is_empty(sample.call_stack) =>
     ctx.parent(
       SampleFocus(
         TogglePin(
@@ -720,6 +775,12 @@ let value_view =
       Attr.on_double_click(_ =>
         ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
+      /* a drawer's value is selectable: a double click is still the
+         toggle above, not a word's selection */
+      Attr.on_mousedown(evt => {
+        let clicks: int = Js.Unsafe.coerce(evt)##.detail;
+        clicks > 1 ? Effect.Prevent_default : Effect.Ignore;
+      }),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
         Key.ctrl_held(evt)
@@ -936,7 +997,7 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
     | _ => None
     };
   let is_builtin = name =>
-    Environment.lookup(Builtins.env_init, name) != None;
+    Option.is_some(Environment.lookup(Builtins.env_init, name));
   let static_ok =
     switch (fn_var_name) {
     | Some(name) => !is_builtin(name)
@@ -1022,6 +1083,21 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
+let show_steps_action = (ctx: probe_ctx, sample: Sample.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "show-steps-action"]),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          ctx.local(SetDropdown(None)),
+          ctx.parent(Probe(ShowSteps(Sample.ref_of_sample(sample)))),
+        ])
+      ),
+    ],
+    [text("Show steps")],
+  );
+
 let rich_probe_action =
     (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
   let is_active = ctx.active_renderer_id == Some(r.id);
@@ -1062,12 +1138,21 @@ let sample_primary_actions =
     )
     : list(Node.t) => {
   let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
+  /* a variable's or pattern's steps are just its value */
+  let steps =
+    switch (ctx.statics) {
+    | InfoExp({user_term: {term: Var(_), _}, _}) => false
+    | InfoExp(_) => true
+    | _ => false
+    };
+  let rich_items =
+    steps ? rich_items @ [show_steps_action(ctx, sample)] : rich_items;
   switch (ctx.ap_id) {
   | Some(ap_id) =>
     [pin_action(ctx, sample)]
     @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
     @ rich_items
-  | None when sample.call_stack != [] =>
+  | None when !List.is_empty(sample.call_stack) =>
     [focus_action(ctx, sample)] @ rich_items
   | None => rich_items
   };
@@ -1241,7 +1326,7 @@ let sample_environment =
     )
     : list(Node.t) => {
   let elems = filtered_env_entries(~filter_vars, sample);
-  elems == []
+  List.is_empty(elems)
     ? []
     : [
       div(
@@ -1270,7 +1355,7 @@ let sample_context_sections =
   let filter_vars =
     List.filter_map(~f=Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
-  let has_env = env_elems != [];
+  let has_env = !List.is_empty(env_elems);
   let has_call = Option.is_some(sample.args);
   let primary =
     sample_primary_actions(
@@ -1283,7 +1368,9 @@ let sample_context_sections =
   let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
   /* Emit no nodes when empty so the caller suppresses the whole menu. */
   let nodes =
-    primary == [] && call_display == [] && env == []
+    List.is_empty(primary)
+    && List.is_empty(call_display)
+    && List.is_empty(env)
       ? []
       : [div(~attrs=[Attr.classes(["context-actions"])], primary)]
         @ call_display
@@ -1292,17 +1379,19 @@ let sample_context_sections =
 };
 
 let sample_context_menu =
-    (~show_env, ~drawer, ctx: probe_ctx, view_seg, sample: Sample.t)
-    : list(Node.t) => {
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) => {
   let (has_env, has_call, nodes) =
     sample_context_sections(ctx, view_seg, sample);
-  /* In drawer mode `.below-wrapper`'s overflow would clip the menu, so promote it to a FloatingElement (position:fixed, tracked to its anchor). */
-  let floating = drawer && show_env;
+  /* An open menu floats (FloatingElement: position:fixed, tracked to its
+     sample) so no container clips it, and flips above or left when
+     there's no room. */
+  let floating = show_env;
   let float_attrs =
     floating
       ? [
         Attr.create("data-float-anchor-class", "sample"),
         Attr.create("data-float-anchor-edge", "bottom"),
+        Attr.create("data-float-flip", ""),
         Attr.create("data-float-local-top", "0"),
         Attr.create("data-float-local-left", "3"),
         /* Start hidden; update_all() positions + reveals after measuring. */
@@ -1363,7 +1452,9 @@ let sample_view =
           )
         | None => false
         };
-      !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
+      !(hide_env && Option.is_none(ctx.ap_id))
+      || !List.is_empty(sample.call_stack)
+      || has_rich;
     };
   /* `indicated-sample` marks the most-aligned sample, the DOM anchor
    * SampleAnchor uses to compensate scroll on Left/Right.
@@ -1393,14 +1484,7 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
-        ? sample_context_menu(
-            ~show_env,
-            ~drawer=display == Block,
-            ctx,
-            view_seg,
-            sample,
-          )
-        : []
+        ? sample_context_menu(~show_env, ctx, view_seg, sample) : []
     ),
   );
 };
@@ -1698,12 +1782,14 @@ let key_handler =
   };
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
-  | D("Escape") when Settings.open_dropdown^ != None =>
+  | D("Escape") when Option.is_some(Settings.open_dropdown^) =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
-  | D("Escape") when drawer_mode_active =>
+  | D("Escape") when Option.is_some(ctx.p_info.stepping) =>
+    Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
+  | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     blur_to_editor();
@@ -1797,6 +1883,12 @@ let key_handler =
   | D("/") =>
     /* Toggle sticky mode (web/Settings owns it). */
     Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
+  /* text selected in the value: the browser copies it */
+  | D("c" | "C")
+      when
+        (Key.meta_held(evt) || Key.ctrl_held(evt))
+        && JsUtil.selection_in_focus() =>
+    Stop_propagation
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
@@ -1864,7 +1956,7 @@ let prepare_offside =
       Option.map(~f=RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
       (model.auto_rich || settings.auto_rich_default)
-      && model.active_renderer == None
+      && Option.is_none(model.active_renderer)
       && List.exists(
            ~f=
              (sample: Sample.t) =>
@@ -2039,10 +2131,11 @@ let live_offside_view =
   let base_classes =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
-    @ (scrollable ? ["drawer-overflow"] : []);
+    @ (scrollable ? ["drawer-overflow"] : [])
+    @ (ctx.p_info.program_value ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
-    ~menu_open=Settings.open_dropdown^ != None,
+    ~menu_open=Option.is_some(Settings.open_dropdown^),
     ~on_close=() => local(SetDropdown(None)),
     (),
   );
@@ -2102,7 +2195,7 @@ let live_offside_view =
       /* Sample-count circle at the start of the samples row. */
       let count_badge = count_badge_nodes(~count=num_total);
       let samples_part =
-        group_views == []
+        List.is_empty(group_views)
           ? []
           : [
             div(
@@ -2199,6 +2292,52 @@ let rich_drawer_view =
     @ [content],
   );
 
+/* A stepping drawer: the stepper in place of the samples. */
+/* a drawer the web layer fills keeps every click: the editor below would
+   take the pointer, or the probe's wrapper move the caret */
+let keep_clicks = [
+  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+  Attr.on_mousedown(_ => Effect.Stop_propagation),
+  Attr.on_pointerup(_ => Effect.Stop_propagation),
+  Attr.on_mouseup(_ => Effect.Stop_propagation),
+  Attr.on_click(_ => Effect.Stop_propagation),
+  Attr.on_double_click(_ => Effect.Stop_propagation),
+  /* mouse state is global: a press on a step reads to the editor below as
+     its own drag, and the moves that follow would select there */
+  Attr.on_mousemove(_ => Effect.Stop_propagation),
+  Attr.on_contextmenu(_ =>
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+  ),
+];
+
+let steps_drawer_view = (~parent, info: info): Node.t =>
+  div(
+    ~attrs=
+      [
+        Attr.classes(["steps-drawer"]),
+        Attr.create("data-drawer-id", Id.to_string(info.id)),
+      ]
+      @ keep_clicks,
+    /* the stepper's own toggle closes it; until it's up, this does */
+    switch (Settings.steps_view^(info.id)) {
+    | Some(stepper) => [stepper]
+    | None => [
+        div(
+          ~attrs=[
+            Attr.classes(["rich-drawer-close"]),
+            Attr.title("Close steps (Esc)"),
+            Attr.on_click(_ => parent(Probe(HideSteps))),
+          ],
+          [text("×")],
+        ),
+        div(
+          ~attrs=[Attr.classes(["steps-pending"])],
+          [text("Stepping…")],
+        ),
+      ]
+    },
+  );
+
 /* Rows the active rich renderer wants in the drawer, when it applies to
  * the indicated value. */
 let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
@@ -2290,7 +2429,7 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (model: model, info) =>
+  let placeholder_samples = (model: model, info) =>
     if (model.drawer_mode) {
       let rows =
         switch (rich_drawer_rows(model, info)) {
@@ -2303,6 +2442,14 @@ module M: Projector = {
       };
     } else {
       ProjectorCore.Shape.default;
+    };
+
+  let placeholder = (model: model, info: info) =>
+    switch (info.stepping) {
+    /* uncapped: steps are worked through, so the drawer opens to the
+       whole trace instead of scrolling inside itself */
+    | Some(st) => DrawerFit.shape(info.id, st.rows)
+    | None => placeholder_samples(model, info)
     };
 
   let update = (model: model, info: info, a: action): model => {
@@ -2421,7 +2568,7 @@ module M: Projector = {
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
               (
-                model.active_renderer != None
+                Option.is_some(model.active_renderer)
                   ? [
                     div(
                       ~attrs=[
@@ -2456,9 +2603,11 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let drawer = model.drawer_mode;
+    let stepping = Option.is_some(info.stepping);
+    let drawer = model.drawer_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
+      | (_, true) when info.program_value => Node.div([])
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
         /* rich content embeds inside each sample chip (value_view);
@@ -2477,44 +2626,50 @@ module M: Projector = {
     /* Content taller than the drawer cap → the drawer scrolls; gates the
      * wrapper's scroll-affordance fade and the rich view's overflow clip. */
     let drawer_overflow =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > DrawerHeight.max_rows
-        | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
-        }
-      );
+      switch (info.stepping) {
+      | Some(_) => false
+      | None =>
+        drawer
+        && (
+          switch (rich_drawer_rows(model, info)) {
+          | Some(n) => n > DrawerHeight.max_rows
+          | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
+          }
+        )
+      };
     /* In drawer mode an active rich renderer replaces the sample view in
      * the drawer itself; the anchored modal overlay is inline-mode only
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
-        ? rich_content(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
+      stepping
+        ? Some(steps_drawer_view(~parent, info))
+        : drawer
+          && (
+            switch (rich_drawer_rows(model, info)) {
+            | Some(n) => n > inline_rows_cap
+            | None => false
+            }
           )
-          |> Option.map(~f=content =>
-               rich_drawer_view(
-                 ~local,
-                 ~overflowing=drawer_overflow,
-                 /* auto-rich (no explicit renderer) has nothing to close:
-                    dismissal would just re-trigger */
-                 ~closable=model.active_renderer != None,
-                 content,
-               )
-             )
-        : None;
+            ? rich_content(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+                ~sort,
+              )
+              |> Option.map(~f=content =>
+                   rich_drawer_view(
+                     ~local,
+                     ~overflowing=drawer_overflow,
+                     /* auto-rich (no explicit renderer) has nothing to close:
+                        dismissal would just re-trigger */
+                     ~closable=Option.is_some(model.active_renderer),
+                     content,
+                   )
+                 )
+            : None;
     /* the anchored modal is retired: small rich views replace the
        offside row, big ones live in the drawer */
     let modal_nodes = [];
@@ -2532,6 +2687,12 @@ module M: Projector = {
       offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
+        /* the program stopped short of the ⇓ probe: how far it got */
+        | (_, true)
+            when
+              info.program_value
+              && Option.is_some(Settings.value_fallback^(info.id)) =>
+          Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(
             live_offside_view(

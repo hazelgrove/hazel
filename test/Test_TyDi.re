@@ -12,7 +12,7 @@ let tydi_suggest = (code: string): option(string) => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let ci = Indicated.ci_for_completion(z, info_map);
-  let* z = TyDi.set_buffer(~ci, z);
+  let* z = TyDi.set_buffer(~root=Exp, ~ci, z);
   TyDi.get_unparsed_buffer(z);
 };
 
@@ -268,7 +268,7 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Prod([]))),
+  ("{}", Typ.temp(Sig(Closed(ClosedSig.of_items([]))))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */
@@ -481,6 +481,11 @@ let type_tests = (
       ~expect=None,
     ),
     tydi_test(
+      ~name="Qualified type: value members are not type members",
+      ~code="module M = { type T = Int; let xylo = 1 } in let y : M.xy¦",
+      ~expect=None,
+    ),
+    tydi_test(
       ~name="Qualified type: dot label no match",
       ~code="module Mod = { type MyType = Int } in let x : Mod.Z¦",
       ~expect=None,
@@ -558,6 +563,11 @@ let qualified_tests = (
       ~name="Qualified: no match when field types don't match",
       ~code="let mm : (name=String) = (name=\"a\") in let x : Int = mm¦",
       ~expect=None,
+    ),
+    tydi_test(
+      ~name="Qualified: value member of a module with a type member",
+      ~code="let m = { type T = Int; let value = 1 } in m.va¦",
+      ~expect=Some("lue"),
     ),
     /* Module keyword syntax */
     tydi_test(
@@ -663,7 +673,22 @@ let ci_sort_tests = (
   ],
 );
 
+/* A type binder that reuses a name in scope is renamed with its scope
+   (Typ.unshadow); completion offers the name as written, never the
+   renamed one, which would not parse. */
+let renamed_type_name_tests = (
+  "TyDi.RenamedTypeName",
+  [
+    tydi_test(
+      ~name="An alias shadowing a type variable completes as written",
+      ~code="typfun Tee -> type Tee = Int in let x : Te¦ = 1 in x",
+      ~expect=Some("e"),
+    ),
+  ],
+);
+
 let tests = [
+  renamed_type_name_tests,
   dot_label_tests,
   variable_tests,
   constructor_tests,

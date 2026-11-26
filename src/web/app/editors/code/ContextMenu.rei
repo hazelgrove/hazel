@@ -32,6 +32,9 @@ module WithContext: {
     option(Ui_effect.t(unit));
 };
 
+/* The class placing a menu opened in [dir]. */
+let direction_class: Util.Menu.open_direction => string;
+
 let view:
   (
     ~inject: command => Ui_effect.t(unit),

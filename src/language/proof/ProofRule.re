@@ -129,7 +129,7 @@ let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
   let inner_coctx =
     switch (Statics.Map.lookup_exp(root_id, statics)) {
     | Some(exp) => Info.exp_co_ctx(exp)
-    | None => []
+    | None => CoCtx.empty
     };
   CoCtx.mk(ctx, full_ctx, inner_coctx);
 };

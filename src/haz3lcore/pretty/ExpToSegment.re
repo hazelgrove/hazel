@@ -268,6 +268,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Test(_)
   | HintedTest(_)
   | ProofObject(_)
+  | Module(_)
   | Match(_) => Precedence.max
 
   | Asc(_) => Precedence.asc
@@ -299,7 +300,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
-  | Module(_) => Precedence.min
   | ModuleExp(_) => Precedence.let_
   };
 };
@@ -352,7 +352,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Parens(_)
   | Projector(_)
   | ProofOf(_)
-  | List(_) => Precedence.max
+  | List(_)
+  | Sig(_) => Precedence.max
 
   // Other forms
   | Prod([]) => Precedence.max // the atomic () unit-type token (#2296)
@@ -370,7 +371,6 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
-  | Sig(_) => Precedence.min
   };
 
 /* Conditional parenthesization helpers.
@@ -751,8 +751,26 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  | Module(items) =>
+    Module(
+      List.map(
+        ~f=
+          parenthesize_mod(
+            ~parenthesization,
+            ~show_filters,
+            ~show_ascriptions,
+          ),
+        items,
+      ),
+    )
+    |> rewrap
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(
+      mp,
+      parenthesize(def) |> paren_at(Precedence.min),
+      parenthesize(body) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
   };
 }
 and parenthesize_pat =
@@ -824,7 +842,8 @@ and parenthesize_pat =
   | Ap(p1, p2) =>
     Ap(
       parenthesize_pat(p1) |> paren_pat_assoc_at(Precedence.ap),
-      parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
+      parenthesize_pat(~already_paren=true, p2)
+      |> paren_pat_at(Precedence.min),
     )
     |> rewrap
   | MultiHole(xs) =>
@@ -878,11 +897,9 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    /* Already parenthesized: paren_typ_at(min) here would add a layer around
+       every min-precedence t. */
+    Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
@@ -962,10 +979,11 @@ and parenthesize_typ =
   | Sum(ts) =>
     Sum(
       ConstructorMap.map(
+        /* the constructor's own parens bracket its argument */
         ts =>
           ts
-          |> Option.map(~f=parenthesize_typ)
-          |> Option.map(~f=paren_typ_at(Precedence.type_plus)),
+          |> Option.map(~f=parenthesize_typ(~already_paren=true))
+          |> Option.map(~f=paren_typ_at(Precedence.min)),
         ts,
       ),
     )
@@ -987,7 +1005,16 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Sig(_) => term |> rewrap
+  | Sig(s) =>
+    let item =
+      Sig.map_typ(t => parenthesize_typ(t) |> paren_typ_at(Precedence.min));
+    Sig(
+      switch (s) {
+      | Open(items) => Open(List.map(~f=item, items))
+      | Closed(items) => Closed(ClosedSig.map(item, items))
+      },
+    )
+    |> rewrap;
   };
 }
 
@@ -1077,6 +1104,61 @@ and parenthesize_rul =
   };
 }
 
+and parenthesize_mod =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      item: Mod.t,
+    )
+    : Mod.t => {
+  let parenthesize =
+    parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
+  let definition = e =>
+    parenthesize(e) |> paren_at(~parenthesization, Precedence.min);
+  let (term, rewrap: Mod.term => Mod.t) = IdTagged.unwrap(item);
+  switch (term) {
+  | Invalid(_)
+  | EmptyHole => item
+  | MultiHole(xs) =>
+    MultiHole(
+      List.map(
+        ~f=
+          parenthesize_any(
+            ~parenthesization,
+            ~show_ascriptions,
+            ~show_filters,
+          ),
+        xs,
+      ),
+    )
+    |> rewrap
+  | ModLet(p, e) =>
+    ModLet(
+      parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions, p)
+      |> paren_pat_at(~parenthesization, Precedence.min),
+      definition(e),
+    )
+    |> rewrap
+  | ModType(tp, t) =>
+    ModType(
+      parenthesize_tpat(
+        ~parenthesization,
+        ~show_filters,
+        ~show_ascriptions,
+        tp,
+      ),
+      parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions, t)
+      |> paren_typ_at(~parenthesization, Precedence.min),
+    )
+    |> rewrap
+  /* Not `definition`: a fresh Parens would split the item from the
+     expression it shares ids with. */
+  | ModExp(e) => ModExp(parenthesize(e)) |> rewrap
+  | ModuleMod(mp, e) => ModuleMod(mp, definition(e)) |> rewrap
+  | ModVal(x, e) => ModVal(x, definition(e)) |> rewrap
+  };
+}
 and parenthesize_any =
     (
       ~parenthesization: Settings.parenthesization,
@@ -1135,11 +1217,19 @@ and parenthesize_any =
         r,
       ),
     )
-  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
+  /* Parenthesization for Drv, Sig, MPat, and Any is not yet defined.
      Pretty-printing produces the term as-is; this is sound (never adds
      invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
-  | Mod(_) => any
+  | Mod(m) =>
+    Mod(
+      parenthesize_mod(
+        ~parenthesization,
+        ~show_filters,
+        ~show_ascriptions,
+        m,
+      ),
+    )
   | Sig(_) => any
   | MPat(_) => any
   | Any(_) => any
@@ -1156,7 +1246,10 @@ let should_add_space = (s1, s2) =>
   | _ when String.is_prefix(s2, ~prefix=":") => false
   | _ when String.is_suffix(s1, ~suffix="::") => true
   | _ when String.is_suffix(s1, ~suffix=":") =>
-    String.is_prefix(s2, ~prefix="$") || String.is_prefix(s2, ~prefix="!")
+    /* After `:`, an operator character would lex into the same token (`:+`);
+       `$` also needs the gap. */
+    String.is_prefix(s2, ~prefix="$")
+    || Token.begins_with_potential_operator(s2)
   | _ when String.is_suffix(s1, ~suffix=" ") => false
   | _ when String.is_prefix(s2, ~prefix=" ") => false
   | _ when String.is_suffix(s1, ~suffix="\n") => false
@@ -1865,6 +1958,24 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
     };
   };
 
+/* a member hole: its source spelling, else a `?` tile (hole_tiles), else
+   grout */
+let mod_hole_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
+  let id = item |> Mod.rep_id;
+  let seg =
+    switch (hole_lexeme(item.annotation)) {
+    | Some(tok) => text_to_pretty(id, Sort.Mod, tok)
+    | None when settings.hole_tiles => text_to_pretty(id, Sort.Mod, "?")
+    | None => [
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]
+    };
+  p_just(wrap_with_secondary(~secondary=settings.secondary, item, seg));
+};
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
@@ -2039,12 +2150,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
-  | MultiHole([x]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
@@ -2542,19 +2653,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                 wrap already emits it — wrapping both duplicates the runs,
                 growing whitespace on every roundtrip. */
              go(e)
-           | EmptyHole =>
-             let item_id = item |> Mod.rep_id;
-             let seg =
-               switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => text_to_pretty(item_id, Sort.Mod, tok)
-               | None => [
-                   Grout({
-                     id: item_id,
-                     shape: Convex,
-                   }),
-                 ]
-               };
-             p_just(wrap_item(item, seg));
+           | EmptyHole => mod_hole_to_pretty(~settings, item)
            | Invalid(s) =>
              p_just(
                wrap_item(
@@ -2575,6 +2674,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                    [mp_seg],
                  ),
                ]
+               @ e,
+             );
+           | ModVal(x, e) =>
+             /* An evaluated binding (dynamics only) displays as `let x = e`. */
+             let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
                @ e,
              );
            | MultiHole(es) =>
@@ -2799,12 +2907,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
-  | MultiHole([x]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Unknown infix operator in pattern position (see MakeTerm's pat
        Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
@@ -2926,12 +3034,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
-  | Unknown(Hole(MultiHole([x]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([x])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
-  | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([l, r])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Unknown infix operator in type position (see MakeTerm's typ Bin
        fallthrough) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
@@ -2962,7 +3072,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           )
       };
     wrap(typ, seg);
-  | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
+  | Var(v) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Typ.surface_name(v)),
+    )
   | Atom(a) =>
     wrap(
       typ,
@@ -3148,13 +3262,13 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ),
       );
     };
-  | Sig([]) =>
+  | Sig(s) when List.is_empty(Sig.items(s)) =>
     /* Empty sig: {} */
     wrap(
       typ,
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.empty_module),
     )
-  | Sig(items) =>
+  | Sig(s) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
     let ids =
       IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
@@ -3162,7 +3276,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl_exn(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      items
+      Sig.items(s)
       |> List.map(~f=(item: Sig.t) =>
            switch (item.term) {
            | SigLet(p) =>
@@ -3179,6 +3293,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                [mk_form(~sort=Sort.Sig, ModType, item |> Sig.rep_id, [tp])]
                @ t,
              );
+           | SigModule(mp) =>
+             p_just(
+               wrap_item(
+                 item,
+                 [mk_form(~sort=Sort.Sig, SigModule, item |> Sig.rep_id, [])]
+                 @ mpat_to_seg(~settings, mp),
+               ),
+             )
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
              let seg =
@@ -3264,7 +3386,11 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
           )
       };
     wrap(tpat, seg);
-  | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
+  | Var(v) =>
+    wrap(
+      tpat,
+      text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, Typ.surface_name(v)),
+    )
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
@@ -3291,18 +3417,11 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
-  | EmptyHole =>
-    let seg =
-      switch (hole_lexeme(item.annotation)) {
-      | Some(tok) => text_to_pretty(item |> Mod.rep_id, Sort.Mod, tok)
-      | None => [
-          Grout({
-            id: item |> Mod.rep_id,
-            shape: Convex,
-          }),
-        ]
-      };
-    p_just(wrap_item(item, seg));
+  | ModVal(x, e) =>
+    let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
+  | EmptyHole => mod_hole_to_pretty(~settings, item)
   | Invalid(s) =>
     p_just(
       wrap_item(item, invalid_to_pretty(item |> Mod.rep_id, Sort.Mod, s)),
@@ -3325,6 +3444,14 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     let+ tp = tpat_to_pretty(~settings, tp)
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(ModType, item |> Sig.rep_id, [tp])] @ t);
+  | SigModule(mp) =>
+    p_just(
+      wrap_item(
+        item,
+        [mk_form(SigModule, item |> Sig.rep_id, [])]
+        @ mpat_to_seg(~settings, mp),
+      ),
+    )
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {
@@ -3632,18 +3759,19 @@ let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
     seen := Id.Set.add(id, seen^);
     id;
   };
-  Typ.map_term(
-    ~f_typ=
-      (cont, ty) =>
-        cont({
-          ...ty,
-          annotation: {
-            ...ty.annotation,
-            ids: List.map(~f=distinct, ty.annotation.ids),
-          },
-        }),
-    ty,
-  );
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (cont, node) =>
+      cont({
+        ...node,
+        annotation: {
+          ...node.annotation,
+          ids: List.map(~f=distinct, node.annotation.ids),
+        },
+      });
+  Typ.map_term(~f_typ=f, ~f_tpat=f, ty);
 };
 
 /* Display segments must never contain two tile pieces claiming the same

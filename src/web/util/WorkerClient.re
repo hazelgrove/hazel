@@ -21,6 +21,8 @@ type latest = {
   request: Request.t,
   callbacks,
   ack_retries: int,
+  /* posted with every piece, after the worker asked */
+  resent: bool,
 };
 
 /* The live worker's latest coverage, and the last from each worker
@@ -116,16 +118,82 @@ let with_latest = (request_id, f) =>
   | None => ()
   };
 
+/* the pieces the worker holds: those of the last request posted to it,
+   as it keeps exactly those. a new worker holds none */
+let held: Stdlib.Hashtbl.t(EvalPieces.hash, unit) =
+  Stdlib.Hashtbl.create(256);
+
+/* what the worker holds once it receives [request] */
+let hold = (request: Request.t): unit => {
+  Stdlib.Hashtbl.reset(held);
+  List.iter(
+    ~f=
+      ((_, v: Request.value)) =>
+        List.iter(
+          ~f=((hash, _)) => Stdlib.Hashtbl.replace(held, hash, ()),
+          v.program.pieces,
+        ),
+    request.batch,
+  );
+};
+
+/* [request] as posted: its programs' layouts, and the pieces the worker
+   doesn't hold ([full]: all of them) */
+let posted_of = (~full: bool, request: Request.t): Posted.t => {
+  let seen = Stdlib.Hashtbl.create(64);
+  {
+    request_id: request.request_id,
+    batch:
+      List.map(
+        ~f=
+          ((key, v: Request.value)) =>
+            (
+              key,
+              Posted.{
+                layout: v.program.layout,
+                prev: v.prev,
+                stream: v.stream,
+              },
+            ),
+        request.batch,
+      ),
+    pieces:
+      List.concat_map(
+        ~f=
+          ((_, v: Request.value)) =>
+            List.filter(
+              ~f=
+                ((hash, _)) =>
+                  (full || !Stdlib.Hashtbl.mem(held, hash))
+                  && !Stdlib.Hashtbl.mem(seen, hash)
+                  && {
+                    Stdlib.Hashtbl.replace(seen, hash, ());
+                    true;
+                  },
+              v.program.pieces,
+            ),
+        request.batch,
+      ),
+  };
+};
+
 /* Both directions cross postMessage in the Active encoding, not as live
  * values, to dodge the structured-clone overflow on deep results (#2368;
  * see WorkerServer.Active). Callers still deal in Request.t/Response.t.
  *
  * Encodes once: the Evaluation panel needs the posted byte length, and records
- * the send here so its latency clock starts as close to the post as it can. */
-let post_evaluate = (worker, request: Request.t) => {
-  let encoded = Active.encode_request(ClientMessage.Evaluate(request));
+ * the send here so its latency clock starts as close to the post as it can.
+ * Benchmarking the request-side encodings ([metrics]) happens before, keeping
+ * that (heavy) work outside the latency clock. */
+let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) => {
+  let msg = ClientMessage.Evaluate(posted_of(~full, request));
+  if (metrics) {
+    WorkerMetrics.record_request(request.request_id, msg);
+  };
+  let encoded = Active.encode_request(msg);
   EvalMetrics.record_sent(~request, ~encoded);
   worker##postMessage(encoded);
+  hold(request);
 };
 
 let fail_latest = latest => {
@@ -145,6 +213,10 @@ let cancel = (): unit => {
   latest_request := None;
 };
 
+/* the worker asked for every piece of the latest request: set below,
+   where the ack timeout is (the handler is installed before it) */
+let resend: ref(latest => unit) = ref(_ => ());
+
 let setup_worker_message_handler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
@@ -160,6 +232,8 @@ let setup_worker_message_handler = worker => {
         with_latest(request_id, latest =>
           latest.callbacks.on_stream(key, update)
         )
+      | ServerMessage.Resend({request_id}) =>
+        with_latest(request_id, latest => resend^(latest))
       | ServerMessage.Result(result) as msg =>
         with_latest(
           result.request_id,
@@ -209,6 +283,7 @@ let restart_worker = (): unit => {
   | Some(w) => w##terminate
   | None => ()
   };
+  Stdlib.Hashtbl.reset(held);
   retired_coverage := worker_coverage();
   live_coverage := None;
   worker_ref.contents = Some(init_worker());
@@ -252,6 +327,25 @@ let rec start_ack_timeout = (~cold_start, latest) => {
   );
 };
 
+/* asked again after posting every piece: fail it rather than loop */
+resend :=
+  (
+    latest =>
+      if (latest.resent) {
+        print_endline("eval worker: pieces missing from a full request");
+        fail_latest(latest);
+      } else {
+        clear_timer(ack_timeout_id);
+        let latest = {
+          ...latest,
+          resent: true,
+        };
+        latest_request := Some(latest);
+        post_evaluate(~full=true, get_worker(), latest.request);
+        start_ack_timeout(~cold_start=false, latest);
+      }
+  );
+
 let request =
     (
       batch: Request.batch,
@@ -270,13 +364,6 @@ let request =
       request_id: next_request_id^,
       batch,
     };
-    /* The request id doubles as the metrics row id, so the two panels correlate.
-     * Benchmarking the request-side encodings happens before the post, keeping
-     * that (heavy) work outside the latency clock. */
-    WorkerMetrics.record_request(
-      request.request_id,
-      ClientMessage.Evaluate(request),
-    );
     let latest = {
       request,
       callbacks: {
@@ -286,9 +373,12 @@ let request =
         on_stream,
       },
       ack_retries: 0,
+      resent: false,
     };
     latest_request := Some(latest);
-    post_evaluate(get_worker(), latest.request);
+    /* The request id doubles as the metrics row id, so the two panels
+     * correlate. */
+    post_evaluate(~metrics=true, get_worker(), latest.request);
     start_eval_timeout(latest);
     start_ack_timeout(~cold_start=false, latest);
   };

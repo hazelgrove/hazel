@@ -149,13 +149,51 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
+/* streams and the reuse plan ship only what the main thread reads: entry
+   keys, [seq] and states; the reuse payload stays in the worker */
+let test_slim_entries = (): test_case(_) =>
+  test_case(
+    "slimmed entries keep keys and order, drop the payload",
+    `Quick,
+    () => {
+      let id = Util.Id.mk();
+      let entry: IncrEval.entry(EvaluatorState.t) = {
+        prev_elab: parse("1 + 2"),
+        prev_reuse_map: IncrEval.empty_reuse_map,
+        prev_probe_targets: EvalInfo.ProbeTargets(SubexpProbeTargets.empty),
+        value: parse("3"),
+        state: EvaluatorState.empty,
+        seq: 7,
+      };
+      let slim =
+        WorkerServer.slim_entries(
+          IncrEval.add_entry(id, entry, IncrEval.empty),
+        );
+      switch (Util.Id.Map.find_opt(id, slim.entries)) {
+      | None => fail("entry dropped")
+      | Some(e) =>
+        check(int, "seq kept", 7, e.seq);
+        check(
+          bool,
+          "value dropped",
+          true,
+          Poly.equal(e.value.term, EmptyHole),
+        );
+        check(
+          bool,
+          "elab dropped",
+          true,
+          Poly.equal(e.prev_elab.term, EmptyHole),
+        );
+      };
+    },
+  );
+
 /* The cost gate: a request takes the incremental path when its program is
  * large or its previous evaluation was expensive. Uses id-preserving edits —
  * re-parsing would mint fresh ids and nothing could be reused regardless of
  * the gate. */
-let request =
-    (~prev=IncrEval.empty, exp: Exp.t)
-    : (WorkerServer.key, WorkerServer.Request.value) => {
+let request = (exp: Exp.t): (WorkerServer.key, WorkerServer.Evaluation.value) => {
   let (info_map, elab) = Test_Evaluator_Incremental.statics_and_elab(exp);
   (
     "cell",
@@ -163,18 +201,28 @@ let request =
       expr: elab,
       eval_info_map:
         Test_Evaluator_Incremental.eval_info_of_statics(info_map),
-      prev,
+      prev: UseResident,
+      stream: Full,
     },
   );
 };
 
-/* The worker's reuse plan for a request, and the cache its evaluation leaves. */
-let run = (~prev=?, exp: Exp.t) => {
-  let item = request(~prev?, exp);
+/* The worker's reuse plan for a request, and the cache its evaluation
+ * leaves, with [prev] as the worker's resident cache. */
+let run = (~prev=IncrEval.empty, exp: Exp.t) => {
+  let (key, value) as item = request(exp);
+  Stdlib.Hashtbl.replace(WorkerServer.resident, key, prev);
   let (_, plan) = WorkerServer.predict_reuse_for_request(item);
-  switch (WorkerServer.evaluate_sync(snd(item))) {
-  | Ok((_, state)) => (plan, state.incr_eval)
-  | Error(_) => fail("evaluation failed")
+  switch (
+    Evaluator.evaluate(
+      ~prev=WorkerServer.gated_prev(~key, value),
+      ~eval_info=value.eval_info_map,
+      ~env=Builtins.env_init,
+      value.expr,
+    )
+  ) {
+  | (_, state) => (plan, state.incr_eval)
+  | exception _ => fail("evaluation failed")
   };
 };
 
@@ -269,7 +317,7 @@ let test_expensive_small_program_reuses = (): test_case(_) =>
       );
 
       let exp2 = set_addend(2, exp1);
-      let (_, req2) = request(~prev=incr1, exp2);
+      let (_, req2) = request(exp2);
       let fib_id = fib_19_id(req2.expr);
       let (plan2, incr2) = run(~prev=incr1, exp2);
       check(
@@ -341,6 +389,7 @@ let tests = [
       test_marshal_depth_proof(),
       test_eval_time_round_trips(),
       test_span_yojson(),
+      test_slim_entries(),
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),

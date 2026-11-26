@@ -73,7 +73,7 @@ let run_handle_llm_response =
         reply,
         chat_id,
         agent.main_llm_seq,
-        0,
+        None,
       ),
       agent,
       cell_editor,

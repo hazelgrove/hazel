@@ -166,7 +166,9 @@ let regrout_debug_tests = [
               | Piece.Tile(t) =>
                 "Tile(" ++ String.concat(~sep=",", Tile.label(t)) ++ ")"
               | Piece.Grout(g) =>
-                "Grout(" ++ (g.shape == Convex ? "Convex" : "Concave") ++ ")"
+                "Grout("
+                ++ (Poly.equal(g.shape, Convex) ? "Convex" : "Concave")
+                ++ ")"
               | Piece.Secondary(s) =>
                 "Secondary("
                 ++ (Secondary.is_linebreak(s) ? "linebreak" : "other")
@@ -1110,6 +1112,39 @@ let entry_experience_tests = [
   ),
 ];
 
+/* A mid-form keyword's prefix starting a line ends the definition above
+   unless a form there expects that keyword: `t` of `test` reads as `l`
+   does, `i` of `in` stays the pending `in` */
+let typed_after = (src, keys) =>
+  Test_Editing.mk(src) @ Test_Editing.string_to_ltr_actions(keys);
+let keyword_prefix_line_tests = [
+  edit_case(
+    ~name="`te` starting a line ends the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\nte"),
+    ~expected="let a = 1 in\nlet b = a + 1in\nte",
+  ),
+  edit_case(
+    ~name="`l` starting a line ends the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\nl"),
+    ~expected="let a = 1 in\nlet b = a + 1in\nl",
+  ),
+  edit_case(
+    ~name="`i` starting a line is the pending `in`",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\ni"),
+    ~expected="let a = 1 in\nlet b = a + 1\nin?",
+  ),
+  edit_case(
+    ~name="`th` starting a line is the pending `then`",
+    ~acts=typed_after("let b = if true¦", "\nth"),
+    ~expected="let b = if true\nthen?else?in?",
+  ),
+  edit_case(
+    ~name="`+ 2` starting a line continues the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\n+ 2"),
+    ~expected="let a = 1 in\nlet b = a + 1\n+ 2in?",
+  ),
+];
+
 /* === Leading witnesses: a >=2-char token at the opener position of
    a tile expecting that opener completes in place (the tile's
    surviving shards carry the expectation; no mold gate exists in
@@ -1341,7 +1376,7 @@ let probe_raw = (acts: list(Action.t)): string => {
                 ),
               ),
             )
-          | Grout(g) => Some(g.shape == Convex ? "?" : "~")
+          | Grout(g) => Some(Poly.equal(g.shape, Convex) ? "?" : "~")
           | _ => None
           },
       seg,
@@ -1454,7 +1489,7 @@ let probe_tydi = (acts: list(Action.t)): string => {
     | Some(i) => "ci:" ++ (Language.Info.cls_of(i) |> Language.Cls.show)
     };
   let buf =
-    switch (TyDi.set_buffer(~ci, z)) {
+    switch (TyDi.set_buffer(~root=Exp, ~ci, z)) {
     | None => "buf:NONE"
     | Some(z') =>
       switch (TyDi.get_unparsed_buffer(z')) {
@@ -1553,7 +1588,7 @@ let move_r = Action.Move(Local(Right, ByChar));
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  CompletionQuery.tab_action(z)
+  CompletionQuery.tab_action(~root=Exp, z)
   |> Option.map(~f=a => Test_Editing.perform(z, [a]));
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
@@ -1880,7 +1915,9 @@ let clippable_guard_tests = {
     labels
     |> List.filter(~f=l =>
          Form.base_molds(l)
-         |> List.exists(~f=(m: Mold.t) => m.out == s || m.out == Sort.Any)
+         |> List.exists(~f=(m: Mold.t) =>
+              m.out == s || Sort.equal(m.out, Sort.Any)
+            )
        )
     |> List.length;
   let table =
@@ -1900,8 +1937,9 @@ let clippable_guard_tests = {
            backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+           clippable_sort stands.
+           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `module` label. */
+        "Exp 68/89 | Pat 10/89 | Typ 16/89 | TPat 5/89 | Rul 1/89",
         table,
       )
     ),
@@ -2052,6 +2090,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
+  ("CanonicalCompletion: keyword-prefix lines", keyword_prefix_line_tests),
   ("CanonicalCompletion: leading-witness", leading_witness_tests),
   ("CanonicalCompletion: symbolic-witness", symbolic_witness_tests),
   ("CanonicalCompletion: opener-walls", opener_wall_tests),

@@ -62,7 +62,7 @@ let check_monotonicity = (name: string, src: string): unit => {
     } else {
       let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
-      if (len < prev_len && violation^ == None) {
+      if (len < prev_len && Option.is_none(violation^)) {
         violation :=
           Some(
             sprintf(
@@ -305,7 +305,7 @@ let check_hard_cap = (name: string, src: string): unit => {
     } else {
       let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
-      if (len > budget && violation^ == None) {
+      if (len > budget && Option.is_none(violation^)) {
         violation :=
           Some(
             sprintf(
@@ -616,6 +616,29 @@ let module_abbreviation_tests = [
         | Module(_) => true /* or still a module */
         | _ => true
         },
+      );
+    },
+  ),
+  test_case(
+    "module value abbreviation counts member names against the budget",
+    `Quick,
+    (): unit => {
+      open IdTagged.FreshGrammar;
+      let member = x => Language.Mod.fresh(ModVal(x, Exp.int(1)));
+      let original: Exp.t =
+        Exp.module_([
+          member("a_rather_long_member_name"),
+          member("another_long_member_name"),
+        ]);
+      let budget = 30;
+      check(
+        Alcotest.bool,
+        "within budget",
+        true,
+        Util.Unicode.length(
+          render_exp(run_abbreviation(~available=budget, original)),
+        )
+        <= budget,
       );
     },
   ),

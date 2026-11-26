@@ -42,8 +42,9 @@ let format_hazel = (implicit_hole: string, width, path) => {
   /* Parse to a zipper (not just a segment) so we recover manual refractors
      produced by `^^probe(...)` / `^^statics(...)` triggers in the input.
      The refractors are then passed to Printer.of_segment so they round-trip
-     back to their trigger syntax. Both convex and concave Grout are rendered
-     with `implicit_hole` so the marker survives a decode|format|encode pipe. */
+     back to their trigger syntax. Convex Grout renders as `implicit_hole`;
+     concave Grout gets its own marker (an operator hole has no operand
+     spelling), so a decode|format|encode pipe stays fast-parseable. */
   switch (parse_to_zipper(program)) {
   | None => failwith("Failed to parse: " ++ path)
   | Some(zipper) =>
@@ -53,7 +54,7 @@ let format_hazel = (implicit_hole: string, width, path) => {
     let output =
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
-        ~concave_holes=implicit_hole,
+        ~concave_holes=Haz3lcore.Token.concave_hole_marker,
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
       );
@@ -105,6 +106,7 @@ let analyze_hazel =
             Diagnostic.format_error_with_location(
               ~source=program,
               ~path,
+              ~info_map=static_map,
               measured,
               info,
             )
@@ -177,7 +179,7 @@ let analyze_hazel =
       /* Warnings alone do not fail the run; only errors set a non-zero exit
          code. This matches `cargo check` / `gcc -Wall` semantics and keeps
          `analyze -W` usable in CI without forcing every warning to be fatal. */
-      if (errors == []) {
+      if (List.is_empty(errors)) {
         `Ok();
       } else {
         `Error((false, "Static errors found"));
@@ -408,6 +410,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
+        (),
       );
 
     /* Evaluate the elaboration from the same statics run (it may carry

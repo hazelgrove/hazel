@@ -12,7 +12,6 @@ let view =
       ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
       ~code_with_statics: CodeWithStatics.Model.t,
-      ~eval_result: EvalResult.Model.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
@@ -221,7 +220,6 @@ let view =
               ~agent_inject,
               ~signal,
               ~code_with_statics,
-              ~eval_result,
             )
           | Chat.Model.Workbench =>
             WorkbenchView.view(
@@ -243,7 +241,6 @@ let view =
               ~agent_inject,
               ~signal,
               ~code_with_statics,
-              ~eval_result,
             )
           };
         // Shared bottom bar (only show for Messages and Workbench views)
@@ -298,7 +295,7 @@ let view =
               List.map(
                 ~f=
                   (chat: Chat.Model.t) => {
-                    let is_active = chat.id == chat_system.current;
+                    let is_active = Id.equal(chat.id, chat_system.current);
                     let classes =
                       ["history-chat-item"] @ (is_active ? ["active"] : []);
                     let switch_to_this_chat = _ => {

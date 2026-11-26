@@ -160,7 +160,7 @@ module Persistent = {
             ? cur : p.prompting.system_prompt,
         /* Always use the in-code tool registry so new tools (probes, statics, …)
            appear after upgrades; disabled_tool_names still applies per name. */
-        tools: CompositionUtils.Public.tools,
+        tools: CompositionUtils.tools,
       },
       awaiting_response: None,
     };

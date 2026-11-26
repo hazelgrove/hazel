@@ -461,6 +461,8 @@ let equality =
       List.length(ps1) == List.length(ps2)
       && List.for_all2_exn(ps1, ps2, ~f=pne)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
+    | (Label(l1), Label(l2)) => String.equal(l1, l2)
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
     /* Non-name-binding pattern forms still need structural equality —
        without these, identical literal/list/cons member patterns
@@ -472,6 +474,29 @@ let equality =
       List.length(ps1) == List.length(ps2)
       && List.for_all2_exn(ps1, ps2, ~f=pne)
     | (Ap(f1, a1), Ap(f2, a2)) => pne(f1, f2) && pne(a1, a2)
+    | _ => false
+    };
+  }
+  /* [pat_names_equal] for module patterns, used for SigModule. */
+  and mpat_names_equal =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        mp1: TermBase.MPat.t,
+        mp2: TermBase.MPat.t,
+      )
+      : bool => {
+    let mne = mpat_names_equal(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ);
+    switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
+    | (Var(x1), Var(x2)) => String.equal(x1, x2)
+    | (Asc(m1, t1), Asc(m2, t2)) => mne(m1, m2) && typ'(t1, t2)
+    | (EmptyHole, EmptyHole) => true
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(~f=any', xs1, xs2)
     | _ => false
     };
   }
@@ -489,6 +514,11 @@ let equality =
     let any' = any(alphas_exp, alphas_typ);
     let mpat' = (mp1, mp2) =>
       Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
+    let binds = (x, p: Pat.t) =>
+      switch (Annotated.term_of(p)) {
+      | Var(y) => String.equal(x, y)
+      | _ => false
+      };
     switch (m1 |> Annotated.term_of, m2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
@@ -502,6 +532,9 @@ let equality =
        so compare literally, not with alpha-equiv. */
     | (ModLet(p1, e1), ModLet(p2, e2)) =>
       pat_names_equal(alphas_exp, alphas_typ, p1, p2) && exp'(e1, e2)
+    /* An evaluated binding equals the literal binding `let x = e`. */
+    | (ModVal(x1, e1), ModLet(p2, e2)) => binds(x1, p2) && exp'(e1, e2)
+    | (ModLet(p1, e1), ModVal(x2, e2)) => binds(x2, p1) && exp'(e1, e2)
     | (ModLet(_, _), _) => false
     | (ModType(tp1, t1), ModType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
@@ -511,6 +544,9 @@ let equality =
     | (ModuleMod(mp1, e1), ModuleMod(mp2, e2)) =>
       mpat'(mp1, mp2) && exp'(e1, e2)
     | (ModuleMod(_, _), _) => false
+    | (ModVal(x1, e1), ModVal(x2, e2)) =>
+      String.equal(x1, x2) && exp'(e1, e2)
+    | (ModVal(_, _), _) => false
     };
   }
   and pat =
@@ -720,9 +756,17 @@ let equality =
     | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
-    | (Sig(items1), Sig(items2)) =>
-      List.length(items1) == List.length(items2)
-      && List.for_all2_exn(items1, items2, ~f=sig_(alphas_exp, alphas_typ))
+    | (Sig(s1), Sig(s2)) =>
+      let items = (items1, items2) =>
+        List.length(items1) == List.length(items2)
+        && List.for_all2_exn(~f=sig_(alphas_exp, alphas_typ), items1, items2);
+      switch (s1, s2) {
+      | (Open(items1), Open(items2)) => items(items1, items2)
+      | (Closed(c1), Closed(c2)) =>
+        items(ClosedSig.items(c1), ClosedSig.items(c2))
+      | (Open(_), Closed(_))
+      | (Closed(_), Open(_)) => false
+      };
     | (Sig(_), _) => false
     | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
     | (DrvQuoteTy(_), _) => false
@@ -755,6 +799,9 @@ let equality =
     | (SigType(tp1, t1), SigType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (SigType(_, _), _) => false
+    | (SigModule(mp1), SigModule(mp2)) =>
+      mpat_names_equal(alphas_exp, alphas_typ, mp1, mp2)
+    | (SigModule(_), _) => false
     };
   }
   and mpat =

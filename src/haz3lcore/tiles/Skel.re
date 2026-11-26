@@ -39,7 +39,10 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
     | (Form.Compound(CellJoin), Form.Compound(CellJoin)) =>
       both_infix()
       && Tile.mold(t1).out == Tile.mold(t2).out
-      && (Tile.mold(t1).out == Sort.Mod || Tile.mold(t1).out == Sort.Sig)
+      && (
+        Sort.equal(Tile.mold(t1).out, Sort.Mod)
+        || Sort.equal(Tile.mold(t1).out, Sort.Sig)
+      )
     /* sum-type + chains; label-based on purpose: unmolded + tokens
        get an infix Any-fallback mold and must chain too */
     | _ =>
@@ -108,15 +111,25 @@ module Stacks = {
 
   let rec push_output =
           (~sort: Sort.t, ~prec: option(Precedence.t)=?, stacks: t): t => {
-    let (chain, shunted) = pop_chain(stacks.shunted);
-    switch (prec, shapes_of_chain(~sort, chain)) {
-    | (Some(prec), Some((_, Concave(prec'))))
-        when
+    /* a chain's right nib is its top piece's: read it before popping, or
+       each `;` of a long `;` chain pops the whole chain to keep it */
+    let binds_looser =
+      switch (prec, stacks.shunted) {
+      | (Some(prec), [(_, top), ..._]) =>
+        switch (snd(shapes(~sort, top))) {
+        | Concave(prec') =>
           Precedence.compare(prec', prec) < 0
           || Precedence.compare(prec', prec) == 0
-          && Precedence.associativity(prec') != Some(Left) => stacks
-    | (_, None) => stacks
-    | (_, Some((l, r))) =>
+          && !Poly.equal(Precedence.associativity(prec'), Some(Left))
+        | Convex => false
+        }
+      | _ => false
+      };
+    let (chain, shunted) =
+      binds_looser ? ([], stacks.shunted) : pop_chain(stacks.shunted);
+    switch (shapes_of_chain(~sort, chain)) {
+    | None => stacks
+    | Some((l, r)) =>
       let is = List.map(~f=fst, chain);
       let chain_len = List.length(chain);
       let split_kids = (n: int): (list(skel), list(skel)) =>

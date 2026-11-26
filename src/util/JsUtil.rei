@@ -42,7 +42,29 @@ let find_ancestor_with_class:
 let adjust_scroll:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), float) => unit;
 let caret_in_view: unit => bool;
-let scroll_cursor_into_view_if_needed: unit => unit;
+let connected: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => bool;
+let find_scroll_container:
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) =>
+  option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
+let find_scroll_container_cached:
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) =>
+  option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
+let cached_client_height:
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => float;
+let align_caret_near_top: unit => unit;
+let reveal_last: string => unit;
+let by_class:
+  (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), string) =>
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom.nodeList(Js_of_ocaml.Dom_html.element));
+let selection_within: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => bool;
+let selection_in_focus: unit => bool;
+let clear_page_selection: unit => unit;
+let focus_outline: unit => unit;
+let outline_cursor_anchor: unit => option((float, float));
+let outline_page_rows: unit => int;
+let outline_has_focus: unit => bool;
+let align_active_cell_top: unit => unit;
+let observe_drawer_width: (~report: int => unit) => unit;
 let main_scroll_top: unit => float;
 let set_main_scroll_top: float => unit;
 module Fragment: {
@@ -55,7 +77,6 @@ let releasePointerCapture:
 let hasPointerCapture:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => bool;
 let set_css_custom_property: (string, string) => unit;
-let update_main_scroll_width: unit => unit;
 let sync_at_bottom_class:
   Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.event) => unit;
 /** `delay(ms, f)` runs `f` after `ms` milliseconds. */
@@ -82,3 +103,9 @@ let navigate_probes:
     ]
   ) =>
   option(Id.t);
+
+/* The rest of the first class beginning with [prefix] on the element an
+   event targets, or on one of its ancestors. */
+let class_at_target:
+  (~prefix: string, Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)) =>
+  option(string);

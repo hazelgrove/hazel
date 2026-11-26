@@ -58,6 +58,16 @@ let rec find_hz = (dir: string): list(string) =>
     |> List.concat_map(~f=entry => {
          let path = Filename.concat(dir, entry);
          switch (Stdlib.Sys.is_directory(path)) {
+         /* the mega/bench perf corpora: composed from already-swept
+            sources and too slow here; FastParseCorpus covers them */
+         | true
+             when
+               List.mem(
+                 ["mega", "bench"],
+                 Filename.basename(path),
+                 ~equal=Poly.equal,
+               ) =>
+           []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []

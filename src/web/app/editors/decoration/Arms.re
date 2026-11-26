@@ -30,7 +30,7 @@ let shards_of_tiles = (tiles: tile_data) =>
      );
 
 let rep_tips = (tiles: tile_data) => {
-  assert(tiles != []);
+  assert(!List.is_empty(tiles));
   let (_, rep_mold, _) = List.hd_exn(tiles);
   let (l, r) = rep_mold.nibs;
   let (l, r) = ShardDec.tips_of_shapes((l.shape, r.shape));
@@ -42,10 +42,10 @@ let rep_tips = (tiles: tile_data) => {
 
 /* Find the leftmost column for decoration paths.
  * Uses content_start (first non-whitespace) instead of absolute left edge. */
-let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
+let min_col = (~first: Point.t, ~last: Point.t, ~rows: Measured.t): int =>
   min(
     first.col,
-    Rows.min_content_start(
+    Measured.min_col_of_rows(
       ListUtil.range(~lo=first.row, last.row + 1),
       rows,
     ),
@@ -159,8 +159,8 @@ let inner_lines =
     shard_rows
     |> ListUtil.neighbors
     |> List.filter_map(~f=((l, r)) => {
-         assert(l != []);
-         assert(r != []);
+         assert(!List.is_empty(l));
+         assert(!List.is_empty(r));
          let first = snd(List.hd_exn(l)).origin;
          let last = snd(List.hd_exn(r)).origin;
          if (last.row > first.row) {
@@ -209,7 +209,7 @@ let paths =
       tiles: tile_data,
       line_clss: list(string),
       font_metrics: FontMetrics.t,
-      rows: Rows.t,
+      rows: Measured.t,
       (first, last): (Point.t, Point.t),
     )
     : list(Node.t) =>
@@ -218,7 +218,7 @@ let paths =
   | [(id, {out: mold_out, _}, _), ..._] =>
     let sort = refine_sort(id, mold_out);
     let shards = shards_of_tiles(tiles);
-    assert(shards != []);
+    assert(!List.is_empty(shards));
     let path_cls = ["child-line", Sort.class_of(sort)] @ line_clss;
     let hx = Stdlib.abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
@@ -281,7 +281,7 @@ let term =
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
       ~font_metrics: FontMetrics.t,
-      ~rows: Rows.t,
+      ~rows: Measured.t,
       ~tiles: tile_data,
       ~line_clss: list(string)=[],
       ~base_clss: option(string)=?,
@@ -291,6 +291,16 @@ let term =
   shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss, tiles)
   @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
 
+/* the rep id of [id]'s term, and that term; None when the syntax lacks
+   either (a piece its parse left out), so a decoration draws nothing */
+let rep_of = (id: Id.t, terms: TermMap.t): option((Id.t, Language.Any.t)) =>
+  switch (Id.Map.find_opt(id, terms)) {
+  | Some(t) =>
+    let rep = Language.Any.rep_id(t);
+    Option.map(~f=t => (rep, t), Id.Map.find_opt(rep, terms));
+  | None => None
+  };
+
 let tiles_data =
     (
       ~term_data: TermData.t,
@@ -299,13 +309,15 @@ let tiles_data =
       tile: Tile.t,
     ) => {
   let msg = "Arms.tiles_data";
-  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
   let of_tile = (id: Id.t) => {
     open OptUtil.Syntax;
     let+ tile = TermData.root_tile(id, term_data);
     (id, Tile.mold(tile), Measured.find_shards(~msg, tile, measured));
   };
-  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(~f=of_tile);
+  switch (rep_of(tile.id, terms)) {
+  | Some((_, t)) => t |> Language.Any.ids |> List.filter_map(~f=of_tile)
+  | None => []
+  };
 };
 
 let term =
@@ -319,56 +331,59 @@ let term =
       ~clip_right: option(Point.t)=None,
       tile: Tile.t,
     )
-    : list(Node.t) => {
-  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  let any_term = Id.Map.find(id, terms);
+    : list(Node.t) =>
+  switch (rep_of(tile.id, terms)) {
+  | None => []
+  | Some((id, any_term)) =>
+    /* Module decoration: semicolons render as lone shards (no arms),
+       curly braces render as a pair (arms between braces, excluding semicolons) */
+    let is_module =
+      switch (any_term) {
+      | Exp({term: Module(_), _}) => true
+      | Typ({term: Sig(_), _}) => true
+      | _ => false
+      };
+    let is_semi = Tile.is_semi(tile);
+    let is_not_semi_tile = ((tid, _, _)) =>
+      switch (TermData.root_tile(tid, term_data)) {
+      | Some(t) => !Tile.is_semi(t)
+      | None => true
+      };
 
-  /* Module decoration: semicolons render as lone shards (no arms),
-     curly braces render as a pair (arms between braces, excluding semicolons) */
-  let is_module =
-    switch (any_term) {
-    | Exp({term: Module(_), _}) => true
-    | Typ({term: Sig(_), _}) => true
-    | _ => false
-    };
-  let is_semi = Tile.is_semi(tile);
-  let is_not_semi_tile = ((tid, _, _)) =>
-    switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => !Tile.is_semi(t)
-    | None => true
-    };
-
-  if (is_module && is_semi) {
-    let msg = "Arms.term";
-    switch (TermData.root_tile(tile.id, term_data)) {
-    | Some(t) =>
-      shards(
-        ~refine_sort,
-        ~attr?,
-        ~font_metrics,
-        ~base_clss=None,
-        [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
-      )
-    | None => []
-    };
-  } else {
-    switch (TermData.extreme_measures(id, term_data, measured)) {
-    | Some((l, r)) =>
-      let r = apply_clip(clip_right, r);
-      let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      let tiles = is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
-      term(
-        ~refine_sort,
-        ~font_metrics,
-        ~rows=measured.rows,
-        ~tiles,
-        (l, r),
-        ~attr?,
-      );
-    | _ => []
+    if (is_module && is_semi) {
+      let msg = "Arms.term";
+      switch (TermData.root_tile(tile.id, term_data)) {
+      | Some(t) =>
+        shards(
+          ~refine_sort,
+          ~attr?,
+          ~font_metrics,
+          ~base_clss=None,
+          [
+            (tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured)),
+          ],
+        )
+      | None => []
+      };
+    } else {
+      switch (TermData.extreme_measures(id, term_data, measured)) {
+      | Some((l, r)) =>
+        let r = apply_clip(clip_right, r);
+        let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
+        let tiles =
+          is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
+        term(
+          ~refine_sort,
+          ~font_metrics,
+          ~rows=measured,
+          ~tiles,
+          (l, r),
+          ~attr?,
+        );
+      | _ => []
+      };
     };
   };
-};
 
 let term =
     (
@@ -396,12 +411,18 @@ let term =
    continues past the insertion. No insertion found (e.g. witness
    consumption) falls back to the raw extent. */
 /* The lazy completion the clip consumers share: forced only when an
-   arm's root tile is actually incomplete. */
+   arm's root tile is actually incomplete. [syntax]: of the frame's
+   segment (CompletionQuery.engine_seg). */
 let lazy_completion =
-    (z: Zipper.t): Lazy.t(CanonicalCompletion.completion_result) =>
+    (~root: Sort.t, ~syntax: option(CachedSyntax.t)=?, z: Zipper.t)
+    : Lazy.t(CanonicalCompletion.completion_result) =>
   Lazy.from_fun(() =>
     CanonicalCompletion.for_editor(
-      Zipper.unselect_and_zip(~erase_buffer=true, z),
+      ~root,
+      switch (syntax) {
+      | Some(syntax) => CompletionQuery.engine_seg(~syntax, z)
+      | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+      },
     )
   );
 
@@ -466,8 +487,13 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Grout(_)
   | Projector(_)
   | Tile(_) =>
-    let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+    Option.bind(Id.Map.find_opt(Piece.id(p), syntax.terms), ~f=t =>
+      TermData.extreme_measures(
+        Language.Any.rep_id(t),
+        syntax.term_data,
+        syntax.measured,
+      )
+    )
   };
 };
 
@@ -478,7 +504,7 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
 let simple_arm =
     (
       ~font_metrics: FontMetrics.t,
-      ~rows: Rows.t,
+      ~rows: Measured.t,
       ~path_cls: list(string),
       (first, last): (Point.t, Point.t),
     )
@@ -511,7 +537,7 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (Measured.find_pr_opt(p, syntax.measured)) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -553,7 +579,7 @@ module Errors = {
             | Some(range) =>
               simple_arm(
                 ~font_metrics,
-                ~rows=syntax.measured.rows,
+                ~rows=syntax.measured,
                 ~path_cls=[
                   "child-line",
                   "simple",
@@ -649,7 +675,7 @@ module Indicated = {
       )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
-    | _ when z.selection.content != [] => []
+    | _ when !List.is_empty(z.selection.content) => []
     | Some({piece: Tile(t) as p, _}) =>
       let clip_right = completion_clip(~syntax, ~completion, t);
       of_piece(~refine_sort, ~font_metrics, ~syntax, ~clip_right, p);
@@ -669,19 +695,25 @@ module Indicated = {
       )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
-    | _ when z.selection.content != [] => []
+    | _ when !List.is_empty(z.selection.content) => []
     | Some({piece: p, _}) when !Piece.is_infix_delimiter_op_prefix(p) =>
-      let rep_id =
-        Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-      switch (
-        term_range(~syntax, p),
-        TermData.root_piece(rep_id, syntax.term_data),
-      ) {
-      | (Some(range), Some(root)) =>
+      let root =
+        Option.bind(
+          Id.Map.find_opt(Piece.id(p), syntax.terms),
+          ~f=t => {
+            let rep_id = Language.Any.rep_id(t);
+            Option.map(
+              ~f=root => (rep_id, root),
+              TermData.root_piece(rep_id, syntax.term_data),
+            );
+          },
+        );
+      switch (term_range(~syntax, p), root) {
+      | (Some(range), Some((rep_id, root))) =>
         let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=syntax.measured,
           ~path_cls=["child-line", Sort.class_of(sort)],
           range,
         );
@@ -750,7 +782,7 @@ module Refractors = {
         let kind_cls = ProjectorCore.Kind.name(kind);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=syntax.measured,
           ~path_cls=[
             "child-line",
             cls ++ " " ++ kind_cls,
@@ -770,9 +802,19 @@ module Refractors = {
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       )
-      : list(Node.t) =>
+      : list(Node.t) => {
+    /* the ⇓ toggle's probe shows only its drawer */
+    let armed = ((id, entry: Refractors.entry)) =>
+      !
+        ProjectorInfo.is_program_value(
+          ~tail=z.refractors.tail_target,
+          id,
+          entry.kind,
+          entry.model,
+        );
     (
       z.refractors.manuals
+      |> List.filter(~f=armed)
       |> List.concat_map(~f=((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -787,6 +829,7 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
+      |> List.filter(~f=armed)
       |> List.concat_map(~f=((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -814,6 +857,7 @@ module Refractors = {
            )
          )
     );
+  };
 
   let all =
       (

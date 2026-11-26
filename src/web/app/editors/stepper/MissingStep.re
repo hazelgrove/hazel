@@ -337,10 +337,7 @@ module View = {
         current_left;
       } else {
         get_left(
-          Int.min(
-            current_left,
-            Measured.Rows.find(row, measured.rows).content_start,
-          ),
+          Int.min(current_left, Measured.row_indent(row, measured)),
           row + 1,
           final_row,
         );
@@ -353,7 +350,10 @@ module View = {
         get_right(
           Int.max(
             current_right,
-            Measured.Rows.find(row, measured.rows).max_col,
+            switch (Measured.row_shape(row, measured)) {
+            | Some(sh) => sh.max_col
+            | None => current_right
+            },
           ),
           row + 1,
           final_row,
@@ -397,10 +397,8 @@ module View = {
       };
 
       let show_step_button =
-        switch (
-          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
-        ) {
-        | Some(selected_exp) =>
+        switch (model.selected_id |> Calc.get_saved_exc(~print="Selected Id")) {
+        | Some(selected_id) =>
           List.findi(
             model.next_steps
             |> Calc.get_saved_exc(~print="next_steps")
@@ -411,7 +409,7 @@ module View = {
             )
             |> List.map(~f=step => step |> EvaluatorStep.get_step_id),
             ~f=(_, x) =>
-            x == (selected_exp |> Exp.rep_id)
+            Id.equal(selected_id, x)
           )
           |> Option.map(~f=fst)
         | None => None
@@ -610,6 +608,7 @@ module View = {
                                   inject: x =>
                                     inject(RewriteEditorAction(x)),
                                   escape: _ => Ui_effect.Ignore,
+                                  escape_vertical: None,
                                   take_focus: _ => Ui_effect.Ignore,
                                   focus:
                                     switch (selected) {

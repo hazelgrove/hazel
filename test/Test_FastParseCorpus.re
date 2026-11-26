@@ -189,13 +189,19 @@ let tests = (
                     Filename.basename(path),
                     ~equal=Poly.equal,
                   );
+                let root =
+                  String.is_prefix(
+                    ~prefix="mega-mod",
+                    Filename.basename(path),
+                  )
+                    ? Sort.Mod : Sort.Exp;
                 let r =
                   known_gap
                     ? None
                     : FastParse.of_text(
                         ~materialize=Triggers.invoked_projector,
                         ~collect_refractors=true,
-                        ~root=Exp,
+                        ~root,
                         src,
                       );
                 let ms = (Stdlib.Sys.time() -. f0) *. 1000.;
