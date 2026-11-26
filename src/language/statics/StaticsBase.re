@@ -380,6 +380,92 @@ let expectation_mismatch_mark =
   };
 };
 
+/* The parts of the written type `ann` that do not fit `ana`, each with the
+   part of ana it was expected to be. Steps into parentheses, lists, arrows,
+   labels and tuples whose entries line up, while ann and ana agree in form,
+   so the parts are the smallest that do not fit. Empty if ann fits ana. */
+let rec misfit_parts =
+        (ctx: Ctx.t, ~ann: Typ.t, ~ana: Typ.t): list((Typ.t, Typ.t)) =>
+  switch (Typ.meet(ctx, ann, ana)) {
+  | Some(_) => []
+  | None =>
+    let go = (ann, ana) => misfit_parts(ctx, ~ann, ~ana);
+    let label = (ty: Typ.t) =>
+      Typ.match_tup_optional_label(ty)
+      |> Option.bind(~f=((label, _)) => label);
+    let within =
+      switch (ann.term, Typ.weak_head_normalize(ctx, ana).term) {
+      /* Through parentheses only to something smaller than what they
+         enclose: otherwise they are marked with it. */
+      | (Parens(inner), _) =>
+        switch (go(inner, ana)) {
+        | [(part, _)] when Id.equal(Typ.rep_id(part), Typ.rep_id(inner)) =>
+          []
+        | parts => parts
+        }
+      | (List(ann), List(ana)) => go(ann, ana)
+      | (Arrow(ann_in, ann_out), Arrow(ana_in, ana_out)) =>
+        go(ann_in, ana_in) @ go(ann_out, ana_out)
+      | (TupLabel(ann_label, ann), TupLabel(ana_label, ana))
+          when Typ.fast_equal(ann_label, ana_label) =>
+        go(ann, ana)
+      | (Prod(anns), Prod(anas))
+          when
+            List.length(anns) == List.length(anas)
+            && List.for_all2_exn(anns, anas, ~f=(ann, ana) =>
+                 Poly.equal(label(ann), label(ana))
+               ) =>
+        List.concat(List.map2_exn(anns, anas, ~f=go))
+      | _ => []
+      };
+    List.is_empty(within) ? [(ann, ana)] : within;
+  };
+
+/* Add marks to the type `t`'s info, which then has no ok message. */
+let append_mark_typ = (m: Map.t, t: Typ.t, extra: list(Mark.t)): Map.t =>
+  switch (Map.lookup(Typ.rep_id(t), m)) {
+  | Some(Info.InfoTyp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoTyp({
+        ...info,
+        marks: info.marks @ extra,
+        message: None,
+      }),
+      m,
+    )
+  | _ => m
+  };
+
+/* Mark where the written type `ann` keeps an ascription from fitting `ana`:
+   on the parts of `ann` that do not fit, or on the whole of it if those
+   parts have no info of their own. */
+let mark_misfit_ascription =
+    (ctx: Ctx.t, ~ann: Typ.t, ~ana: Typ.t, m: Map.t): Map.t => {
+  let ana = ana_skip_explicit_nonlabel(ana);
+  let parts = misfit_parts(ctx, ~ann, ~ana);
+  let has_info = (part: Typ.t) =>
+    switch (Map.lookup(Typ.rep_id(part), m)) {
+    | Some(InfoTyp(_)) => true
+    | _ => false
+    };
+  let parts =
+    List.for_all(parts, ~f=((part, _)) => has_info(part))
+      ? parts : [(ann, ana)];
+  List.fold(parts, ~init=m, ~f=(m, (part, ana)) =>
+    append_mark_typ(
+      m,
+      part,
+      [
+        ExpectationMismatch({
+          ana,
+          syn: part,
+        }),
+      ],
+    )
+  );
+};
+
 /* Lightweight pat update: prepend a mark and update dependent fields. */
 let prepend_pat_mark =
     (

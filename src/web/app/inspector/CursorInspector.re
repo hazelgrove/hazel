@@ -605,6 +605,11 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("Expected a tuple type, found type"),
       view_type(ty),
     ]
+  | ExpectationMismatch({ana, syn}) => [
+      view_type(syn),
+      text("inconsistent with expected type"),
+      view_type(ana),
+    ]
   | _ => [text("Type error")]
   };
 };
