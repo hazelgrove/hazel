@@ -320,7 +320,8 @@ let assoc_err = (x, xs, err: string) =>
   };
 
 /* Give a list of optional 'a, split the
- * list up using the Nones as dividers */
+ * list up using the Nones as dividers;
+ * n Nones give n + 1 lists */
 let split_at_nones = (xs: list(option('a))): list(list('a)) => {
   let rec go = (xs, acc) =>
     switch (xs) {
@@ -332,20 +333,8 @@ let split_at_nones = (xs: list(option('a))): list(list('a)) => {
       | [] => go(xs, [[x]])
       }
     };
-  go(xs, []) |> List.map(~f=List.rev) |> List.rev;
+  go(xs, [[]]) |> List.map(~f=List.rev) |> List.rev;
 };
-
-/* Give a list of lists, return a list of pairs of
- * the first and last element of each list. */
-let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
-  xss
-  |> List.filter_map(
-       ~f=
-         fun
-         | [] => None
-         | [x] => Some((x, x))
-         | [x, ...xs] => Some((x, last(xs))),
-     );
 
 let rev_concat: (list('a), list('a)) => list('a) =
   (ls, rs) => List.rev_append(ls, rs);

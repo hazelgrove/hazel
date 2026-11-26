@@ -101,10 +101,12 @@ let toggle_pin_call =
         pinned_span: None,
       }
     | _ =>
-      /* Prefer the pinned sample's own identity (carried on the action
-       * by sites that have it in hand); fall back to decomposing the
-       * pin stack [probed_ap_frame, ...sample_stack] — identity without
-       * `opened`, ambiguous across iterations of the same site. */
+      /* Given a sample, pin exactly its span. Call pins pass none: the
+       * pin stack [call_frame, ...sample_stack] names the call, whose
+       * span is the call site's sample at sample_stack (opened=None
+       * takes the first). If the call site is not probed, nothing
+       * resolves the span and the pin filters by stack instead
+       * (Selection.filter_by_pin). */
       let pinned_span: option(Sample.span_ref) =
         switch (capture) {
         | Some(c) =>

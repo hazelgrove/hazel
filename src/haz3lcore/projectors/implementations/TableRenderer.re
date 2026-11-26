@@ -51,6 +51,9 @@ let auto_applies = (_: value): bool => false;
  * zeroes cell padding and cells hold single-line abbreviated values). */
 let drawer_rows = ((_, rows): v): int => List.length(rows) + 1;
 
+/* Column menus and + act on the value */
+let drawer_only = true;
+
 /* Local builders that wrap Menu.item constructors with the column menu's
  * conventions: hover updates selection, tooltips on every leaf row. */
 let leaf = (~tooltip, label, action) =>
@@ -348,6 +351,7 @@ let render =
     : Node.t => {
   let is_readonly = sort != Sort.Exp;
   let (headers, rows) = value;
+  let numeric = numeric_columns(rows);
   let menu_button_id = i => "column-menu-button-" ++ string_of_int(i);
   let make_menu_button = i =>
     Node.div(
@@ -415,12 +419,7 @@ let render =
                 Node.div(
                   ~attrs=[
                     Attr.id("column-menu-" ++ string_of_int(i)),
-                    Attr.classes([
-                      "context-menu",
-                      "nut-menu",
-                      "column-menu",
-                      dir_class,
-                    ]),
+                    Attr.classes(["context-menu", "column-menu", dir_class]),
                   ],
                   [
                     WebUtil.div_c(
@@ -438,7 +437,9 @@ let render =
             | None => false
             };
           Node.th(
-            ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
+            ~attrs=
+              (is_menu_open ? [Attr.classes(["menu-open"])] : [])
+              @ numeric_attrs(numeric, i),
             full_content,
           );
         },
@@ -493,7 +494,7 @@ let render =
       List.map(
         ~f=
           row => {
-            let cells = row_cells(info.utility, view_seg, row);
+            let cells = row_cells(~numeric, info.utility, view_seg, row);
             is_readonly ? cells : cells @ [Node.td([])];
           },
         rows,

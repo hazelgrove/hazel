@@ -55,21 +55,37 @@ let multiline_shard =
   )
   |> List.concat;
 
+/* What a row item is: content (tiles, grout, projectors, comments),
+ * whitespace, or the linebreak ending the row (a zero-width mark, so
+ * empty rows have a position) */
+type item =
+  | Content
+  | Space
+  | Linebreak;
+
+/* A row to draw, or a blank row (whitespace only, or empty) inside the
+ * segment, whose extent comes from the rows around it */
+type row =
+  | Drawn(Measured.measurement, (ShardDec.tip, ShardDec.tip))
+  | Blank(int);
+
 /* Traverse a segment computing per-row measurement and tip data.
  * We divide/partition the shards into linebreak-separated segments,
  * then combine the measurements and shapes of the first and last
  * shard of each segment. Ideally we could just get this info from
  * the row measurements, but we have no current way of figuring out
  * shapes for whitespace without traversing */
-/* ~trim_ws: skip leading whitespace on continuation rows (rows after a
- * linebreak), so selection decorations hug code instead of painting
- * indentation. Whitespace only — comments are Secondary too and stay.
- * Whitespace-only rows keep their full extent (else the selection
- * reads as discontinuous), and the first row is never trimmed: its
- * left edge is the selection start, which is deliberate. */
+/* Continuation rows (rows after a linebreak) skip leading whitespace,
+ * so backings hug code instead of painting indentation. Whitespace
+ * only — comments are Secondary too and stay. The first row is never
+ * trimmed: its left edge is the segment start. A blank row between the
+ * first row and the last one with anything on it spans the overlap of the
+ * rows around it, or both if they don't overlap, so the backing stays
+ * continuous. Whitespace has no nibs of its own, so an edge made of
+ * whitespace is straight; the segment's start and the end of its last
+ * drawn row keep their tips. */
 let rows_of_segment =
     (
-      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~shape_init: ShardDec.tip,
@@ -86,20 +102,36 @@ let rows_of_segment =
                 option(
                   (
                     (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
-                    bool,
+                    item,
                   ),
                 ),
               ),
             ) => {
-    let tag = is_ws => Option.map(~f=x => (x, is_ws));
+    let tag = item => Option.map(~f=x => (x, item));
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
       | Grout(g) => [
-          Some(shard_svg(~start_shape, find_g(g), p)) |> tag(false),
+          Some(shard_svg(~start_shape, find_g(g), p)) |> tag(Content),
         ]
-      | Secondary(w) when Secondary.is_linebreak(w) => [None]
+      | Secondary(w) when Secondary.is_linebreak(w) =>
+        switch (Id.Map.find_opt(w.id, measured.secondary)) {
+        | Some({origin, _}) => [
+            Some((
+              (
+                Measured.{
+                  origin,
+                  last: origin,
+                },
+                (None, None),
+              ),
+              Linebreak,
+            )),
+            None,
+          ]
+        | None => [None]
+        }
       | Secondary(w) => [
           Some((
             find_w(w),
@@ -107,8 +139,8 @@ let rows_of_segment =
           ))
           |> tag(
                switch (w.content) {
-               | Whitespace(_) => true
-               | _ => false
+               | Whitespace(_) => Space
+               | _ => Content
                },
              ),
         ]
@@ -133,11 +165,11 @@ let rows_of_segment =
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [
                Some(shard_svg(~start_shape, m, Tile(shard)))
-               |> Option.map(~f=x => (x, false)),
+               |> Option.map(~f=x => (x, Content)),
              ]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
-             |> List.map(~f=Option.map(~f=x => (x, false)))
+             |> List.map(~f=Option.map(~f=x => (x, Content)))
            };
          });
     let shape_at = index =>
@@ -181,7 +213,7 @@ let rows_of_segment =
               Measured.find_pr(p, measured),
               Projector(p),
             ),
-            false,
+            Content,
           )),
         ];
       } else {
@@ -191,31 +223,112 @@ let rows_of_segment =
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
     seg |> List.fold_map(~f=of_piece, ~init=start_shape) |> snd |> List.concat;
-  let trim_row = row => {
-    let rec drop = xs =>
-      switch (xs) {
-      | [(_, true), ...rest] => drop(rest)
-      | _ => xs
-      };
-    switch (drop(row)) {
-    | [] => row
-    | trimmed => trimmed
+  let is_space =
+    fun
+    | Space => true
+    | Content
+    | Linebreak => false;
+  /* Each row with its items other than the linebreak ending it */
+  let rows =
+    of_segment(shape_init, segment)
+    |> ListUtil.split_at_nones
+    |> List.map(~f=row =>
+         (
+           row,
+           List.filter(
+             ~f=
+               ((_, item)) =>
+                 switch (item) {
+                 | Linebreak => false
+                 | Content
+                 | Space => true
+                 },
+             row,
+           ),
+         )
+       );
+  /* The last row with anything to draw: a segment ending in a linebreak
+     ends in an empty row, which must not make the row above it interior */
+  let last_row =
+    List.foldi(rows, ~init=0, ~f=(i, last, (_, items)) =>
+      List.is_empty(items) ? last : i
+    );
+  let rows =
+    rows
+    |> List.filter_mapi(~f=(i, (row, items)) => {
+         let blank = List.for_all(~f=((_, item)) => is_space(item), items);
+         let rec trim =
+           fun
+           | [(_, Space), ...rest] when i > 0 && !blank => trim(rest)
+           | items => items;
+         switch (row, trim(items)) {
+         | ([((m: Measured.measurement, _), _), ..._], _)
+             when blank && i > 0 && i < last_row =>
+           Some(Blank(m.origin.row))
+         | (_, [((m1, (l, _)), l_item), ..._] as items) =>
+           let ((m2, (_, r)), r_item) = ListUtil.last(items);
+           Some(
+             Drawn(
+               Measured.{
+                 origin: m1.origin,
+                 last: m2.last,
+               },
+               (
+                 i > 0 && is_space(l_item) ? None : l,
+                 i < last_row && is_space(r_item) ? None : r,
+               ),
+             ),
+           );
+         | _ => None
+         };
+       });
+  let drawn =
+    List.filter_map(
+      ~f=
+        fun
+        | Drawn(m, _) => Some(m)
+        | Blank(_) => None,
+      rows,
+    );
+  let bridge = (row: int): option(Measured.measurement) => {
+    let above =
+      drawn
+      |> List.filter(~f=(m: Measured.measurement) => m.origin.row < row)
+      |> ListUtil.last_opt;
+    let below =
+      List.find(~f=(m: Measured.measurement) => m.origin.row > row, drawn);
+    switch (above, below) {
+    | (Some(a), Some(b)) =>
+      let (l, r) = (
+        max(a.origin.col, b.origin.col),
+        min(a.last.col, b.last.col),
+      );
+      let (l, r) =
+        l < r
+          ? (l, r)
+          : (min(a.origin.col, b.origin.col), max(a.last.col, b.last.col));
+      Some(
+        Measured.{
+          origin: {
+            row,
+            col: l,
+          },
+          last: {
+            row,
+            col: r,
+          },
+        },
+      );
+    | _ => None
     };
   };
-  of_segment(shape_init, segment)
-  |> ListUtil.split_at_nones
-  |> List.mapi(~f=(i, row) => trim_ws && i > 0 ? trim_row(row) : row)
-  |> List.map(~f=List.map(~f=fst))
-  |> ListUtil.first_and_last
-  |> List.map(~f=(((m1, (l1, _)), (m2, (_, r2)))) =>
-       (
-         Measured.{
-           origin: m1.origin,
-           last: m2.last,
-         },
-         (l1, r2),
-       )
-     );
+  List.filter_map(
+    ~f=
+      fun
+      | Drawn(m, tips) => Some((m, tips))
+      | Blank(row) => bridge(row) |> Option.map(~f=m => (m, (None, None))),
+    rows,
+  );
 };
 
 /* --- Unified outline path construction ---
@@ -586,7 +699,6 @@ let clip_char_selection =
 
 let of_segment =
     (
-      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
@@ -597,7 +709,7 @@ let of_segment =
     )
     : list(Node.t) => {
   let rows =
-    rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
+    rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
     |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
   List.filter_map(~f=svg_of_group(~font_metrics, ~clss, ~sweep), groups);
@@ -612,7 +724,6 @@ let selection =
     ) => {
   let rows =
     rows_of_segment(
-      ~trim_ws=true,
       ~measured,
       ~shape_map,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
@@ -662,7 +773,6 @@ let selection_expanded =
           seg,
         )
         @ of_segment(
-            ~trim_ws=true,
             ~measured,
             ~shape_map,
             ~font_metrics,

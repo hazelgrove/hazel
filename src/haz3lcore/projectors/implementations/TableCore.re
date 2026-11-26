@@ -16,10 +16,64 @@ let value_view = (utility: utility, view_seg, exp) => {
   Node.div(~attrs=[Attr.classes(["value"])], [view_seg(Sort.Exp, seg)]);
 };
 
+/* A column is numeric when every cell is a number literal. Renderers
+ * tag such columns (header included) with `numeric` so the stylesheet can
+ * right-align them and their digits line up. */
+let is_number = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Atom(a) =>
+    switch (Atom.cls_of_t(a)) {
+    | Int
+    | SInt
+    | Nat
+    | Float => true
+    | Bool
+    | String => false
+    }
+  | _ => false
+  };
+
+let numeric_columns = (rows: list(list(Exp.t))): list(bool) =>
+  switch (rows) {
+  | [] => []
+  | [first, ..._] =>
+    List.mapi(
+      ~f=
+        (i, _) =>
+          List.for_all(
+            ~f=
+              row =>
+                switch (List.nth(row, i)) {
+                | Some(e) => is_number(e)
+                | None => false
+                },
+            rows,
+          ),
+      first,
+    )
+  };
+
+let numeric_attrs = (numeric: list(bool), i: int): list(Attr.t) =>
+  switch (List.nth(numeric, i)) {
+  | Some(true) => [Attr.classes(["numeric"])]
+  | Some(false)
+  | None => []
+  };
+
 /* --- Table Assembly --- */
 
-let row_cells = (utility: utility, view_seg, row: list(Exp.t)): list(Node.t) =>
-  List.map(~f=e => Node.td([value_view(utility, view_seg, e)]), row);
+let row_cells =
+    (~numeric: list(bool)=[], utility: utility, view_seg, row: list(Exp.t))
+    : list(Node.t) =>
+  List.mapi(
+    ~f=
+      (i, e) =>
+        Node.td(
+          ~attrs=numeric_attrs(numeric, i),
+          [value_view(utility, view_seg, e)],
+        ),
+    row,
+  );
 
 let table_view =
     (~header_cells: list(Node.t), ~rows: list(list(Node.t))): Node.t =>

@@ -96,6 +96,7 @@ let (suite, exit_with_test_status) =
     @ Test_Autoprobe.tests
     @ [
       Test_VarHighlight.tests,
+      Test_Highlight.tests,
       Test_Evaluator_ProbeNav.tests,
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,

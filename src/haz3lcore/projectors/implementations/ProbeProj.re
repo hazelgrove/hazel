@@ -47,14 +47,16 @@ let probe_model_of_sexp = sexp =>
   | exception _ => init_probe_model
   };
 
-/* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
-   renderer <rid> (in its empty state) round-trips through text. */
+/* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
+   renderer <rid> (in its empty state) round-trips through text. A
+   drawer-only renderer's trigger opens the drawer too. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
   |> Option.map(~f=(r: packed_renderer) =>
        sexp_of_probe_model({
          ...init_probe_model,
          active_renderer: Some(r.empty_model),
+         drawer_mode: r.drawer_only,
        })
        |> Sexplib.Sexp.to_string
      );
@@ -257,6 +259,8 @@ type probe_ctx = {
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
+  /* the parent editor's caret is on this probe's term */
+  indicated: bool,
   p_info: info,
 };
 
@@ -364,6 +368,11 @@ let pretty_seg_of_value =
    taller content lives in the drawer instead (an explicit activation
    auto-opens it) */
 let inline_rows_cap = 4;
+
+/* Whether rich content `rows` tall, from renderer `r`, lives in the
+   drawer rather than in a sample chip */
+let in_drawer = (r: packed_renderer, rows: int): bool =>
+  rows > inline_rows_cap || r.drawer_only;
 
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
@@ -585,18 +594,22 @@ let pin_call = (ctx: probe_ctx) =>
   | _ => Effect.Ignore
   };
 
+/* Pin enclosing call: pin the call that produced the sample, the head of
+ * its stack. toggle_pin_call takes the pin's span from that call; giving
+ * it the sample's own span would pin just the sample's evaluation and hide
+ * (⍟) the rest of the call. */
+let enclosing_call_pin = (sample: Sample.t): option(Action.sample_focus) =>
+  switch (sample.call_stack) {
+  | [] => None
+  | call_stack => Some(TogglePin(call_stack, None))
+  };
+
 let focus_call = (ctx: probe_ctx) =>
-  switch (Dynamics.Info.is_in(ctx.dynamics)) {
-  | Some(sample) when sample.call_stack != [] =>
-    ctx.parent(
-      SampleFocus(
-        TogglePin(
-          sample.call_stack,
-          Some(Sample.capture_of_sample(sample)),
-        ),
-      ),
-    )
-  | _ => Effect.Ignore
+  switch (
+    Option.bind(Dynamics.Info.is_in(ctx.dynamics), ~f=enclosing_call_pin)
+  ) {
+  | Some(pin) => ctx.parent(SampleFocus(pin))
+  | None => Effect.Ignore
   };
 
 let find_best_budget = (width_at: int => int, target_width: int): int => {
@@ -626,6 +639,66 @@ module ValueState = {
     ref(Stdlib.Option.None);
 };
 
+/* Shift-drag resizes a sample. While Shift is held, `shift-held` on the
+   body gives samples a horizontal resize cursor; during the drag,
+   `sample-resizing` keeps it wherever the pointer goes (proj-probe.css). */
+module ResizeCursor = {
+  let installed = ref(false);
+  let set_class = (cls: string, on: bool) => {
+    let list = Dom_html.document##.body##.classList;
+    on ? list##add(Js.string(cls)) : list##remove(Js.string(cls));
+  };
+  let dragging = (on: bool) => set_class("sample-resizing", on);
+  let ensure = () =>
+    if (! installed^) {
+      installed := true;
+      let on_key = (down: bool, e: Js.t(Dom_html.keyboardEvent)) => {
+        if (Js.Optdef.to_option(e##.key) == Some(Js.string("Shift"))) {
+          set_class("shift-held", down);
+        };
+        Js._true;
+      };
+      let listen = (~capture=true, target, name, f) =>
+        Dom_html.addEventListener(
+          target,
+          Dom_html.Event.make(name),
+          Dom_html.handler(f),
+          Js.bool(capture),
+        )
+        |> ignore;
+      let end_drag = () => {
+        ValueState.mousedown := None;
+        dragging(false);
+      };
+      listen(Dom_html.document, "keydown", on_key(true));
+      listen(Dom_html.document, "keyup", on_key(false));
+      /* The chip's own pointerup misses a drag that ends after the chip is
+         gone (Cmd+E mid-drag) or that the browser cancels */
+      List.iter(["pointerup", "pointercancel"], ~f=name =>
+        listen(
+          Dom_html.document,
+          name,
+          _ => {
+            end_drag();
+            Js._true;
+          },
+        )
+      );
+      /* bubbling, so only the window's own blur: in the capture phase it
+         would also see every element losing focus */
+      listen(
+        ~capture=false,
+        Dom_html.window,
+        "blur",
+        _ => {
+          set_class("shift-held", false);
+          end_drag();
+          Js._true;
+        },
+      );
+    };
+};
+
 let value_view =
     (
       ~display: sample_display,
@@ -639,12 +712,14 @@ let value_view =
       sample: Sample.t,
     ) => {
   let {settings, ap_id, utility, _} = ctx;
+  ResizeCursor.ensure();
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
       ValueState.mousedown := Some(target);
+      ResizeCursor.dragging(true);
     };
     ctx.parent(
       SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
@@ -658,6 +733,7 @@ let value_view =
       JsUtil.releasePointerCapture(target, e##.pointerId);
     };
     ValueState.mousedown := None;
+    ResizeCursor.dragging(false);
     Effect.Ignore;
   };
 
@@ -761,9 +837,9 @@ let value_view =
       /* rich content renders INSIDE the sample chip, inert
          (pointer-events: none), so the chip keeps every sample
          interaction: right/alt-click dropdown (with Hide), click to
-         capture, dbl-click toggles. Explicit renderers embed when they
-         fit inline_rows_cap (taller ones live in the drawer); auto-rich
-         (wells) embeds unconditionally. */
+         capture, dbl-click toggles. Explicit renderers embed unless
+         they live in the drawer (in_drawer); auto-rich (wells) embeds
+         unconditionally. */
       let render_rich = (r: packed_renderer, pm: packed_model) =>
         r.render_model(
           pm,
@@ -784,7 +860,7 @@ let value_view =
                 r.can_handle(ctx.sort, sample.value)
                 && (
                   switch (r.drawer_rows(ctx.sort, sample.value)) {
-                  | Some(n) => n <= inline_rows_cap
+                  | Some(n) => !in_drawer(r, n)
                   | None => true
                   }
                 ) =>
@@ -1305,6 +1381,8 @@ let sample_context_menu =
         Attr.create("data-float-anchor-edge", "bottom"),
         Attr.create("data-float-local-top", "0"),
         Attr.create("data-float-local-left", "3"),
+        /* Up and/or left when out of room, as inline (SampleMenuPlacement). */
+        Attr.create("data-float-flip", "true"),
         /* Start hidden; update_all() positions + reveals after measuring. */
         Attr.create(
           "style",
@@ -1365,8 +1443,8 @@ let sample_view =
         };
       !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
     };
-  /* `indicated-sample` marks the most-aligned sample, the DOM anchor
-   * SampleAnchor uses to compensate scroll on Left/Right.
+  /* `indicated-sample` marks the most-aligned sample, SampleAnchor's
+   * fallback target on Left/Right.
    * NB: samples are deliberately NOT `menu-trigger` — that would exempt them
    * from click-outside dismissal and break closing a dropdown by clicking
    * another sample; the opening click is protected by the listener instead. */
@@ -1501,7 +1579,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth_exn(samples, next_idx_maybe);
-      /* Anchor scroll only when the indication actually moves (an arrow at
+      /* Follow only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
       SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
       parent(
@@ -1582,9 +1660,23 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
       "g",
       ~attrs=[
         Attr.classes(["drawer-mode-toggle"]),
-        Attr.on_pointerdown(_ =>
-          Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
-        ),
+        Attr.on_pointerdown(_ => {
+          /* Toggling moves the focusable .live-offside between DOM slots,
+           * which drops focus; schedule a restore via after_display. An
+           * open drawer keeps its chevron when the probe isn't indicated;
+           * closing it from there returns focus to the active editor, so
+           * typing goes on at the caret (the click alone would focus this
+           * probe's editor, which needn't be the active one). */
+          if (ctx.indicated) {
+            FocusEffect.schedule(ctx.id);
+          } else {
+            FocusEffect.schedule_editor();
+          };
+          Effect.Many([
+            Effect.Stop_propagation,
+            ctx.local(ToggleDrawerMode),
+          ]);
+        }),
       ],
       [
         title(
@@ -1697,7 +1789,10 @@ let key_handler =
     FocusEffect.schedule_editor();
   };
   switch (key.key) {
-  | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
+  | D("E" | "e") when key.meta == Down || key.ctrl == Down =>
+    /* the focused sample goes with the probe */
+    blur_to_editor();
+    parent(Remove);
   | D("Escape") when Settings.open_dropdown^ != None =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
@@ -1854,6 +1949,7 @@ let prepare_offside =
       ~settings: settings,
       ~sort: Sort.t,
       ~model: probe_model,
+      ~indicated: bool,
     )
     : option(offside_data) =>
   switch (info.dynamics, info.statics) {
@@ -1892,6 +1988,7 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
+      indicated,
       p_info: info,
     };
     let filtered_samples =
@@ -2134,11 +2231,28 @@ let get_current = (~settings, info: info) => {
   };
 };
 
-/* The active rich renderer's rendering of the indicated sample's value,
- * if that renderer still applies to it. */
+/* In Many mode with more than one sample, the drawer shows each sample's
+   rich view side by side: these samples' values. */
+let many_values = (~settings, info: info): option(list(Exp.t)) =>
+  switch (settings.window, info.dynamics, info.statics) {
+  | (Many, Some(di), Some(statics)) =>
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    switch (select_samples(~settings, ~id=info.id, ~ap_id, di)) {
+    | [_, _, ..._] as samples =>
+      Some(List.map(~f=(s: Sample.t) => s.value, samples))
+    | _ => None
+    };
+  | _ => None
+  };
+
+/* The active rich renderer's rendering of `exp` (by default the indicated
+ * sample's value), if that renderer still applies to it. A preview gets the
+ * renderer's empty model, so it shows none of the live view's open menus. */
 let rich_content =
     (
       ~settings,
+      ~exp=?,
+      ~preview=false,
       model: probe_model,
       info: info,
       ~local: action => Ui_effect.t(unit),
@@ -2147,12 +2261,15 @@ let rich_content =
       ~sort,
     )
     : option(Node.t) =>
-  switch (model.active_renderer, get_current(~settings, info)) {
+  switch (
+    model.active_renderer,
+    exp == None ? get_current(~settings, info) : exp,
+  ) {
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
     | Some(renderer) when renderer.can_handle(sort, exp) =>
       renderer.render_model(
-        pm,
+        preview ? renderer.empty_model : pm,
         ~info,
         ~exp,
         ~view_seg,
@@ -2199,21 +2316,31 @@ let rich_drawer_view =
     @ [content],
   );
 
-/* Rows the active rich renderer wants in the drawer, when it applies to
- * the indicated value. */
-let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
+/* The rich renderer in use (picked, or the automatic pick) and the rows
+ * it wants in the drawer, when it applies to the indicated value (in Many
+ * mode, the tallest of the samples' views). */
+let rich_renderer_rows =
+    (model: probe_model, info: info): option((packed_renderer, int)) => {
   let sort =
     switch (info.statics) {
     | Some(statics) => Language.Statics.Info.sort_of(statics)
     | None => Sort.Exp
     };
+  let rows_of = (r: packed_renderer, rows: option(int)) =>
+    rows |> Option.map(~f=n => (r, n));
   switch (model.active_renderer) {
   | Some(pm) =>
     switch (
       find(RichProbe.renderer_id_of_model(pm)),
+      many_values(~settings=Settings.s^, info),
       get_current(~settings=Settings.s^, info),
     ) {
-    | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
+    | (Some(r), Some(values), _) =>
+      switch (List.filter_map(~f=r.drawer_rows(sort), values)) {
+      | [] => None
+      | rows => Some((r, List.fold(~f=max, ~init=0, rows)))
+      }
+    | (Some(r), None, Some(exp)) => rows_of(r, r.drawer_rows(sort, exp))
     | _ => None
     }
   | None when model.auto_rich =>
@@ -2222,13 +2349,24 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       List.find(renderers, ~f=(r: packed_renderer) =>
         r.auto_applies(sort, exp)
       )
-      |> Option.map(~f=(r: packed_renderer) => r.drawer_rows(sort, exp))
-      |> Option.join
+      |> Option.bind(~f=(r: packed_renderer) =>
+           rows_of(r, r.drawer_rows(sort, exp))
+         )
     | None => None
     }
   | None => None
   };
 };
+
+let rich_drawer_rows = (model: probe_model, info: info): option(int) =>
+  rich_renderer_rows(model, info) |> Option.map(~f=snd);
+
+/* Whether the probe's rich view lives in the drawer (see in_drawer) */
+let rich_in_drawer = (model: probe_model, info: info): bool =>
+  switch (rich_renderer_rows(model, info)) {
+  | Some((r, n)) => in_drawer(r, n)
+  | None => false
+  };
 
 /* Leaving the drawer hides a rich view that only fits there, so drop the
    renderer with it: the menu then offers `View as` again and choosing it
@@ -2237,10 +2375,7 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
 let set_drawer_mode =
     (model: probe_model, info: info, drawer_mode: bool): probe_model => {
   let needs_drawer =
-    switch (model.active_renderer, rich_drawer_rows(model, info)) {
-    | (Some(_), Some(n)) => n > inline_rows_cap
-    | _ => false
-    };
+    Option.is_some(model.active_renderer) && rich_in_drawer(model, info);
   {
     ...model,
     drawer_mode,
@@ -2320,9 +2455,7 @@ module M: Projector = {
       }
     | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
-      /* Toggling moves the focusable .live-offside between DOM slots, which
-       * drops focus; schedule a restore via after_display. */
-      FocusEffect.schedule(info.id);
+      /* the chevron's handler schedules the focus restore (nav_bar_view) */
       set_drawer_mode(model, info, !model.drawer_mode);
     | SetDrawerMode(b) =>
       Settings.version := Settings.version^ + 1;
@@ -2347,22 +2480,17 @@ module M: Projector = {
       SampleLength.reset();
       model;
     | ToggleModal(pm) =>
-      /* activation: content taller than the inline cap opens the
-         drawer (chevron / Cmd+ArrowUp toggles back) */
+      /* activation: a view that lives in the drawer opens it (chevron /
+         Cmd+ArrowUp toggles back) */
       let activate = () => {
         let wants_drawer =
-          switch (
-            rich_drawer_rows(
-              {
-                ...model,
-                active_renderer: pm,
-              },
-              info,
-            )
-          ) {
-          | Some(n) => n > inline_rows_cap
-          | None => false
-          };
+          rich_in_drawer(
+            {
+              ...model,
+              active_renderer: pm,
+            },
+            info,
+          );
         {
           ...model,
           active_renderer: pm,
@@ -2396,52 +2524,6 @@ module M: Projector = {
     };
   };
 
-  let modal_overlay =
-      (
-        ~settings,
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent,
-        ~view_seg,
-        ~sort,
-      )
-      : list(Node.t) => {
-    switch (
-      rich_content(~settings, model, info, ~local, ~parent, ~view_seg, ~sort)
-    ) {
-    | None => []
-    | Some(content) => [
-        div(
-          ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
-          [
-            div(
-              ~attrs=[
-                Attr.classes(["modal"]),
-                Attr.on_click(_ => Effect.Stop_propagation),
-              ],
-              (
-                model.active_renderer != None
-                  ? [
-                    div(
-                      ~attrs=[
-                        Attr.classes(["modal-close-btn"]),
-                        Attr.title("Close"),
-                        Attr.on_click(_ => local(ToggleModal(None))),
-                      ],
-                      [text("×")],
-                    ),
-                  ]
-                  : []
-              )
-              @ [content],
-            ),
-          ],
-        ),
-      ]
-    };
-  };
-
   let error = (_, _): option(ProjectorBase.error) => None;
 
   let view =
@@ -2455,7 +2537,15 @@ module M: Projector = {
      * Drawer mode: offside = nav-bar wrapper, below = .live-offside (samples).
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
-      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
+      prepare_offside(
+        info,
+        local,
+        parent,
+        ~settings,
+        ~sort,
+        ~model,
+        ~indicated=status.indication != None,
+      );
     let drawer = model.drawer_mode;
     let offside_main =
       switch (data_opt, drawer) {
@@ -2485,24 +2575,74 @@ module M: Projector = {
         }
       );
     /* In drawer mode an active rich renderer replaces the sample view in
-     * the drawer itself; the anchored modal overlay is inline-mode only
-     * (anchored to the nav-bar stub, it renders detached/clipped). */
+     * the drawer itself; inline mode embeds small rich views in the chip. */
+    let rich_of = (~exp=?, ~preview=?, ()) =>
+      rich_content(
+        ~settings,
+        ~exp?,
+        ~preview?,
+        model,
+        info,
+        ~local,
+        ~parent,
+        ~view_seg,
+        ~sort,
+      );
+    /* Many mode: each sample's view side by side. The indicated sample's is
+       live; the others are previews, and a click focuses their sample. */
+    let rich_samples = (data: offside_data): option(Node.t) => {
+      let samples = List.concat(data.groups);
+      let live_id =
+        switch (indicated_sample(data.ctx)) {
+        | Some(s) when List.exists(~f=(x: Sample.t) => x.id == s.id, samples) =>
+          Some(s.id)
+        | _ =>
+          ListUtil.hd_opt(samples) |> Option.map(~f=(s: Sample.t) => s.id)
+        };
+      let view = (sample: Sample.t) => {
+        let live = Some(sample.id) == live_id;
+        rich_of(~exp=sample.value, ~preview=!live, ())
+        |> Option.map(~f=node =>
+             live
+               ? div(
+                   ~attrs=[Attr.classes(["rich-sample", "live"])],
+                   [node],
+                 )
+               : div(
+                   ~attrs=[
+                     Attr.classes(["rich-sample"]),
+                     Attr.title("Focus this sample"),
+                     Attr.on_pointerdown(_ =>
+                       data.ctx.parent(
+                         SampleFocus(
+                           Capture(
+                             Sample.capture_of_sample(sample),
+                             data.ctx.ap_id,
+                           ),
+                         ),
+                       )
+                     ),
+                   ],
+                   [node],
+                 )
+           );
+      };
+      switch (List.filter_map(~f=view, samples)) {
+      | [] => None
+      | views => Some(div(~attrs=[Attr.classes(["rich-samples"])], views))
+      };
+    };
     let rich_drawer =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
-        ? rich_content(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
+      drawer && rich_in_drawer(model, info)
+        ? (
+            switch (data_opt) {
+            | Some(data)
+                when
+                  settings.window == Many
+                  && List.length(List.concat(data.groups)) > 1 =>
+              rich_samples(data)
+            | _ => rich_of()
+            }
           )
           |> Option.map(~f=content =>
                rich_drawer_view(
@@ -2515,21 +2655,10 @@ module M: Projector = {
                )
              )
         : None;
-    /* the anchored modal is retired: small rich views replace the
-       offside row, big ones live in the drawer */
-    let modal_nodes = [];
-    let _unused_modal = modal_overlay;
-    /* Wrap in a div only when the modal is open, to avoid an extra DOM level
-     * around the positioned .live-offside otherwise. */
-    let offside_node =
-      switch (modal_nodes) {
-      | [] => offside_main
-      | _ => div([offside_main] @ modal_nodes)
-      };
     View.{
       inline: Node.div([]),
       overlay: None,
-      offside: Some(offside_node),
+      offside: Some(offside_main),
       below:
         switch (data_opt, drawer) {
         | (Some(data), true) =>

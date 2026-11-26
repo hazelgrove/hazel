@@ -37,6 +37,9 @@ module type RichProbe = {
   /* Height in editor rows when the rendering replaces the sample view in
      the drawer, so the framework can reserve the right number of lines. */
   let drawer_rows: value => int;
+  /* Draws only in the drawer, at any height: for renderings whose controls
+     act on the value, since content in a sample chip is inert. */
+  let drawer_only: bool;
 
   let badge: Node.t;
 
@@ -82,6 +85,7 @@ type packed_renderer = {
   empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
   drawer_rows: (Sort.t, Exp.t) => option(int),
+  drawer_only: bool,
   render_model:
     (
       packed_model,
@@ -159,6 +163,7 @@ let pack_renderer =
     empty_model: PModel(id, model_id, R.empty),
     drawer_rows: (sort, exp) =>
       R.parse(sort, exp) |> Option.map(~f=R.drawer_rows),
+    drawer_only: R.drawer_only,
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))

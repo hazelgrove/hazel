@@ -95,22 +95,27 @@ let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
 };
 
 let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
-  let is_single =
-    switch (ProbeProj.Settings.s^.window) {
-    | Single => true
-    | Many => false
-    };
-  let segment = (label, active) =>
+  /* Each segment sets its mode, like Auto Probe's: a toggle flipped the
+     mode on a click of the segment already active */
+  let segment = (label, mode: Language.Sample.Window.mode) => {
+    let active =
+      switch (ProbeProj.Settings.s^.window, mode) {
+      | (Single, Single)
+      | (Many, Many) => true
+      | (Single, Many)
+      | (Many, Single) => false
+      };
     div(
       ~attrs=[
         clss(["segment"] @ (active ? ["active"] : [])),
         Attr.on_pointerdown(_ => {
-          ProbeProj.Settings.go(ToggleWindow);
+          ProbeProj.Settings.go(SetWindow(mode));
           explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
         }),
       ],
       [text(label)],
     );
+  };
   div(
     ~attrs=[clss(["toggle-group"] @ (is_new ? ["qr-new"] : []))],
     [
@@ -126,7 +131,7 @@ let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
       ),
       div(
         ~attrs=[clss(["segmented-control"])],
-        [segment("One", is_single), segment("Many", !is_single)],
+        [segment("One", Single), segment("Many", Many)],
       ),
       div(
         ~attrs=[clss(["legend-tooltip"])],
