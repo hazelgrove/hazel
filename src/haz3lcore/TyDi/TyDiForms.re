@@ -238,6 +238,7 @@ let suggest_form =
           TyDiSuggestion.{
             content,
             strategy: Exp(Common(NewForm(ty))),
+            tail: [],
           },
       filtered,
     )
@@ -248,6 +249,7 @@ let suggest_form =
           TyDiSuggestion.{
             content,
             strategy: Pat(Common(NewForm(ty))),
+            tail: [],
           },
       filtered,
     )
@@ -257,6 +259,7 @@ let suggest_form =
          TyDiSuggestion.{
            content,
            strategy: Typ(NewForm),
+           tail: [],
          }
        )
   };

@@ -621,7 +621,7 @@ let selection =
     |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   /* Clip partial-token boundaries for char-level selections */
   let rows = clip_char_selection(~measured, z, rows);
-  let clss = ["selected", Selection.buffer_cls(z.selection)];
+  let clss = ["selected"];
   let groups = group_consecutive(rows);
   div_c(
     "selects",
@@ -658,7 +658,7 @@ let selection_expanded =
           ~shape_map,
           ~font_metrics,
           ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-          ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
+          ~clss=["selected-expanded"],
           seg,
         )
         @ of_segment(
@@ -667,7 +667,7 @@ let selection_expanded =
             ~shape_map,
             ~font_metrics,
             ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-            ~clss=["selected", Selection.buffer_cls(z.selection)],
+            ~clss=["selected"],
             z.selection.content,
           )
       };
