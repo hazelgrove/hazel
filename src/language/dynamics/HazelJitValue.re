@@ -190,10 +190,52 @@ let get = (v: Js.Unsafe.any, k: string): Js.Unsafe.any =>
 let cons = (h: Js.Unsafe.any, t: Js.Unsafe.any): Js.Unsafe.any =>
   Js.Unsafe.obj([|("$h", h), ("$t", t)|]);
 
+/* (^ticket(769); Matthew, 2026-11-25: "arguments with holes. JIT code with holes.") What compiled code cannot hold (a
+   hole, an indeterminate term such as ? + 1, a function of the interpreter's) crosses as an opaque object, {$opaque: k},
+   the term itself kept here at k: compiled code may move it, never open it (the checked version asks HazelJit.Runtime's
+   op, no and deep first), and of_js gives back the very term that went in, so a probe or a fill sees what it would have
+   seen. A hole's cast, (? : Int), is kept with it, as the interpreter's answer shows it. On only for a mixed call
+   (HazelJitMixed.call, between opaque_begin and opaque_end); elsewhere, a livelit's view or a page, such a value is
+   Unsupported as before. */
+let opaque_on = ref(false);
+let opaque_terms: Stdlib.Hashtbl.t(int, Exp.t) = Stdlib.Hashtbl.create(8);
+/* (a call with no hole leaves the table empty, and clearing an empty table is skipped: nothing allocated per call) */
+let opaque_begin = (): unit => {
+  if (Stdlib.Hashtbl.length(opaque_terms) > 0) {
+    Stdlib.Hashtbl.clear(opaque_terms);
+  };
+  opaque_on := true;
+};
+let opaque_end = (): unit => {
+  opaque_on := false;
+  if (Stdlib.Hashtbl.length(opaque_terms) > 0) {
+    Stdlib.Hashtbl.clear(opaque_terms);
+  };
+};
+let opaque_count = (): int => Stdlib.Hashtbl.length(opaque_terms);
+let opaque = (v: Exp.t): Js.Unsafe.any => {
+  let k = Stdlib.Hashtbl.length(opaque_terms);
+  Stdlib.Hashtbl.replace(opaque_terms, k, v);
+  Js.Unsafe.obj([|("$opaque", number(float_of_int(k)))|]);
+};
+let is_opaque = (v: Js.Unsafe.any): bool =>
+  String.equal(typeof(v), "object") && !is_null(v) && has(v, "$opaque");
+let opaque_key = (v: Js.Unsafe.any): int =>
+  int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "$opaque"))));
+/* (^ticket(769), step 2) set while an answer from code with a hole compiled in it comes back: its holes are opaque too,
+   held by negative keys in HazelJit.hole_terms */
+let holes_back = ref(false);
+
 let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   switch (Exp.term_of(v)) {
-  | Parens(v)
-  | Asc(v, _) => to_js(v)
+  | Parens(v) => to_js(v)
+  | Asc(inner, _) =>
+    let js = to_js(inner);
+    /* (^ticket(769)) a hole with its cast: the cast kept with it */
+    if (opaque_on^ && is_opaque(js)) {
+      Stdlib.Hashtbl.replace(opaque_terms, opaque_key(js), v);
+    };
+    js;
   /* (^ticket(757)) as the compiled code holds it: a number while safe, a BigInt past that */
   | Atom(Int(n))
   | Atom(Nat(n)) =>
@@ -208,14 +250,17 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   /* (^ticket(716)) a negative number as the syntax has it, a minus before it: a model read from the program's text, before
      its run has a value (current = -1, found by the browser check on the Polygons slide) */
   | UnOp(Int(Minus) | Float(Minus), e) =>
-    let v = to_js(e);
-    String.equal(typeof(v), "number")
-      ? number(-. Js.float_of_number(Js.Unsafe.coerce(v)))
-      : String.equal(typeof(v), "bigint")
-          ? Js.Unsafe.fun_call(Js.Unsafe.js_expr("(x => -x)"), [|v|])
-          : unsupported(
-              "a value hazel-jit does not carry into JS: a minus before a non-number",
-            );
+    let n = to_js(e);
+    String.equal(typeof(n), "number")
+      ? number(-. Js.float_of_number(Js.Unsafe.coerce(n)))
+      : String.equal(typeof(n), "bigint")
+          ? Js.Unsafe.fun_call(Js.Unsafe.js_expr("(x => -x)"), [|n|])
+          /* (^ticket(769)) a minus before a hole: indeterminate, carried whole */
+          : opaque_on^
+              ? opaque(v)
+              : unsupported(
+                  "a value hazel-jit does not carry into JS: a minus before a non-number",
+                );
   | Atom(Bool(b)) => inject(Js.bool(b))
   | Atom(String(s)) => jstr(s)
   | ListLit(vs) =>
@@ -230,6 +275,8 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Constructor(name, _) => Js.Unsafe.obj([|("$c", jstr(name))|])
   | Ap(Forward, {term: Constructor(name, _), _}, arg) =>
     Js.Unsafe.obj([|("$c", jstr(name)), ("$v", to_js(arg))|])
+  /* (^ticket(769)) in a mixed call, anything else is carried opaque */
+  | _ when opaque_on^ => opaque(v)
   | _ =>
     let s = Exp.show(v);
     unsupported(
@@ -332,145 +379,152 @@ let whole = (f: float): Bigint.t =>
 /* ~seen: the functions being carried back, outermost first: one met again inside itself is a recursive function (or
    one that captures itself through another), which a Hazel closure cannot hold as a plain value */
 let rec of_js =
-        (~seen=[], ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t => {
-  let ty = Option.bind(ty, ~f=shape(ts, 0));
-  switch (typeof(v)) {
-  | "number" =>
-    let f = Js.float_of_number(Js.Unsafe.coerce(v));
-    switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
-    | Some(Atom(Float)) => G.Exp.float(f)
-    | Some(Atom(SInt)) => G.Exp.sint(int_of_float(f))
-    | Some(Atom(Nat)) => G.Exp.nat(whole(f))
-    | Some(Atom(Int)) => G.Exp.big_int(whole(f))
-    | _ => Float.is_integer(f) ? G.Exp.big_int(whole(f)) : G.Exp.float(f)
-    };
-  /* (^ticket(757)) an Int or a Nat past a safe integer */
-  | "bigint" =>
-    let n =
-      Bigint.of_string(
-        Js.to_string(
-          Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|v|]),
-        ),
-      );
-    switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
-    | Some(Atom(Nat)) => G.Exp.nat(n)
-    | _ => G.Exp.big_int(n)
-    };
-  | "string" => G.Exp.string(Js.to_string(Js.Unsafe.coerce(v)))
-  | "boolean" => G.Exp.bool(Js.to_bool(Js.Unsafe.coerce(v)))
-  | "function" when has(v, "$k") =>
-    /* a function the compiled code made: its Hazel function, closed over the values it captured, each carried back
-       (with no type to go by) */
-    if (List.exists(seen, ~f=w => Js.Unsafe.equals(w, v))) {
-      unsupported("a recursive function in the answer");
-    };
-    let k =
-      int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "$k"))));
-    switch (Stdlib.Hashtbl.find_opt(ts.funs, k)) {
-    | None => unsupported("a function the compiled code did not make")
-    | Some((term, names)) =>
-      let caps = get(v, "$e");
-      /* (a recursive function captures itself before it is made: its own capture is still undefined, so it is the
-         function itself, bound again by a FixF around its term, as the interpreter's recursive functions are) */
-      let unmade = i =>
-        String.equal(typeof(Js.Unsafe.get(caps, i)), "undefined");
-      let selves =
-        is_null(caps) ? [] : List.filteri(names, ~f=(i, _) => unmade(i));
-      let values =
-        is_null(caps)
-          ? []
-          : List.filter_mapi(names, ~f=(i, x) =>
-              unmade(i)
-                ? None
-                : Some((
-                    x,
-                    of_js(
-                      ~seen=[v, ...seen],
-                      ts,
-                      None,
-                      Js.Unsafe.get(caps, i),
-                    ),
-                  ))
-            );
-      let env = Environment.of_bindings(values);
-      switch (selves) {
-      | [] => G.Exp.closure(env, term)
-      | [self] =>
-        G.Exp.closure(env, G.Exp.fix_f(G.Pat.var(self), term, None))
-      | _ =>
-        unsupported(
-          "functions that call each other, captured before they were made",
-        )
+        (~seen=[], ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
+  /* (^ticket(769)) an opaque value: the very term that went in */
+  if ((opaque_count() > 0 || holes_back^) && is_opaque(v)) {
+    let k = opaque_key(v);
+    k < 0
+      ? Stdlib.Hashtbl.find(HazelJit.hole_terms, k)
+      : Stdlib.Hashtbl.find(opaque_terms, k);
+  } else {
+    let ty = Option.bind(ty, ~f=shape(ts, 0));
+    switch (typeof(v)) {
+    | "number" =>
+      let f = Js.float_of_number(Js.Unsafe.coerce(v));
+      switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
+      | Some(Atom(Float)) => G.Exp.float(f)
+      | Some(Atom(SInt)) => G.Exp.sint(int_of_float(f))
+      | Some(Atom(Nat)) => G.Exp.nat(whole(f))
+      | Some(Atom(Int)) => G.Exp.big_int(whole(f))
+      | _ => Float.is_integer(f) ? G.Exp.big_int(whole(f)) : G.Exp.float(f)
       };
-    };
-  | "function" =>
-    unsupported(
-      "a function in the answer that hazel-jit did not make (a builtin, say)",
-    )
-  | "object" when is_null(v) => G.Exp.list_lit([])
-  | "object" when is_array(v) => of_tuple(~seen, ts, ty, v)
-  | "object" when is_record(ty, v) => of_record(~seen, ts, ty, v)
-  | "object" when has(v, "$c") =>
-    let name = Js.to_string(Js.Unsafe.coerce(get(v, "$c")));
-    /* (ticket 768: the astrology rules' answer in mixed mode, CI run 44339771193) a constructor met in compiled code
-       under annotations that are not fast_equal has none in the table, and came back bare, so the interpreter kept the
-       declared result's cast around it as an ascription: Sun : Body, where its own value is Sun with Body's sum as its
-       annotation. With none in the table, the sum it is expected at gives it, as the interpreter's value carries it:
-       the sum itself, or for one with an argument, an arrow from the argument's type to the sum. */
-    let t =
-      switch (Option.join(Stdlib.Hashtbl.find_opt(ts.ctors, name))) {
-      | Some(t) => Some(t)
-      | None =>
-        switch (ty) {
-        | Some({term: Sum(vs), _} as sum) =>
-          switch (
-            List.find(vs, ~f=(v: ConstructorMap.variant(Typ.t)) =>
-              switch (v) {
-              | ConstructorMap.Variant(c, _, _) => String.equal(c, name)
-              | ConstructorMap.BadEntry(_) => false
-              }
-            )
-          ) {
-          | Some(ConstructorMap.Variant(_, _, None)) => Some(sum)
-          | Some(ConstructorMap.Variant(_, _, Some(arg))) =>
-            Some(Typ.fresh(Arrow(arg, sum)))
+    /* (^ticket(757)) an Int or a Nat past a safe integer */
+    | "bigint" =>
+      let n =
+        Bigint.of_string(
+          Js.to_string(
+            Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|v|]),
+          ),
+        );
+      switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
+      | Some(Atom(Nat)) => G.Exp.nat(n)
+      | _ => G.Exp.big_int(n)
+      };
+    | "string" => G.Exp.string(Js.to_string(Js.Unsafe.coerce(v)))
+    | "boolean" => G.Exp.bool(Js.to_bool(Js.Unsafe.coerce(v)))
+    | "function" when has(v, "$k") =>
+      /* a function the compiled code made: its Hazel function, closed over the values it captured, each carried back
+         (with no type to go by) */
+      if (List.exists(seen, ~f=w => Js.Unsafe.equals(w, v))) {
+        unsupported("a recursive function in the answer");
+      };
+      let k =
+        int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "$k"))));
+      switch (Stdlib.Hashtbl.find_opt(ts.funs, k)) {
+      | None => unsupported("a function the compiled code did not make")
+      | Some((term, names)) =>
+        let caps = get(v, "$e");
+        /* (a recursive function captures itself before it is made: its own capture is still undefined, so it is the
+           function itself, bound again by a FixF around its term, as the interpreter's recursive functions are) */
+        let unmade = i =>
+          String.equal(typeof(Js.Unsafe.get(caps, i)), "undefined");
+        let selves =
+          is_null(caps) ? [] : List.filteri(names, ~f=(i, _) => unmade(i));
+        let values =
+          is_null(caps)
+            ? []
+            : List.filter_mapi(names, ~f=(i, x) =>
+                unmade(i)
+                  ? None
+                  : Some((
+                      x,
+                      of_js(
+                        ~seen=[v, ...seen],
+                        ts,
+                        None,
+                        Js.Unsafe.get(caps, i),
+                      ),
+                    ))
+              );
+        let env = Environment.of_bindings(values);
+        switch (selves) {
+        | [] => G.Exp.closure(env, term)
+        | [self] =>
+          G.Exp.closure(env, G.Exp.fix_f(G.Pat.var(self), term, None))
+        | _ =>
+          unsupported(
+            "functions that call each other, captured before they were made",
+          )
+        };
+      };
+    | "function" =>
+      unsupported(
+        "a function in the answer that hazel-jit did not make (a builtin, say)",
+      )
+    | "object" when is_null(v) => G.Exp.list_lit([])
+    | "object" when is_array(v) => of_tuple(~seen, ts, ty, v)
+    | "object" when is_record(ty, v) => of_record(~seen, ts, ty, v)
+    | "object" when has(v, "$c") =>
+      let name = Js.to_string(Js.Unsafe.coerce(get(v, "$c")));
+      /* (ticket 768: the astrology rules' answer in mixed mode, CI run 44339771193) a constructor met in compiled code
+         under annotations that are not fast_equal has none in the table, and came back bare, so the interpreter kept the
+         declared result's cast around it as an ascription: Sun : Body, where its own value is Sun with Body's sum as its
+         annotation. With none in the table, the sum it is expected at gives it, as the interpreter's value carries it:
+         the sum itself, or for one with an argument, an arrow from the argument's type to the sum. */
+      let t =
+        switch (Option.join(Stdlib.Hashtbl.find_opt(ts.ctors, name))) {
+        | Some(t) => Some(t)
+        | None =>
+          switch (ty) {
+          | Some({term: Sum(vs), _} as sum) =>
+            switch (
+              List.find(vs, ~f=(v: ConstructorMap.variant(Typ.t)) =>
+                switch (v) {
+                | ConstructorMap.Variant(c, _, _) => String.equal(c, name)
+                | ConstructorMap.BadEntry(_) => false
+                }
+              )
+            ) {
+            | Some(ConstructorMap.Variant(_, _, None)) => Some(sum)
+            | Some(ConstructorMap.Variant(_, _, Some(arg))) =>
+              Some(Typ.fresh(Arrow(arg, sum)))
+            | _ => None
+            }
           | _ => None
           }
-        | _ => None
-        }
+        };
+      let ann = Option.map(t, ~f=t => Some(t));
+      if (has(v, "$v")) {
+        let arg_ty =
+          switch (Option.bind(t, ~f=shape(ts, 0))) {
+          | Some({term: Arrow(a, _), _}) => Some(a)
+          | _ => None
+          };
+        G.Exp.ap(
+          Forward,
+          G.Exp.constructor(name, ann),
+          of_js(~seen, ts, arg_ty, get(v, "$v")),
+        );
+      } else {
+        G.Exp.constructor(name, ann);
       };
-    let ann = Option.map(t, ~f=t => Some(t));
-    if (has(v, "$v")) {
-      let arg_ty =
-        switch (Option.bind(t, ~f=shape(ts, 0))) {
-        | Some({term: Arrow(a, _), _}) => Some(a)
+    | "object" when has(v, "$h") =>
+      let elt =
+        switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
+        | Some(List(t)) => Some(t)
         | _ => None
         };
-      G.Exp.ap(
-        Forward,
-        G.Exp.constructor(name, ann),
-        of_js(~seen, ts, arg_ty, get(v, "$v")),
-      );
-    } else {
-      G.Exp.constructor(name, ann);
+      let rec walk = (v, acc) =>
+        is_null(v)
+          ? List.rev(acc)
+          : walk(
+              get(v, "$t"),
+              [of_js(~seen, ts, elt, get(v, "$h")), ...acc],
+            );
+      G.Exp.list_lit(walk(v, []));
+    | t => unsupported("a JS " ++ t ++ " in the answer")
     };
-  | "object" when has(v, "$h") =>
-    let elt =
-      switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
-      | Some(List(t)) => Some(t)
-      | _ => None
-      };
-    let rec walk = (v, acc) =>
-      is_null(v)
-        ? List.rev(acc)
-        : walk(
-            get(v, "$t"),
-            [of_js(~seen, ts, elt, get(v, "$h")), ...acc],
-          );
-    G.Exp.list_lit(walk(v, []));
-  | t => unsupported("a JS " ++ t ++ " in the answer")
-  };
-}
+  }
 /* (^ticket(847), idea A) a plain object as a record: when the expected type is a product with every entry labeled; with
    no type, when it is not a list's cell ($t) nor a constructor ($c), keys no record has (decision 2) */
 and is_record = (ty: option(Typ.t), v: Js.Unsafe.any): bool =>

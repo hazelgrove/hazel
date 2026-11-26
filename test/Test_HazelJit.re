@@ -60,6 +60,22 @@ let agrees = src => {
 };
 let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
 
+/* (^ticket(769)) a term as text short enough to read in a CI log: its annotations gone, its spaces folded */
+let compact = (e: Exp.t): string => {
+  let s = Exp.show(e);
+  let s =
+    Str.global_replace(
+      Str.regexp(
+        "annotation =[ \n]*{ ids = <opaque>; secondary = (\\[\\], \\[\\]); incomplete = \\[\\];[ \n]*lexeme = [^}]*}",
+      ),
+      "",
+      s,
+    );
+  let s = Str.global_replace(Str.regexp("[ \n]+"), " ", s);
+  let s = Str.global_replace(Str.regexp_string("{ term = "), "", s);
+  String.length(s) > 900 ? String.sub(s, ~pos=0, ~len=900) ++ "..." : s;
+};
+
 /* (^ticket(766)) mixed mode: the program rewritten, the functions named compiled, and its answer the interpreter's alone;
    ~fell_back, whether some call went back to the interpreter */
 let mixed = (~fell_back=false, name, src, names) =>
@@ -88,9 +104,9 @@ let mixed = (~fell_back=false, name, src, names) =>
       check(
         bool,
         "the interpreter's answer: "
-        ++ Exp.show(expected)
+        ++ compact(expected)
         ++ "\nmixed: "
-        ++ Exp.show(got),
+        ++ compact(got),
         true,
         same_value(expected, got),
       );
@@ -709,6 +725,18 @@ let mixed_measured_tests = [
     "the Petri net rule, whole types declared, 100 events",
     petri_typed,
   ),
+  /* (^ticket(769)) holes: a list built with a hole in it by compiled code with a hole in it, and its length taken by
+     compiled code that never looks at an element (before, the length's call went back to the interpreter, and the
+     build was not compiled at all); and 500 calls from interpreted code each carrying a hole into a compiled function
+     (before, each went back to the interpreter) */
+  mixed_measured(
+    "a list of 2,000 built with a hole in it, and its length",
+    "let build : Int -> [Int] = fun n -> if n == 0 then [?] else n :: build(n - 1) in let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end in len(build(2000))",
+  ),
+  mixed_measured(
+    "500 calls across, from an interpreted loop, each carrying a hole",
+    "let swap : (Int, Int) -> (Int, Int) = fun (a, b) -> (b, a) in let loop = fun (i, acc) -> if i == 0 then acc else loop(i - 1, swap(i, ?) :: acc) in loop(500, [])",
+  ),
 ];
 
 let mixed_tests = [
@@ -732,6 +760,139 @@ let mixed_tests = [
     "mixed: a hole in the argument, that call the interpreter's",
     "let inc : Int -> Int = fun x -> x + 1 in inc(?)",
     ["inc"],
+  ),
+  /* (^ticket(769); Matthew, 2026-11-25: "arguments with holes. JIT code with holes.") a hole in the argument crosses
+     opaque: compiled code that only moves it answers with the very hole (the checked version, HazelJitMixed.checked_of);
+     code that would look inside it stops, and that call is the interpreter's */
+  mixed(
+    "mixed, a hole carried: swapped, the same hole back",
+    "let swap : (Int, Int) -> (Int, Int) = fun (a, b) -> (b, a) in swap(1, ?)",
+    ["swap"],
+  ),
+  mixed(
+    "mixed, a hole carried: a list's length, never looking at an element",
+    "let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end in len([1, ?, 3])",
+    ["len"],
+  ),
+  mixed(
+    "mixed, a hole carried: out of a constructor's argument",
+    "type Box = + B(Int) in let unbox : Box -> Int = fun b -> case b | B(x) => x end in unbox(B(?))",
+    ["unbox"],
+  ),
+  mixed(
+    "mixed, a hole carried: twice into a list",
+    "let twice : Int -> [Int] = fun x -> [x, x] in twice(?)",
+    ["twice"],
+  ),
+  mixed(
+    "mixed, a hole carried: a record's other field read",
+    "let gety : (x = Int, y = Int) -> Int = fun r -> r.y in gety((x = ?, y = 2))",
+    ["gety"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: matched against a constructor, the interpreter's",
+    "type Shape = + Circle(Float) + Square(Float) in let round : Shape -> Bool = fun s -> case s | Circle(_) => true | _ => false end in round(?)",
+    ["round"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: a record's field added to, the interpreter's",
+    "let getx : (x = Int, y = Int) -> Int = fun r -> r.x + 1 in getx((x = ?, y = 2))",
+    ["getx"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: a condition, the interpreter's",
+    "let pick : (Bool, Int, Int) -> Int = fun (c, a, b) -> if c then a else b in pick(?, 1, 2)",
+    ["pick"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: lists compared, the interpreter's",
+    "let same : ([Int], [Int]) -> Bool = fun (a, b) -> a == b in same([1, ?], [1, 2])",
+    ["same"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: one call carries it, the other opens it",
+    "let pick : (Bool, Int, Int) -> Int = fun (c, a, b) -> if c then a else b in (pick(true, ?, 1), pick(?, 1, 2))",
+    ["pick"],
+  ),
+  test_case(
+    "mixed, a hole carried: the call ran the checked version",
+    `Quick,
+    () => {
+      let elab =
+        elaborate(
+          parse_exp(
+            "let swap : (Int, Int) -> (Int, Int) = fun (a, b) -> (b, a) in swap(1, ?)",
+          ),
+        );
+      let rewritten = HazelJitMixed.rewrite(elab);
+      let (calls, made) = (
+        HazelJitMixed.hole_calls^,
+        HazelJitMixed.checked_made^,
+      );
+      let _ = Test_Evaluator_Prelude.evaluate(rewritten);
+      check(
+        bool,
+        "a call with a hole ran compiled",
+        true,
+        HazelJitMixed.hole_calls^ > calls,
+      );
+      check(
+        bool,
+        "its checked version was made",
+        true,
+        HazelJitMixed.checked_made^ > made,
+      );
+    },
+  ),
+  /* (^ticket(769), step 2: "JIT code with holes") a hole in a function's own code: compiled, checked, its hole a constant
+     opaque value carried out as the hole itself; where its code would open it, that call is the interpreter's */
+  mixed(
+    "mixed, a hole compiled: a function answering a hole",
+    "let later : Int -> Int = fun x -> ? in later(1)",
+    ["later"],
+  ),
+  mixed(
+    "mixed, a hole compiled: a pair with a hole in it",
+    "let half_done : Int -> (Int, Int) = fun x -> (x, ?) in half_done(5)",
+    ["half_done"],
+  ),
+  mixed(
+    "mixed, a hole compiled: the branch with the hole not taken, and taken",
+    "let maybe : Bool -> Int = fun b -> if b then 1 else ? in (maybe(true), maybe(false))",
+    ["maybe"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole compiled and opened: x + ?, the interpreter's",
+    "let add_hole : Int -> Int = fun x -> x + ? in add_hole(1)",
+    ["add_hole"],
+  ),
+  test_case(
+    "a hole compiled when asked: the unit checked, holding a hole",
+    `Quick,
+    () => {
+      let elab =
+        elaborate(
+          parse_exp("let f : Int -> (Int, Int) = fun x -> (x, ?) in f"),
+        );
+      let c =
+        HazelJit.compile_full(~holes=true, ~env=Builtins.env_init, elab);
+      check(bool, "holds a hole", true, c.holes);
+      check(
+        bool,
+        "not compiled without ~holes",
+        true,
+        switch (HazelJit.compile_full(~env=Builtins.env_init, elab)) {
+        | _ => false
+        | exception (HazelJit.Unsupported(_)) => true
+        },
+      );
+    },
   ),
   mixed(
     ~fell_back=true,

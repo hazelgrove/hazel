@@ -29,11 +29,16 @@ let not_compiled: ref(list((string, string))) = ref([]);
 /* calls made through a compiled function, and those that fell back to the interpreter, since the counts were reset */
 let calls = ref(0);
 let fallbacks = ref(0);
+/* (^ticket(769)) calls whose argument held a hole, run by a function's checked version; checked versions compiled */
+let hole_calls = ref(0);
+let checked_made = ref(0);
 let fallback_reasons: Stdlib.Hashtbl.t(string, int) =
   Stdlib.Hashtbl.create(8);
 let reset_counts = () => {
   calls := 0;
   fallbacks := 0;
+  hole_calls := 0;
+  checked_made := 0;
   Stdlib.Hashtbl.reset(fallback_reasons);
 };
 
@@ -98,14 +103,15 @@ let has_unknown = (t: Typ.t): bool => {
     );
   found^;
 };
-/* the declared type's parameter and result: an ascription on the name, or around the definition */
-let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t)) => {
+/* the declared type's parameter and result: an ascription on the name, or around the definition; and (^ticket(769)) the
+   whole type itself, the very one the interpreter's let casts the function to */
+let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t, Typ.t)) => {
   let rec of_pat = (p: Pat.t) =>
     switch (Pat.term_of(p)) {
     | Parens(p) => of_pat(p)
     | Asc(p, t) =>
       switch (arrow_parts(t)) {
-      | Some(_) as r when !has_unknown(t) => r
+      | Some((a, b)) when !has_unknown(t) => Some((a, b, t))
       | _ => of_pat(p)
       }
     | _ => None
@@ -115,7 +121,7 @@ let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t)) => {
     | Parens(e) => of_exp(e)
     | Asc(e, t) =>
       switch (arrow_parts(t)) {
-      | Some(_) as r when !has_unknown(t) => r
+      | Some((a, b)) when !has_unknown(t) => Some((a, b, t))
       | _ => of_exp(e)
       }
     | _ => None
@@ -131,8 +137,25 @@ type entry = {
   ts: HazelJitValue.types,
   param: Typ.t,
   result: Typ.t,
+  /* (^ticket(769)) the whole declared type, for a fallback's cast of the function */
+  fn_type: Typ.t,
   closure: ref(option(Exp.t)),
+  /* (^ticket(769)) what was compiled, for the checked version, made the first time a call's argument holds a hole */
+  unit_: Exp.t,
+  checked_fn: ref(option(result(U.any, string))),
+  /* (^ticket(769), step 2) a hole compiled in it: fn is checked already, and its answers may hold its holes */
+  holes: bool,
 };
+
+/* (^ticket(769)) Casts as the interpreter makes them, by its own cast step (Ascriptions), so that a hole, or a stuck
+   answer, shows in mixed mode the casts it shows in the interpreter alone (CI 45709997915 and 45710016850: six answers
+   parted in casts only, (? : Int) for ?, (1 : Int) for 1). The interpreter's let casts a function to its declared type:
+   its pattern and its body each cast (Ascriptions, a Fun at an Arrow), so the argument is bound cast all the way down
+   (PatternMatch, transition_multiple: a number's cast gone, a hole's kept) and the answer is cast to the result type,
+   which, pushed into a stuck answer one step, shows as (1 : Int) in its branches. cast_all is that cast, for a call run
+   compiled; a fallback applies the function so cast itself (fall_back). */
+let cast_all = (e: Exp.t, t: Typ.t): Exp.t =>
+  Ascriptions.transition_multiple(Exp.fresh(Asc(e, t)));
 
 let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
   incr(fallbacks);
@@ -145,40 +168,101 @@ let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
         Stdlib.Hashtbl.find_opt(fallback_reasons, why),
       ),
   );
-  /* the argument cast to the declared parameter type, as the interpreter alone has it at the call (let inc : Int -> Int =
-     ... in inc(?) is (? : Int) + 1; CI 11-17), unless it carries a cast already */
-  let arg =
-    switch (Exp.term_of(arg)) {
-    | Asc(_) => arg
-    | _ => Exp.fresh(Asc(arg, entry.param))
-    };
+  /* the interpreter's own closure, cast to the function's whole declared type as the interpreter's let casts it, applied
+     to the argument as it came: so its run is the interpreter alone's, casts and all (let inc : Int -> Int = ... in inc(?)
+     is (? : Int) + 1, CI 11-17; (^ticket(769)) a stuck answer's branches (1 : Int), and a type the very one, ids and all,
+     CI 45714537252) */
   switch (entry.closure^) {
-  | Some(c) => Some(Exp.fresh(Ap(Forward, c, arg)))
+  | Some(c) =>
+    Some(
+      Exp.fresh(
+        Ap(
+          Forward,
+          Ascriptions.transition_multiple(Exp.fresh(Asc(c, entry.fn_type))),
+          arg,
+        ),
+      ),
+    )
   | None => None
   };
 };
 
-/* the compiled function applied: into JS, run, back by the declared result type; or the interpreter's own closure */
+/* (^ticket(769)) a function's checked version: the same unit compiled with HazelJit.checked, so that a hole carried in
+   stops the run where the code would look inside it, and the call is the interpreter's */
+let checked_of = (entry: entry): result(U.any, string) =>
+  switch (entry.checked_fn^) {
+  | Some(r) => r
+  | None =>
+    let r =
+      switch (
+        HazelJit.compile_full(
+          ~checked=true,
+          ~holes=true,
+          ~env=Builtins.env_init,
+          entry.unit_,
+        )
+      ) {
+      | exception (HazelJit.Unsupported(why)) => Error(why)
+      | c =>
+        switch (HazelJitValue.instantiate(c.src)) {
+        | exception exn => Error(HazelJitValue.message(exn))
+        | fn => Ok(fn)
+        }
+      };
+    incr(checked_made);
+    entry.checked_fn := Some(r);
+    r;
+  };
+
+/* the compiled function applied: into JS, run, back by the declared result type; or the interpreter's own closure. (^ticket(769))
+   An argument holding a hole crosses with the hole opaque, and runs the checked version. */
 let call = (entry: entry, arg: Exp.t): option(Exp.t) => {
   incr(calls);
-  switch (HazelJitValue.to_js(arg)) {
-  | exception _ =>
-    fall_back("an argument that does not carry into JS", entry, arg)
-  | js_arg =>
-    switch (with_budget(() => U.fun_call(entry.fn, [|js_arg|]))) {
-    | exception exn =>
-      let m = HazelJitValue.message(exn);
-      let why =
-        String.length(m) > 40 ? String.sub(m, ~pos=0, ~len=40) ++ "..." : m;
-      fall_back("the compiled run stopped: " ++ why, entry, arg);
-    | v =>
-      switch (HazelJitValue.of_js(entry.ts, Some(entry.result), v)) {
-      | exception _ =>
-        fall_back("an answer that does not carry back", entry, arg)
-      | e => Some(e)
-      }
+  HazelJitValue.opaque_begin();
+  Stdlib.Fun.protect(~finally=HazelJitValue.opaque_end, () => {
+    switch (HazelJitValue.to_js(arg)) {
+    | exception _ =>
+      fall_back("an argument that does not carry into JS", entry, arg)
+    | js_arg =>
+      let holes = HazelJitValue.opaque_count() > 0;
+      /* (^ticket(769)) a hole met: the argument converted again, cast all the way down, so each hole carries the cast
+         the interpreter's answer would show; a call with no hole is converted once, as before */
+      let js_arg =
+        holes
+          ? {
+            HazelJitValue.opaque_begin();
+            HazelJitValue.to_js(cast_all(arg, entry.param));
+          }
+          : js_arg;
+      switch (holes ? checked_of(entry) : Ok(entry.fn)) {
+      | Error(why) =>
+        fall_back("a hole, and no checked version: " ++ why, entry, arg)
+      | Ok(fn) =>
+        if (holes) {
+          incr(hole_calls);
+        };
+        switch (with_budget(() => U.fun_call(fn, [|js_arg|]))) {
+        | exception exn =>
+          let m = HazelJitValue.message(exn);
+          let why =
+            String.length(m) > 40
+              ? String.sub(m, ~pos=0, ~len=40) ++ "..." : m;
+          fall_back("the compiled run stopped: " ++ why, entry, arg);
+        | v =>
+          HazelJitValue.holes_back := entry.holes;
+          switch (HazelJitValue.of_js(entry.ts, Some(entry.result), v)) {
+          | exception _ =>
+            HazelJitValue.holes_back := false;
+            fall_back("an answer that does not carry back", entry, arg);
+          | e =>
+            HazelJitValue.holes_back := false;
+            /* (^ticket(769)) an answer that may hold a hole, cast to the declared result type as the interpreter casts it */
+            Some(holes || entry.holes ? cast_all(e, entry.result) : e);
+          };
+        };
+      };
     }
-  };
+  });
 };
 
 let made = ref(0);
@@ -197,9 +281,11 @@ let rewrite = (program: Exp.t): Exp.t => {
   /* a definition of a function with its whole type declared, compiled: the pattern and definition that replace it */
   let accept = (p: Pat.t, def: Exp.t): option((Pat.t, Exp.t)) =>
     switch (name_of(p), declared_result(p, def), is_function(strip(def))) {
-    | (Some(f), Some((param, result)), true) =>
+    | (Some(f), Some((param, result, fn_type)), true) =>
       let unit = Exp.fresh(Let(p, def, Exp.fresh(Var(f)))) |> unit_for;
-      switch (HazelJit.compile_full(~env=Builtins.env_init, unit)) {
+      switch (
+        HazelJit.compile_full(~holes=true, ~env=Builtins.env_init, unit)
+      ) {
       | exception (HazelJit.Unsupported(why)) =>
         not_compiled := [(f, why), ...not_compiled^];
         None;
@@ -220,7 +306,12 @@ let rewrite = (program: Exp.t): Exp.t => {
             ts: HazelJitValue.types_of(c),
             param,
             result,
+            fn_type,
             closure: ref(None),
+            unit_: unit,
+            /* (^ticket(769), step 2) a unit with a hole is compiled checked already (HazelJit.compile_full) */
+            checked_fn: ref(c.holes ? Some(Ok(fn)) : None),
+            holes: c.holes,
           };
           let compiled_name = "%jit:" ++ f ++ ":" ++ n;
           let keep_name = "%jit-keep:" ++ f ++ ":" ++ n;
