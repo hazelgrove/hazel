@@ -8,9 +8,10 @@
  * and its backup_text, and if placement were patched into the zipper
  * afterwards the two would disagree.
  *
- * The committed .hz files in hazel-programs/mvu ARE the slides: embedded
- * at compile time, parsed at load (FastParse, MarkerParse fallback). There
- * is no encoding step — edit an .hz and the slide changes.
+ * The committed .hz files in hazel-programs/docs/mvu ARE the slides:
+ * embedded at compile time, parsed at load (FastParse, MarkerParse
+ * fallback). There is no encoding step — edit an .hz and the slide
+ * changes. Test_FastParseCorpus keeps every .hz on the fast path.
  *
  * The "MVU / " prefix collapses these into a nested dropdown, matching
  * how the "B2T2 / ..." and "Derivations / ..." slides are grouped. */

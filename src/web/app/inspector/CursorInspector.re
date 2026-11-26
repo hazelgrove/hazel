@@ -268,6 +268,7 @@ let core_mark_err_view =
     | LabelNotFound(_)
     | BadOperator(_)
     | BadLivelitModel(_)
+    | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
     | ExpectedConstructor
@@ -758,6 +759,22 @@ let exp_mark_err_view =
       ...List.map(~f=label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
+  | InvalidLivelitDef(DefNotTuple) =>
+    div_err([
+      text("Livelit definition should be a module with members "),
+      code("init, update, view, expand"),
+    ])
+  | InvalidLivelitDef(DefBadArity(n)) =>
+    div_err([
+      text("Livelit definition should have fields "),
+      code("(init, update, view, expand)"),
+      text(", got " ++ string_of_int(n)),
+    ])
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    div_err([
+      text("Livelit definition is missing members: "),
+      ...List.map(~f=code, missing),
+    ])
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),

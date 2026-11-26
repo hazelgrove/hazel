@@ -122,7 +122,7 @@ let tests = (
       )
     ),
     test_case("atan2 is quadrant-correct", `Quick, () =>
-      parse_and_evaluate_test({|true|}, {|atan2(0., 0. -. 1.) ==. pi|})
+      parse_and_evaluate_test({|true|}, {|atan2(0., -1.) ==. pi|})
     ),
     test_case("atan2 diagonal", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|atan2(1., 1.) ==. pi /. 4.|})

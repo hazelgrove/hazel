@@ -1,6 +1,6 @@
 (include_subdirs unqualified)
 
-(copy_files ../../hazel-programs/mvu/*.hz)
+(copy_files ../../hazel-programs/docs/mvu/*.hz)
 
 (library
  (name mvu)
