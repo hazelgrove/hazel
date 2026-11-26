@@ -286,7 +286,7 @@ let rec poly_equal = (d1, d2): option(bool) => {
       switch (t1, t2) {
       | (Int(n1), Int(n2)) => Bigint.equal(n1, n2)
       | (Int(_), _) => false
-      | (SInt(n1), SInt(n2)) => n1 == n2
+      | (SInt(n1), SInt(n2)) => Bigint.equal(n1, n2)
       | (SInt(_), _) => false
       | (Nat(n1), Nat(n2)) => Bigint.equal(n1, n2)
       | (Nat(_), _) => false

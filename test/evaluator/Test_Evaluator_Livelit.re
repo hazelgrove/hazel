@@ -19,7 +19,7 @@ let tests = (
             let model = livelit.model_default;
             let expected_eval =
               switch (livelit.name) {
-              | "slider" => sint(50)
+              | "slider" => sint(Bigint.of_int(50))
               | "emotion" => string("neutral")
               | "js" => string("")
               | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)

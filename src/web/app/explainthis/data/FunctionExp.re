@@ -235,16 +235,16 @@ let function_sintlit_exp_form = [
   space(),
   e,
 ];
-let function_sintlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~i: int): form => {
+let function_sintlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~i: Bigint.t): form => {
   id: function_sintlit_exp_id,
   syntactic_form: function_sintlit_exp_form,
   colorings: function_sintlit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("SIntLit")])),
   explanation:
     sprintf(
-      "The only value that matches the [*argument pattern*](%s) is `%d`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
+      "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
-      i,
+      Bigint.to_string(i),
       Id.to_string(pat_id),
       Id.to_string(body_id),
     ),
@@ -692,7 +692,7 @@ let functions_int = (~pat_id: Id.t, ~body_id: Id.t, ~i: Bigint.t): group => {
     function_exp(~pat_id, ~body_id),
   ],
 };
-let functions_sint = (~pat_id: Id.t, ~body_id: Id.t, ~i: int): group => {
+let functions_sint = (~pat_id: Id.t, ~body_id: Id.t, ~i: Bigint.t): group => {
   id: FunctionExp(SInt),
   forms: [
     function_sintlit_exp(~pat_id, ~body_id, ~i),
