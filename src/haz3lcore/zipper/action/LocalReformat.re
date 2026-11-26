@@ -255,6 +255,37 @@ let go_region =
     };
   };
 
+/* Linebreaks starting a line with a just-completed case rule, in a settled
+   segment: Enter indented that line before its `|` was there to read. */
+let rec completed_rule_lines =
+        (completed: Id.Map.t(unit), seg: Segment.t): list(Id.t) => {
+  let settled = lazy(Id.Map.is_empty(incomplete_ids(seg)));
+  let rec go = (lb: option(Id.t), seg: Segment.t) =>
+    switch (seg) {
+    | [] => []
+    | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
+      go(Some(w.id), rest)
+    | [Secondary(w), ...rest] when Secondary.is_space(w) => go(lb, rest)
+    | [Tile(t), ...rest] =>
+      let here =
+        switch (lb) {
+        | Some(id)
+            when
+              Tile.is_case_rule(t)
+              && Id.Map.mem(t.id, completed)
+              && Lazy.force(settled) => [
+            id,
+          ]
+        | _ => []
+        };
+      here
+      @ List.concat_map(t.children, ~f=completed_rule_lines(completed))
+      @ go(None, rest);
+    | [_, ...rest] => go(None, rest)
+    };
+  go(None, seg);
+};
+
 let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
   switch (before) {
   | None => z
@@ -282,8 +313,21 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
            })
         |> Id.Map.of_list;
       let indent_map = lazy(Indentation.level_map(full));
-      Id.Map.is_empty(plans)
-        ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);
+      let z =
+        Id.Map.is_empty(plans)
+          ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);
+      let rule_lines =
+        completed_rule_lines(completed, full)
+        |> List.filter_map(~f=id =>
+             Id.Map.find_opt(id, Lazy.force(indent_map))
+             |> Option.map(~f=l => (id, l))
+           );
+      List.is_empty(rule_lines)
+        ? z
+        : ZipperBase.MapSegment.go(
+            set_lb_indents(rule_lines |> Id.Map.of_list),
+            z,
+          );
     };
   };
 

@@ -240,6 +240,9 @@ let rec go =
     List.rev(
       List.rev_map2_exn(context, prev_is_lb, ~f=(ctx, lb) => (ctx, lb)),
     );
+  /* a case's rules: a fresh last line goes to rule level, for the next `|` */
+  let has_case_rule =
+    List.exists(complete_trimmed_seg, ~f=Piece.is_case_rule);
   let (_, map) =
     List.fold2_exn(
       ~f=
@@ -273,6 +276,17 @@ let rec go =
                     == Some(true) => base
               | (_, Some(next)) when Piece.is_case_rule(next) => base
               | (_, None) => base
+              /* A blank line at the end of a child, above the line its
+                 closer starts (Enter on the child's last line): it is
+                 inside the child, so it gets child level, not the
+                 closer's. */
+              | (_, Some(Piece.Secondary(w)))
+                  when
+                    not_top
+                    && !has_case_rule
+                    && Secondary.is_linebreak(w)
+                    && effective_next == None =>
+                max(level, base + 2)
               /* If next is linebreak but eff_next is None, effectively at end */
               | _ when effective_next == None => base
               | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>

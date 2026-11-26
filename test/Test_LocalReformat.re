@@ -75,6 +75,49 @@ let reformat_tests = [
     },
   ),
   test_case(
+    "typed rule moves to arm level",
+    `Quick,
+    () => {
+      /* Enter after an arm body, above a comment, lands at body level;
+         completing `| B =>` there moves the line to the arm level */
+      let got =
+        Test_Editing.perform(
+          ~settings,
+          Test_Editing.parse_with_caret(
+            "case x\n| A =>\n  1¦\n# todo #\nend",
+          ),
+          type_all("\n| B =>\n2"),
+        )
+        |> text_of;
+      check(
+        string,
+        "rule at arm level, its body below it",
+        "case x\n| A =>\n  1\n| B =>\n  2\n# todo #\nend",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "typed rule in an unclosed case keeps its indent",
+    `Quick,
+    () => {
+      /* no `end`: the rule's indent is the user's nesting signal */
+      let got =
+        Test_Editing.perform(
+          ~settings,
+          Test_Editing.parse_with_caret("case x\n| A =>\n  1\n  ¦"),
+          type_all("| B =>"),
+        )
+        |> text_of;
+      check(
+        string,
+        "rule stays where it was typed",
+        "case x\n| A =>\n  1\n  | B =>?",
+        got,
+      );
+    },
+  ),
+  test_case(
     "unsettled child is preserved as typed",
     `Quick,
     () => {
