@@ -1,8 +1,7 @@
-# Witch, a hole on the run #
+# Witch, a hole reached #
 
-# (^ticket(885)) The Witch with one hole every run opens: a helper #
-# being written after the neck, its value not yet used, multiplied by #
-# a ? that is still to be filled in. #
+# (^ticket(885)) The Witch with one hole every run reaches but none #
+# looks inside: a let after the neck, its value not yet written. #
 
 # Messed Up Dress Up's witch, on the Full Body figure. Her hat and #
 # long dress are one color, with a spider web on the dress and a belt, #
@@ -779,7 +778,7 @@ let body = pants_at @ shirt in
 # it moves 8 down, under the collar, and the head 8 down over its top. #
 
 let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
-let neck_draft = float_of_int(neck_length) *. ? in
+let neck_draft = ? in
 let neck : Picture =
   let top = 0. -. float_of_int(neck_length) -. 16. in
   [Polygon((
