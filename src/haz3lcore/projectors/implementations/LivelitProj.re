@@ -423,16 +423,20 @@ let view_calls = lazy(CallMemo.create());
 /* (^ticket(887)) the view memo's lookups and hits since the last ask, for
    the check's "view: projectors' views" mark: whether a drag on the
    interpreter reuses its views' calls or has given up looking them up */
-let view_calls_seen = ref((0, 0));
-let view_calls_since = (): (int, int) =>
+let view_calls_seen = ref((0, 0, 0));
+let view_calls_since = (): (int, int, int) =>
   if (Lazy.is_val(view_calls)) {
     let m = Lazy.force(view_calls);
-    let (l0, h0) = view_calls_seen^;
-    let (l, h) = (m.CallMemo.lookups^, m.CallMemo.hits^);
-    view_calls_seen := (l, h);
-    (l - l0, h - h0);
+    let (l0, h0, s0) = view_calls_seen^;
+    let (l, h, s) = (
+      m.CallMemo.lookups^,
+      m.CallMemo.hits^,
+      m.CallMemo.skipped^,
+    );
+    view_calls_seen := (l, h, s);
+    (l - l0, h - h0, s - s0);
   } else {
-    (0, 0);
+    (0, 0, 0);
   };
 
 module M: Projector = {

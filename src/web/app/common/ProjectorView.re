@@ -1549,13 +1549,18 @@ let all =
       ~extra=
         () => {
           /* (^ticket(887)) the views' call memo over this pass */
-          let (memo_lookups, memo_hits) = LivelitProj.view_calls_since();
+          let (memo_lookups, memo_hits, memo_skipped) =
+            LivelitProj.view_calls_since();
           [
             (
               "memo lookups",
               Util.BenchMarks.num(float_of_int(memo_lookups)),
             ),
             ("memo hits", Util.BenchMarks.num(float_of_int(memo_hits))),
+            (
+              "memo skipped",
+              Util.BenchMarks.num(float_of_int(memo_skipped)),
+            ),
             ("remade", Util.BenchMarks.num(float_of_int(remade^))),
             ("kept: lookup ms", Util.BenchMarks.num(ViewCache.lookup_ms^)),
             ("splices walk ms", Util.BenchMarks.num(ViewCache.splices_ms^)),

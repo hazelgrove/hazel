@@ -295,17 +295,23 @@ DRAG_DONE = r"""
     const k = m.what + (m.kind ? ' (' + m.kind + ')' : '');
     const s = sums[k] || (sums[k] = { n: 0, ms: 0 });
     s.n++; s.ms += m.ms;
-    /* a mark's counters, summed over the drag (^report(51)) */
+    /* a mark's counters, summed over the drag (^report(51)); (^ticket(887)) the first mark's apart, since a counter
+       that is a difference since it was last asked holds, at the first, everything since the page loaded */
     for (const [x, v] of Object.entries(m))
-      if (typeof v === 'number' && x !== 'ms' && x !== 'at') { s.x = s.x || {}; s.x[x] = (s.x[x] || 0) + v; }
+      if (typeof v === 'number' && x !== 'ms' && x !== 'at') {
+        s.x = s.x || {}; s.x[x] = (s.x[x] || 0) + v;
+        if (s.n === 1) { s.x0 = s.x0 || {}; s.x0[x] = v; }
+      }
   }
   /* (^ticket(887)) each livelit's draws over the drag, by its id, and the names the page knows ids by */
   const byid = {};
   for (const m of (window.hazelBenchMarks || [])) {
     if (m.ms === undefined || m.what !== 'view: a projector drawn') continue;
     const k = (m.kind || '?') + ' ' + (m.id || '?');
-    const s = byid[k] || (byid[k] = { n: 0, ms: 0 });
+    const s = byid[k] || (byid[k] = { n: 0, ms: 0, why: {} });
     s.n++; s.ms += m.ms;
+    const w = String(m.why || '-').slice(0, 80) + (m.own_same !== undefined ? ' / own same: ' + m.own_same : '');
+    s.why[w] = (s.why[w] || 0) + 1;
   }
   const names = (globalThis.hazelJit && globalThis.hazelJit.views) ? Object.keys(globalThis.hazelJit.views) : [];
   delete window.hazelBenchMarks;
@@ -351,10 +357,17 @@ def drags(d, sid, shots):
             top = sorted((got.get("marks") or {}).items(), key=lambda kv: -kv[1]["ms"])[:10]
             print("      the page's timeline over the drag: " + "; ".join(
                 f"{k} {v['ms']:.0f} ms x{v['n']} ({v['ms'] / max(1, v['n']):.1f} each)" for k, v in top), flush=True)
-            pv = ((got.get("marks") or {}).get("view: projectors' views") or {}).get("x")
+            pvm = (got.get("marks") or {}).get("view: projectors' views") or {}
+            pv = pvm.get("x")
             if pv:
                 print("      the projectors' views' counters over the drag: " + "; ".join(
                     f"{k} {v:.0f}" for k, v in sorted(pv.items())), flush=True)
+                x0 = pvm.get("x0") or {}
+                memo = {k: v for k, v in pv.items() if k.startswith("memo")}
+                if memo:
+                    print("      the views' call memo: at the first frame (since the page loaded) " + "; ".join(
+                        f"{k[5:]} {x0.get(k, 0):.0f}" for k in sorted(memo)) + "; over the rest of the drag " + "; ".join(
+                        f"{k[5:]} {memo[k] - x0.get(k, 0):.0f}" for k in sorted(memo)), flush=True)
             # (^ticket(887)) which livelits were drawn, and what each draw cost
             names = {n.split(" ")[-1][:8]: n for n in (got.get("names") or [])}
             byid = sorted((got.get("byid") or {}).items(), key=lambda kv: -kv[1]["ms"])[:8]
@@ -362,6 +375,9 @@ def drags(d, sid, shots):
                 print("      the draws by livelit: " + "; ".join(
                     f"{names.get(k.split(' ')[-1], k)} {v['ms']:.0f} ms x{v['n']} ({v['ms'] / max(1, v['n']):.2f} each)"
                     for k, v in byid), flush=True)
+                for k, v in byid[:2]:
+                    print(f"        why {names.get(k.split(' ')[-1], k)} was drawn again: " + "; ".join(
+                        f"{w} x{n}" for w, n in sorted(v.get("why", {}).items(), key=lambda kv: -kv[1])[:4]), flush=True)
             D.settled(d)
             time.sleep(1)
             if shots and d.js(DRAG, [label, lo, hi, 3000, "picture"]):
@@ -549,6 +565,15 @@ def compare(label, on, off, problems):
         problems.append(f"{label}: errors compiled {on['errors']}, on the interpreter {off['errors']}")
 
 
+def cpu():
+    # (^ticket(887)) the runner's processor: the Witch's drag with compiling off is fast on some checks and not others
+    try:
+        names = [l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")]
+        return f"{names[0]} x{len(names)}" if names else "?"
+    except OSError:
+        return "?"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8111)
@@ -562,6 +587,7 @@ def main():
     ap.add_argument("--edit", default="", help="substring filter on the slides where small edits are timed (empty: none)")
     ap.add_argument("--drag", default="Witch", help="substring filter on the slides where a slider's drag is timed, with the HUD (empty: none)")
     args = ap.parse_args()
+    print(f"the runner's processor: {cpu()}", flush=True)
     if args.shots:
         os.makedirs(args.shots, exist_ok=True)
     d = D.Driver(args.port, args.wd_port)

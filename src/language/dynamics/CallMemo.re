@@ -149,6 +149,9 @@ type t = {
      measuring */
   lookups: ref(int),
   hits: ref(int),
+  /* (^ticket(887)) calls of a costly body not looked up, since it had missed
+     too often (worth_a_lookup) */
+  skipped: ref(int),
 };
 
 let create = (): t => {
@@ -157,6 +160,7 @@ let create = (): t => {
   tries: IdentityTable.create(),
   lookups: ref(0),
   hits: ref(0),
+  skipped: ref(0),
 };
 
 let is_costly = (memo: t, body: Exp.t): bool =>
@@ -173,11 +177,17 @@ let is_costly = (memo: t, body: Exp.t): bool =>
    up, and recorded, once it has missed [misses_per_hit] times for each
    time it hit. */
 let misses_per_hit = 24;
-let worth_a_lookup = (memo: t, body: Exp.t): bool =>
-  switch (IdentityTable.find_opt(memo.tries, body)) {
-  | None => true
-  | Some((lookups, hits)) => lookups < misses_per_hit * (hits + 1)
+let worth_a_lookup = (memo: t, body: Exp.t): bool => {
+  let worth =
+    switch (IdentityTable.find_opt(memo.tries, body)) {
+    | None => true
+    | Some((lookups, hits)) => lookups < misses_per_hit * (hits + 1)
+    };
+  if (!worth) {
+    incr(memo.skipped);
   };
+  worth;
+};
 
 let key = (env: Environment.t(Exp.t), body: Exp.t): Exp.t =>
   values(env, body);
