@@ -314,7 +314,7 @@ let chat_context_meter_tests = [
         bool,
         "no meter until post-compaction agent reply",
         true,
-        Chat.Utils.context_meter_prompt_tokens(chat) == None,
+        Option.is_none(Chat.Utils.context_meter_prompt_tokens(chat)),
       );
     },
   ),
@@ -394,6 +394,53 @@ let agent_workbench_tests = [
         "parent task completed",
         true,
         Option.is_some(t.completion_info),
+      );
+    },
+  ),
+  test_case(
+    "marking a subtask complete or failed moves on to the next",
+    `Quick,
+    () => {
+      module W = AgentWorkbench;
+      let apply = (model, action) =>
+        switch (W.Update.update(~model, ~action=BackendAction(action))) {
+        | Success(m) => m
+        | Failure(msg) => fail(msg)
+        };
+      let sub = title => W.Utils.SubtaskUtils.mk(~title, ~description="");
+      let task =
+        W.Utils.TaskUtils.mk(
+          ~title="Parent",
+          ~description="p",
+          ~subtasks=[sub("s1"), sub("s2"), sub("s3")],
+        );
+      let model =
+        List.fold(
+          [
+            W.Update.Action.BackendAction.CreateNewTask(task),
+            MarkActiveSubtaskComplete("did s1"),
+            MarkActiveSubtaskFailed("s2 failed"),
+          ],
+          ~init=W.Utils.MainUtils.init(),
+          ~f=apply,
+        );
+      let t =
+        W.Utils.TaskUtils.find_task(model, "Parent")
+        |> OptUtil.get_or_fail("task Parent");
+      check(option(string), "active", Some("s3"), t.active_subtask);
+      check(
+        list(option(string)),
+        "each subtask's own summary",
+        [Some("did s1"), Some("s2 failed"), None],
+        List.map(
+          ~f=
+            (s: W.Model.subtask) =>
+              Option.map(
+                ~f=(c: W.Model.completion_info) => c.summary,
+                s.completion_info,
+              ),
+          W.Utils.TaskUtils.ordered_subtasks_of(t),
+        ),
       );
     },
   ),
@@ -592,6 +639,7 @@ let prompt_caching_tests = [
           after_text: None,
           content: "GUIDE_BODY_MARKER",
           content_is_payload,
+          steps: [],
         };
         switch (Message.Utils.mk_tool_result_message(tr).api_message) {
         | Some(m) => or_msg_json(m)
@@ -647,8 +695,6 @@ let prompt_caching_tests = [
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
               "",
-              "",
-              "",
             ),
           ),
       };
@@ -685,8 +731,6 @@ let prompt_caching_tests = [
             Message.Utils.mk_context_message(
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
-              "",
-              "",
               "",
             ),
           ),
@@ -729,8 +773,6 @@ let prompt_caching_tests = [
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
               "",
-              "",
-              "",
             ),
           ),
       };
@@ -767,8 +809,6 @@ let prompt_caching_tests = [
             Message.Utils.mk_context_message(
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
-              "",
-              "",
               "",
             ),
           ),
@@ -1017,7 +1057,7 @@ let toolcall_handler_tests = [
         CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
       let action =
         CompositionActions.EditorAction(
-          Action.Structural.Update(Action.Structural.Definition, "a", "1"),
+          Action.Structural.Replace("a:definition", "1"),
         );
       switch (
         Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
@@ -1034,16 +1074,9 @@ let toolcall_handler_tests = [
           String.equal(msg, unknown),
         );
         check_bool(
-          "includes Action.Failure.show text (Cant_derive or similar)",
+          "names the missing entry: " ++ msg,
           true,
-          StringUtil.plain_search("Cant_derive", msg, 0) >= 0
-          || StringUtil.plain_search("Cant_move", msg, 0) >= 0
-          || StringUtil.plain_search("Cant_select", msg, 0) >= 0,
-        );
-        check_bool(
-          "suffix explains tool context",
-          true,
-          StringUtil.plain_search("structural editor tool", msg, 0) >= 0,
+          StringUtil.plain_search("No entry \"a\"", msg, 0) >= 0,
         );
       };
     },
@@ -1059,16 +1092,12 @@ let context_llm_snapshot_tests = [
         Message.Utils.context_snapshot_body_for_llm(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
-          " err ",
-          " tests ",
           " wb ",
         );
       let msg =
         Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
-          " err ",
-          " tests ",
           " wb ",
         );
       check_string("body vs message.content", body, msg.content);
@@ -1087,20 +1116,13 @@ let context_llm_snapshot_tests = [
       let cws = CodeWithStatics.Model.mk(editor);
       let chat = Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
       let eval_result = EvalResult.Model.init;
-      let prog =
-        CompositionView.Public.print(
-          ~probe_map=cws.dynamics,
-          cws.editor,
-          chat.agent_view,
-        );
-      let errs =
-        ErrorPrint.all(
-          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
-        )
-        |> String.concat(~sep="\n");
-      let tests =
-        Agent.Utils.test_results_for_context(
-          EvalResult.Model.test_results(eval_result),
+      let (prog, _, _) =
+        Agent.Utils.agent_view_of(
+          ~view=CompositionView.default_settings,
+          ~test_results=EvalResult.Model.test_results(eval_result),
+          ~value=EvalResult.Model.get_value(eval_result),
+          cws,
+          chat,
         );
       let wb =
         AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
@@ -1110,14 +1132,13 @@ let context_llm_snapshot_tests = [
         Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           prog,
-          errs,
-          tests,
           wb,
         ).
           content;
       let actual =
         Agent.Utils.llm_context_snapshot_text(
           ~session_mode=Web.AgentGlobals.Model.Edit,
+          ~view=CompositionView.default_settings,
           ~cell_result=eval_result,
           cws,
           chat,
@@ -1160,44 +1181,10 @@ let tool_call_summary_tests = [
     "category mapping: edit tools -> Edit",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      check_category(
-        "update_definition",
-        Edit,
-        mk_tc(~name="update_definition", ~args),
-      );
-      check_category("update_body", Edit, mk_tc(~name="update_body", ~args));
-      check_category(
-        "delete_binding_clause",
-        Edit,
-        mk_tc(~name="delete_binding_clause", ~args),
-      );
-      check_category(
-        "insert_before",
-        Edit,
-        mk_tc(~name="insert_before", ~args),
-      );
-    },
-  ),
-  test_case(
-    "category mapping: read tools -> Read",
-    `Quick,
-    () => {
-      let args = `Assoc([]);
-      check_category(
-        "view_entire_definition",
-        Read,
-        mk_tc(~name="view_entire_definition", ~args),
-      );
-      check_category(
-        "view_context",
-        Read,
-        mk_tc(~name="view_context", ~args),
-      );
-      check_category(
-        "show_references",
-        Read,
-        mk_tc(~name="show_references", ~args),
+      let args = `Assoc([("target", `String("fib"))]);
+      List.iter(
+        ~f=name => check_category(name, Edit, mk_tc(~name, ~args)),
+        ["insert", "replace", "delete", "move", "rename"],
       );
     },
   ),
@@ -1207,7 +1194,14 @@ let tool_call_summary_tests = [
     () => {
       let empty = `Assoc([]);
       let paths = `Assoc([("paths", `List([`String("x")]))]);
-      check_category("expand", View, mk_tc(~name="expand", ~args=paths));
+      check_category(
+        "open",
+        View,
+        mk_tc(
+          ~name="open",
+          ~args=`Assoc([("targets", `List([`String("x")]))]),
+        ),
+      );
       check_category(
         "place_syntax_projector",
         Projector,
@@ -1236,62 +1230,47 @@ let tool_call_summary_tests = [
     () => {
       let r =
         ToolCallSummary.of_tool_call(mk_tc(~name="nope", ~args=`Assoc([])));
-      check_bool("None", true, r == None);
+      check_bool("None", true, Option.is_none(r));
     },
   ),
   test_case(
-    "single-path edit: signifier and jump_paths from `path` string",
+    "an edit: signifier and jump_paths from its target",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      let s = get_summary(mk_tc(~name="update_definition", ~args));
+      let args = `Assoc([("target", `String("fib:definition"))]);
+      let s = get_summary(mk_tc(~name="replace", ~args));
       check_signifier(
-        "update_definition",
-        Some("fib"),
-        mk_tc(~name="update_definition", ~args),
+        "replace",
+        Some("fib:definition"),
+        mk_tc(~name="replace", ~args),
       );
       check_bool("persists=true", true, s.persists);
-      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool(
+        "jump_paths=[fib:definition]",
+        true,
+        s.jump_paths == ["fib:definition"],
+      );
     },
   ),
   test_case(
-    "delete tools: persists=false",
+    "delete: persists=false",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      let s = get_summary(mk_tc(~name="delete_body", ~args));
+      let args = `Assoc([("target", `String("fib"))]);
+      let s = get_summary(mk_tc(~name="delete", ~args));
       check_bool("persists=false", false, s.persists);
     },
   ),
   test_case(
-    "insert_before with no path: signifier=None and display_name='insert'",
-    `Quick,
-    () => {
-      let tc = mk_tc(~name="insert_before", ~args=`Assoc([]));
-      let s = get_summary(tc);
-      check_signifier("no signifier when path absent", None, tc);
-      check_bool("no jump_paths when path absent", true, s.jump_paths == []);
-      check_bool(
-        "display_name='insert'",
-        true,
-        String.equal(ToolCallSummary.display_name_for(tc), "insert"),
-      );
-    },
-  ),
-  test_case(
-    "insert_before with path: display_name preserves tool name",
+    "insert: signifier from its place",
     `Quick,
     () => {
       let tc =
-        mk_tc(
-          ~name="insert_before",
-          ~args=`Assoc([("path", `String("fib"))]),
-        );
-      check_bool(
-        "display_name unchanged when path present",
-        true,
-        String.equal(ToolCallSummary.display_name_for(tc), "insert_before"),
-      );
+        mk_tc(~name="insert", ~args=`Assoc([("after", `String("fib"))]));
+      let s = get_summary(tc);
+      check_signifier("after fib", Some("fib"), tc);
+      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool("persists=true", true, s.persists);
     },
   ),
   test_case(
@@ -1299,7 +1278,11 @@ let tool_call_summary_tests = [
     `Quick,
     () => {
       let args = `Assoc([("paths", `List([`String("a"), `String("b")]))]);
-      check_signifier("a, b", Some("a, b"), mk_tc(~name="expand", ~args));
+      check_signifier(
+        "a, b",
+        Some("a, b"),
+        mk_tc(~name="place_probe", ~args),
+      );
     },
   ),
   test_case(
@@ -1322,7 +1305,7 @@ let tool_call_summary_tests = [
       check_signifier(
         "a, b +3",
         Some("a, b +3"),
-        mk_tc(~name="expand", ~args),
+        mk_tc(~name="place_probe", ~args),
       );
     },
   ),
@@ -1428,19 +1411,6 @@ let tool_call_summary_tests = [
       );
     },
   ),
-  test_case(
-    "read tools: signifier=None, jump_paths=[], persists=false",
-    `Quick,
-    () => {
-      let s =
-        get_summary(
-          mk_tc(~name="view_entire_definition", ~args=`Assoc([])),
-        );
-      check_bool("signifier=None", true, s.signifier == None);
-      check_bool("jump_paths=[]", true, s.jump_paths == []);
-      check_bool("persists=false", false, s.persists);
-    },
-  ),
 ];
 
 let api_error_format_tests = [
@@ -1449,7 +1419,7 @@ let api_error_format_tests = [
     `Quick,
     () => {
       let s =
-        Agent.Update.format_api_error_content(
+        AgentSend.format_api_error_content(
           ~code=429,
           ~message="rate limited",
         );
@@ -1487,7 +1457,7 @@ let stream_accumulator_tests = [
       check_string("second delta", "world", d2.content_delta);
       let r = finalize_reply(acc);
       check_string("final content", "hello world", r.content);
-      check_bool("no reasoning", true, r.reasoning == None);
+      check_bool("no reasoning", true, Option.is_none(r.reasoning));
       check_int("no tool calls", 0, List.length(r.tool_calls));
     },
   ),
@@ -1522,7 +1492,7 @@ let stream_accumulator_tests = [
         feed_json(acc, {|{"choices":[{"delta":{"reasoning":"alone"}}]}|});
       let r = finalize_reply(acc);
       check_string("content takes over", "alone", r.content);
-      check_bool("reasoning cleared", true, r.reasoning == None);
+      check_bool("reasoning cleared", true, Option.is_none(r.reasoning));
     },
   ),
   test_case(

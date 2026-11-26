@@ -63,11 +63,11 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
    spaces. True at first-content and inside the indentation run. */
 let at_line_leading_whitespace = (z: Zipper.t): bool =>
   z.caret == Outer
-  && z.selection.content == []
+  && List.is_empty(z.selection.content)
   && {
     let rec all_white = (ps: list(Piece.t)) =>
       switch (ps) {
-      | [] => z.relatives.ancestors == []
+      | [] => List.is_empty(z.relatives.ancestors)
       | [Piece.Secondary(s), ...rest] =>
         Secondary.is_space(s) ? all_white(rest) : Secondary.is_linebreak(s)
       | _ => false
@@ -83,7 +83,7 @@ let at_line_leading_whitespace = (z: Zipper.t): bool =>
    AUTO-INDENT level: spaces the user typed beyond the indent are
    real material, deleted one per press. */
 let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
-  if (z.caret != Outer || z.selection.content != []) {
+  if (!Poly.equal(z.caret, Outer) || !List.is_empty(z.selection.content)) {
     None;
   } else {
     let right_is_space =
@@ -157,7 +157,7 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
     List.fold_left(
       ~f=
         (acc, (_, sibs): Ancestors.generation) =>
-          acc != None ? acc : last_lb_in_seg(fst(sibs)),
+          Option.is_some(acc) ? acc : last_lb_in_seg(fst(sibs)),
       ~init=None,
       z.relatives.ancestors,
     )
@@ -176,8 +176,8 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
     )
     @ all_lbs_in_seg(z.selection.content)
     |> Id.Set.of_list;
-  let line0 = first_line_lb == None;
-  let indent = d == Direction.Right;
+  let line0 = Option.is_none(first_line_lb);
+  let indent = Direction.equal(d, Direction.Right);
   let adjust_run = (seg: Segment.t): Segment.t =>
     if (indent) {
       [
@@ -256,8 +256,8 @@ let rec go =
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     let before_pieces =
       LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    let finish = z =>
-      z
+    let finish = pasted =>
+      pasted
       |> maybe_reassoc_thorough
       |> LocalReformat.go(~before)
       |> LocalReformat.go_region(~before_pieces);
@@ -363,7 +363,13 @@ let rec go =
     /* accepting a TyDi suggestion inserts delimiter text like typing
        it, but via a separate path from the Insert arm */
     LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+      Buffer.go(
+        ~root,
+        ~seg=?CachedSyntax.semantic_source(z, syntax),
+        ~ci=Indicated.ci_for_completion(z, statics.info_map),
+        a,
+        z,
+      )
     )
   | Project(a) =>
     let refractor_list =
@@ -574,9 +580,44 @@ let rec go =
       |> Option.map(~f=maybe_reassoc)
     )
     |> return(Cant_insert)
-  | ApplyCompletion(Next) =>
+  | Refactor(k) =>
+    Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+    |> Option.map(
+         ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+       )
+    |> return(Cant_refactor)
+  | RefactorGesture(g) =>
     switch (
-      CompletionQuery.chip_at_caret(z)
+      Refactor.gesture(~info_map=statics.info_map, ~term=statics.term, g, z)
+    ) {
+    | Some(k) =>
+      /* negate toggles: invoked from then/else, the caret lands on
+         the OPPOSITE delimiter (the arm you moved now lives there),
+         so repeating the gesture flips back */
+      let toggle =
+        switch (k, Indicated.index(z), Indicated.shard_index(z)) {
+        | (NegateIf, Some(tile), Some(shard)) when shard == 1 || shard == 2 =>
+          Some((tile, 3 - shard))
+        | _ => None
+        };
+      Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+      |> Option.map(~f=z' =>
+           switch (toggle) {
+           | Some((tile, shard)) =>
+             Move.jump_to_shard(z', tile, shard) |> Option.value(~default=z')
+           | None => z'
+           }
+         )
+      |> Option.map(
+           ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+         )
+      |> return(Cant_refactor);
+    | None => Error(Cant_refactor)
+    }
+  | ApplyCompletion(Next) =>
+    let seg = CachedSyntax.semantic_source(z, syntax);
+    switch (
+      CompletionQuery.chip_at_caret(~root, ~seg?, z)
       |> Option.bind(_, ~f=CompletionQuery.tab_text(z))
     ) {
     | None => Error(Cant_put_down)
@@ -601,7 +642,7 @@ let rec go =
         );
       /* Preserve the positions of existing operand holes and their spaces
          on both sides of the caret while the parser reassembles the tile. */
-      let protect_right = CompletionQuery.accepts_right_hole(z);
+      let protect_right = CompletionQuery.accepts_right_hole(~root, ~seg?, z);
       let protect =
         List.map(
           ~f=
@@ -649,7 +690,7 @@ let rec go =
         },
       )
       |> return(Cant_put_down);
-    }
+    };
   | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
   | ApplyCompletion(One(id)) =>
     Materialize.one(z, ~root, id)
@@ -671,28 +712,7 @@ let rec go =
     )
     |> return(Cant_destruct)
   | Structural(a) =>
-    /* the editor's statics stand in for the tool's initial pass when they
-       describe this very program (CachedStatics.for_zipper); the new
-       program's statics are computed once and offered to the editor */
-    let run =
-      switch (CachedStatics.for_zipper(~settings, z, statics)) {
-      | Some(initial) when initial.info_map != Language.Id.Map.empty =>
-        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go
-      };
-    /* agent edits funnel pasted code through introduce with indentation
-       stripped; re-indent new lines like user Paste */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    switch (run(~syntax, ~z, ~a)) {
-    | Ok(z) =>
-      Ok(
-        z
-        |> LocalReformat.go(~before)
-        |> LocalReformat.go_region(~before_pieces),
-      )
-    | Error(_) as e => e
-    };
+    /* the editing kernel's: formatting is local, so no re-indent after */
+    CompositionGo.go(~settings, ~root, ~statics, z, a)
   };
 };

@@ -4,7 +4,7 @@ open Language;
 
 let probe_tools_crossref =
   "Runtime probes are **refractors** (GUI overlays on bindings), not livelit projectors. "
-  ++ "When probes are active, the agent view shows evaluated values inline as `≡`. "
+  ++ "When probes are active, the agent view shows evaluated values at line ends, as `#› ≡ value #`. "
   ++ "See the system prompt **Projectors and the agent view** for folds, statics overlays, "
   ++ "and livelit kinds (checkbox, slider, csv, …).";
 
@@ -30,11 +30,15 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
   | TextArea => Some("- **text** — Multiline string literal editor.")
   | Livelit =>
     Some(
-      "- **livelit** — Custom livelit projector for structured literal editing.",
+      "- **livelit** — Shows a livelit's GUI at a use `^name(model)`. Programs can DEFINE their own livelits — `let ^name = { init; update; view; expand } in ...` — giving any data type an embedded editing widget; write uses as `^^livelit(^name(model))`. Call `read_docs(\"livelits\")` before defining one.",
     )
   | Table =>
     Some(
       "- **table** — Spreadsheet-style editor for a **list of labeled tuples** sharing the same labels; the labels become column headers. Attaches off the **elaborated** form, so it can apply where the surface syntax alone is not yet a table.",
+    )
+  | HTML =>
+    Some(
+      "- **html** — Renders an HTML-valued expression live. An `(init, update, view, subs)` tuple runs as an interactive **app** the user can operate in place; make the app tuple the program's final expression, written as `^^html((init, update, view, subs))`. Call `read_docs(\"mvu\")` before building one.",
     )
   | Keybinding =>
     Some(
@@ -46,7 +50,8 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     )
   | Fold
   | Probe
-  | Statics => None
+  | Statics
+  | Proof => None
   };
 
 let uniq_livelit_lines: list(string) = {
@@ -80,12 +85,12 @@ let blurb_for_composition_prompt: list(string) = {
   [
     "## Projectors and the agent view",
     "",
-    "### Fold (`⋱`)",
-    "A **fold** is a collapsed definition in the GUI: the definition shows as `⋱` (not source text).",
-    "Use `expand` / `collapse` (see **Paths** and **View Tools** above).",
+    "### Fold",
+    "A **fold** hides code in the user's editor; the agent view prints it as its invocation, `^^fold(code)`.",
+    "Your own view is the map and open entries (see **The view** above).",
     "",
     "### Runtime probe refractor",
-    "The **probe** refractor attaches to a binding and shows evaluated values in the agent view (e.g. `expr ≡ value`).",
+    "The **probe** refractor attaches to a binding and shows evaluated values in the agent view (e.g. `expr  #› ≡ value #`).",
     "Tools: `place_probe`, `remove_probe`, `toggle_probe`.",
     "",
     "### Statics refractor (type overlay)",
@@ -102,7 +107,7 @@ let blurb_for_composition_prompt: list(string) = {
     "",
     "**CRITICAL — livelits are not automatic:** Ordinary Hazel code (`let speed = 50`, `let is_active = true`, list literals, records) renders as **plain text** until you call **`place_syntax_projector`**.",
     "If the user asks how livelits work, or wants sliders/checkboxes/CSV editors/text boxes, you **must** call `place_syntax_projector` with the right `kind` on each binding path (e.g. `slider` on `\"speed\"`, `check` on `\"is_active\"`, `text` on `\"message\"`, `csv` only when the RHS is `[]`, `card` only on playing-card tuples/lists—see livelit lines above; nested paths like `\"config/volume\"`).",
-    "**Never** describe interactive widgets as present based only on `insert_*`, `update_*`, or other edit tools — that is false unless the matching `place_syntax_projector` calls succeeded.",
+    "**Never** describe interactive widgets as present based only on edit tools (`insert`, `replace`, …) — that is false unless the matching `place_syntax_projector` calls succeeded.",
     "",
   ]
   @ [refractors_vs_syntax_sentence, ""];
@@ -110,7 +115,7 @@ let blurb_for_composition_prompt: list(string) = {
 
 /** Short taxonomy for the compaction summarizer (3–6 lines). */
 let blurb_for_compaction: list(string) = [
-  "**Projectors**: **Folds** display as `⋱` (collapsed defs; expand/collapse in the full prompt).",
+  "**Projectors**: the user's **folds** print as `^^fold(…)`; the agent's view is a map with bodies as `⋯` plus the entries it opened (open/close).",
   "**Refractors** overlay bindings: **probes** show runtime values (`≡` in context); **statics** add a type overlay in the GUI.",
   "**Livelits** are alternate UIs for literals (checkbox, slider/sliderf, text, card, csv, table, livelit, plus fold in the menu).",
   "**Agent tools**: `place_syntax_projector` / `remove_syntax_projector` / `toggle_syntax_projector` (see full prompt).",

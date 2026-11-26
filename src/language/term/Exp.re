@@ -18,6 +18,10 @@ type cls =
   | TupleExtension
   | Tuple
   | Dot
+  /* A Dot whose left side is a module or a labeled tuple: classes statics
+     gives, not term forms. */
+  | ModuleProjection
+  | TupleProjection
   | Var
   | Let
   | Theorem
@@ -102,7 +106,7 @@ let fast_equal_with_lexemes = (a: t, b: t): bool =>
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 let fresh: term => t = IdTagged.fresh;
 
@@ -126,6 +130,94 @@ let strip_projectors =
         },
     _,
   );
+
+/* `e` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not in the scope of a type binder of `x`. A path
+   root `x` (in `x.T`) names the newest type or value of its name, so in
+   the scope of a value named `x`, which may be a module, path roots `x`
+   are left alone ([~roots=false]); a bare type `x` still is the binding. */
+let rec rename_tvar = (~roots=true, x: string, x': string, e: t): t => {
+  let rename_typ = (~roots, _, ty) => Typ.rename_var(~roots, x, x', ty);
+  let binds = (p: Pat.t) =>
+    List.exists(~f=String.equal(x), Pat.bound_vars(p));
+  /* a binder's types, and the scope it binds over */
+  let pat = p => Pat.map_term(~f_typ=rename_typ(~roots), p);
+  let scope = (p, body) =>
+    rename_tvar(~roots=roots && !binds(p), x, x', body);
+  map_term(
+    ~f_exp=
+      (continue, e) => {
+        let (term, rewrap) = unwrap(e);
+        switch (term) {
+        | TyAlias(tp, _, _)
+        | TypFun(tp, _, _) when TPat.binds(x, tp) => e
+        | Let(p, def, body) =>
+          Let(pat(p), rename_tvar(~roots, x, x', def), scope(p, body))
+          |> rewrap
+        | Fun(p, body, ty, name) =>
+          Fun(
+            pat(p),
+            scope(p, body),
+            Option.map(~f=Typ.rename_var(~roots, x, x'), ty),
+            name,
+          )
+          |> rewrap
+        | FixF(p, body, env) => FixF(pat(p), scope(p, body), env) |> rewrap
+        | Match(scrut, rules) =>
+          Match(
+            rename_tvar(~roots, x, x', scrut),
+            List.map(~f=((p, body)) => (pat(p), scope(p, body)), rules),
+          )
+          |> rewrap
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            MPat.map_term(~f_typ=rename_typ(~roots), mp),
+            rename_tvar(~roots, x, x', def),
+            rename_tvar(
+              ~roots=
+                roots && !Option.equal(String.equal, Some(x), MPat.name(mp)),
+              x,
+              x',
+              body,
+            ),
+          )
+          |> rewrap
+        | Module(items) =>
+          Module(rename_tvar_in_items(~roots, x, x', items)) |> rewrap
+        | _ => continue(e)
+        };
+      },
+    ~f_typ=rename_typ(~roots),
+    e,
+  );
+}
+and rename_tvar_in_items =
+    (~roots, x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] =>
+    let binds_value =
+      switch (item.term) {
+      | ModLet(p, _) => List.exists(~f=String.equal(x), Pat.bound_vars(p))
+      | ModuleMod(mp, _) =>
+        Option.equal(String.equal, Some(x), MPat.name(mp))
+      | ModVal(y, _) => String.equal(x, y)
+      | ModType(_)
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => false
+      };
+    [
+      Mod.map_term(
+        ~f_exp=(_, e) => rename_tvar(~roots, x, x', e),
+        ~f_typ=(_, ty) => Typ.rename_var(~roots, x, x', ty),
+        item,
+      ),
+      ...rename_tvar_in_items(~roots=roots && !binds_value, x, x', items),
+    ];
+  };
 
 /* Parens and Projector are transparent: elaboration keeps both, so code
    that inspects the head or shape of an expression must look through them.
@@ -263,6 +355,8 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
+  | ModuleProjection => "Module projection"
+  | TupleProjection => "Labeled tuple projection"
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
@@ -612,8 +706,26 @@ let (replace_all_ids, replace_all_ids_typ) = {
       }
       |> continue;
   (
-    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
+    Typ.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
   );
 };
 
@@ -775,4 +887,36 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
 /* Inject a function name into a Fun or TypFun expression. */
 let add_name = (name: option(string), exp: t): t => {
   map_fn_name(_ => name, exp);
+};
+
+/* [e] with [acc] in its body hole, if the hole is down the binding-form
+   spine; [rebuilt] sees each rebuilt node, innermost first. how per-item
+   elaborations compose (DefStatics), and the eval worker recomposes them */
+let graft_spine =
+    (~rebuilt=(e: t) => e, hole_id: Id.t, acc: t, e: t): option(t) => {
+  let rec spine = (e: t): option(t) =>
+    if (List.mem(e.annotation.ids, hole_id, ~equal=Poly.equal)) {
+      Some(acc);
+    } else {
+      let re = (term: term) =>
+        rebuilt({
+          ...e,
+          term,
+        });
+      switch (e.term) {
+      | Let(p, d, b) => spine(b) |> Option.map(~f=b => re(Let(p, d, b)))
+      | Theorem(p, d, b) =>
+        spine(b) |> Option.map(~f=b => re(Theorem(p, d, b)))
+      | Use(t, b) => spine(b) |> Option.map(~f=b => re(Use(t, b)))
+      | Seq(a, b) => spine(b) |> Option.map(~f=b => re(Seq(a, b)))
+      | TyAlias(tp, ty, b) =>
+        spine(b) |> Option.map(~f=b => re(TyAlias(tp, ty, b)))
+      | ModuleExp(mp, d, b) =>
+        spine(b) |> Option.map(~f=b => re(ModuleExp(mp, d, b)))
+      | Filter(f, b) => spine(b) |> Option.map(~f=b => re(Filter(f, b)))
+      | Parens(b) => spine(b) |> Option.map(~f=b => re(Parens(b)))
+      | _ => None
+      };
+    };
+  spine(e);
 };

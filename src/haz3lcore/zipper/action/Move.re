@@ -61,14 +61,14 @@ let by_token = (d: Direction.t, z: t): option(t) =>
    and movement is normal until the caret exits the run. */
 let in_skippable_indent = (z: t): bool =>
   z.caret == Outer
-  && z.selection.content == []
+  && List.is_empty(z.selection.content)
   && (
     switch (z.relatives.siblings) {
     | (l, [Piece.Secondary(w), ..._]) when Secondary.is_space(w) =>
       let rec all_white = (ps: list(Piece.t)) =>
         /* scanning right-to-left from the caret */
         switch (ps) {
-        | [] => z.relatives.ancestors == [] /* buffer start */
+        | [] => List.is_empty(z.relatives.ancestors) /* buffer start */
         | [Piece.Secondary(s), ...rest] =>
           Secondary.is_space(s)
             ? all_white(rest) : Secondary.is_linebreak(s)
@@ -306,14 +306,38 @@ let rec jump_to_first_indicated = (z: t, ids: list(Id.t)): option(t) =>
     }
   }
 and jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
-  let* z_l = jump_to_side_of_id(Left, z, id);
-  let* indicated_id = Indicated.index(z_l);
-  if (id == indicated_id) {
-    Some(z_l);
-  } else {
-    let* z_r = jump_to_side_of_id(Right, z, id);
-    let* indicated_id = Indicated.index(z_r);
-    id == indicated_id ? Some(z_r) : None;
+  /* structural fast path: place the caret directly instead of
+     token-walking from a buffer extreme (~90ms on a few-page buffer
+     for F12 / problem nav). The walk below remains as fallback. */
+  let structural = {
+    let seg = Zipper.unselect_and_zip(z);
+    let try_side = side =>
+      switch (Zipper.unzip_to_id(~side, id, seg)) {
+      | Some(zp) =>
+        let zp = {
+          ...zp,
+          refractors: z.refractors,
+        };
+        Indicated.index(zp) == Some(id) ? Some(zp) : None;
+      | None => None
+      };
+    switch (try_side(Direction.Left)) {
+    | Some(_) as r => r
+    | None => try_side(Direction.Right)
+    };
+  };
+  switch (structural) {
+  | Some(_) as r => r
+  | None =>
+    let* z_l = jump_to_side_of_id(Left, z, id);
+    let* indicated_id = Indicated.index(z_l);
+    if (id == indicated_id) {
+      Some(z_l);
+    } else {
+      let* z_r = jump_to_side_of_id(Right, z, id);
+      let* indicated_id = Indicated.index(z_r);
+      id == indicated_id ? Some(z_r) : None;
+    };
   };
 };
 
@@ -372,15 +396,96 @@ let vertical =
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
-  Some(
-    do_towards_point(~measured, local(ByChar), goal, z)
-    |> Option.value(~default=z),
-  );
+/* a ByToken walk to a row beside the goal, then a ByChar walk (ByChar
+   alone is O(chars)). the coarse goal is on the start's side of the
+   goal, so the approach side and inaccessible-goal tie-breaks hold */
+let to_point_walk = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > 1) {
+      let coarse =
+        Point.{
+          row: init.row < goal.row ? goal.row : goal.row + 1,
+          col: 0,
+        };
+      switch (do_towards_point(~measured, local(ByToken), coarse, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    } else {
+      z;
+    };
+  switch (do_towards_point(~measured, local(ByChar), goal, z)) {
+  | None => Some(z)
+  | Some(z) => Some(z)
+  };
+};
 
-let to_start: t => t = do_to_extreme(local(ByToken, Left));
+/* long jumps teleport: an unselected zipper with an Outer caret at a
+   top-level boundary is just a split of the zipped segment, so rebuild
+   it at the boundary nearest the goal, on the start's side (keeping the
+   walk's approach side), and walk from there */
+let teleport_row_threshold = 50;
 
-let to_end: t => t = do_to_extreme(local(ByToken, Right));
+let teleport_to_boundary =
+    (~measured: Measured.t, ~goal: Point.t, ~from_above: bool, z: t): t => {
+  let z = unselect(z);
+  let seg = Zipper.unselect_and_zip(z);
+  /* from above: caret before the first piece reaching goal.row; from
+     below: after the last piece starting by goal.row */
+  let k =
+    List.fold(seg, ~init=0, ~f=(k, p) =>
+      switch (Measured.find_by_id(Piece.id(p), measured)) {
+      | Some(m) =>
+        let above =
+          from_above ? m.last.row < goal.row : m.origin.row <= goal.row;
+        above ? k + 1 : k;
+      | None => k
+      }
+    );
+  let (pre, suf) = Util.ListUtil.split_n(k, seg);
+  {
+    ...z,
+    selection: Selection.mk([]),
+    caret: Outer,
+    relatives: {
+      siblings: (pre, suf),
+      ancestors: [],
+    },
+  };
+};
+
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > teleport_row_threshold
+        && Selection.is_empty(z.selection)) {
+      teleport_to_boundary(
+        ~measured,
+        ~goal,
+        ~from_above=init.row < goal.row,
+        z,
+      );
+    } else {
+      z;
+    };
+  to_point_walk(~measured, ~goal, z);
+};
+
+/* P8: structural placement — rebuild the zipper at the extreme
+   instead of token-walking there (the walk costs ~90ms/press on a
+   few-page buffer; zip + rebuild is one pass) */
+let to_start: t => t =
+  z => {
+    ...Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z)),
+    refractors: z.refractors,
+  };
+
+let to_end: t => t =
+  z => {
+    ...Zipper.unzip(~direction=Right, Zipper.unselect_and_zip(z)),
+    refractors: z.refractors,
+  };
 
 /* Neighbor in direction d is horizontal whitespace (space, not linebreak) */
 let space_on = (d: Direction.t, z: t): bool =>
@@ -494,7 +599,7 @@ let move_dispatch =
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);
-    let* binding_id = Language.Info.get_binding_site(ci);
+    let* binding_id = Language.Info.binding_site(~info_map=statics, ci);
     jump_to_id_indicated(z, binding_id);
   };
 

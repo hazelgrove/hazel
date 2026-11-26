@@ -8,6 +8,16 @@ open Util.OptUtil.Syntax;
  Ascriptions should be propagated inside of expressions when consistent.
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
 
+ IMPORTANT: This module does NOT assume types are pre-normalized. Types in
+ ascription nodes may be compact Var references (e.g., Var("HTML")) rather
+ than expanded structural forms (e.g., Rec("HTML", Sum(47 ctrs))). All
+ structural pattern matching on types must go through weak_head_normalize
+ first. This design:
+   1. Enables the Var-Var fast path in Typ.meet for post-eval statics
+   2. Keeps eval output compact (better display, smaller serialization)
+   3. Is the first step toward full type closures (Option B) where each
+      type carries its own resolution context
+
  ID PRESERVATION FOR PROBES:
  When an ascription transition transforms an expression, we preserve the original
  expression's ID. This is critical for the probe system, which tracks expressions
@@ -18,6 +28,17 @@ open Util.OptUtil.Syntax;
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
+
+/* Builtin context for type resolution, set once at startup via set_ctx.
+   Types in Asc nodes may be compact Var references (e.g., Var("HTML"))
+   that need resolution for structural matching. This is a ref rather
+   than a direct import to break a dependency cycle (Ascriptions →
+   Builtins → ... → Unboxing → Ascriptions); it is set once at
+   module-load time by Evaluator's top-level initializer and is
+   constant afterwards — it contains only builtin type aliases. */
+let ctx_ref: ref(Ctx.t) = ref(Ctx.empty);
+let set_ctx = (ctx: Ctx.t) => ctx_ref := ctx;
+
 /* Whether pushing an ascription through a list's or tuple's parts gave
    back the very same parts. Then the value already had the type -- plain
    data, well typed, no function to wrap -- and the push gives the value
@@ -29,14 +50,17 @@ let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2_exn(ds, ds', ~f=(d, d') => phys_equal(d, d'));
 
 /* Whether [ty_rec], unrolled, is consistent with [ty]. A self-loop has no
-   unrolling and is consistent with nothing. */
-let unrolled_consistent = (ty_rec: Typ.t, ty: Typ.t): bool =>
-  switch (Typ.unroll(ty_rec)) {
-  | Some(ty_rec) => Typ.is_consistent(Ctx.empty, ty_rec, ty)
+   unrolling and is consistent with nothing. [ty_rec] may be a compact alias
+   of a recursive builtin sum (Null : JSON): it is resolved in [ctx] first,
+   or the unrolled target never reads as consistent and the cast sticks. */
+let unrolled_consistent = (ctx: Ctx.t, ty_rec: Typ.t, ty: Typ.t): bool =>
+  switch (Typ.unroll(Typ.weak_head_normalize(ctx, ty_rec))) {
+  | Some(ty_rec) => Typ.is_consistent(ctx, ty_rec, ty)
   | None => false
   };
 
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+  let ctx = ctx_ref^;
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
       transition(~recursive, d) |> Option.value(~default=d);
@@ -45,13 +69,17 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
-    /* A self-loop ascribes nothing, so the ascription is stuck. */
-    let* t_unrolled = Typ.unroll(t);
+    /* Resolve the type for structural matching. Types may be Var("HTML")
+       which needs weak_head_normalize to get the structural form (Rec/Sum/Arrow).
+       The ORIGINAL compact type `t` is preserved in newly created Asc nodes.
+       A self-loop ascribes nothing, so the ascription is stuck. */
+    let* t_unrolled = Typ.unroll(Typ.weak_head_normalize(ctx, t));
     switch (DHExp.term_of(e), Typ.term_of(t_unrolled)) {
     // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
     | (Asc(e', t'), _) =>
+      let* t_compact = Typ.unroll(t);
       let* t' = Typ.unroll(t');
-      let+ t = Typ.meet(Ctx.empty, t_unrolled, t');
+      let+ t = Typ.meet(ctx, t_compact, t');
       recur(
         IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
       );
@@ -86,6 +114,60 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
+    | (Module(items), Sig(s)) =>
+      /* Sealing: keep the signature's value members, in signature order,
+         ascribing each to its declared type, and, when a hole item in the
+         signature could declare them, the module's other members as they
+         are. A module still evaluating leaves the ascription stuck. A
+         member the module lacks is a hole: statics allows that only when a
+         hole item stands in for it. */
+      let members =
+        Sig.closed_members(s)
+        |> List.filter_map(~f=(m: Sig.member) =>
+             switch (m) {
+             | Val(x, ty) => Some((x, ty))
+             | TypeManifest(_) => None
+             }
+           );
+      let picked =
+        Mod.value_bindings(items)
+        |> Option.map(~f=bindings => {
+             let declared =
+               members
+               |> List.map(~f=((x, ty)) => {
+                    let d =
+                      switch (
+                        Util.ListUtil.assoc_opt_by(String.equal, x, bindings)
+                      ) {
+                      | Some(v) => recur(Asc(v, ty) |> DHExp.fresh)
+                      | None => DHExp.fresh(EmptyHole)
+                      };
+                    Mod.fresh(ModVal(x, d));
+                  });
+             let undeclared =
+               Sig.has_hole_item(Sig.items(s))
+                 ? bindings
+                   |> List.filter(~f=((x, _)) =>
+                        !
+                          List.exists(
+                            ~f=((y, _)) => String.equal(x, y),
+                            members,
+                          )
+                      )
+                   |> List.map(~f=((x, v)) => Mod.fresh(ModVal(x, v)))
+                 : [];
+             declared @ undeclared;
+           });
+      switch (picked) {
+      | Some(items') =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Module(items') |> DHExp.fresh,
+          ),
+        )
+      | None => None
+      };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
         List.map2_exn(es, tys, ~f=(e, ty) =>
@@ -184,7 +266,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when unrolled_consistent(sumt, sumt' |> Typ.temp) =>
+        when unrolled_consistent(ctx, sumt, sumt' |> Typ.temp) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -200,8 +282,44 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | Some(None)
       | None => None
       };
+    /* an UNTYPED constructor (raw syntax fed to the evaluator without
+       elaboration — a livelit's model argument, an agent-inserted
+       value) ascribed to a sum that has it takes the sum as its type;
+       an application pushes the ascription into the payload */
+    | (Constructor(c, None), Sum(m))
+        when Poly.equal(ConstructorMap.get_entry(c, m), Some(None)) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Constructor(c, Some(Some(t))) |> DHExp.fresh,
+        ),
+      )
+    | (
+        Ap(Forward, {term: Constructor(c, None), _} as con, payload),
+        Sum(m),
+      )
+        when Option.is_some(ConstructorMap.get_entry(c, m)) =>
+      switch (ConstructorMap.get_entry(c, m)) {
+      | Some(Some(t')) =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Ap(
+              Forward,
+              IdTagged.fast_copy(
+                DHExp.rep_id(con),
+                Constructor(c, Some(Some(Typ.temp(Arrow(t', t)))))
+                |> DHExp.fresh,
+              ),
+              recur(Asc(payload, t') |> DHExp.fresh),
+            )
+            |> DHExp.fresh,
+          ),
+        )
+      | _ => None
+      }
     | (Constructor(_, Some(Some(t))), t')
-        when unrolled_consistent(t, t' |> Typ.temp) =>
+        when unrolled_consistent(ctx, t, t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(
@@ -212,12 +330,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (BinOp(bin_op, _, _), _) =>
       switch (Operators.semantics_of_bin_op(bin_op)) {
       | DefinedPoly(Equals | NotEquals)
-          when Typ.is_consistent(Ctx.empty, t, Atom(Bool) |> Typ.temp) =>
+          when Typ.is_consistent(ctx, t, Atom(Bool) |> Typ.temp) =>
         Some(e)
       | Defined(_, _, ty_out, _)
           when
             Typ.is_consistent(
-              Ctx.empty,
+              ctx,
               t,
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
@@ -231,7 +349,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | Defined(_, ty_out, _)
           when
             Typ.is_consistent(
-              Ctx.empty,
+              ctx,
               t,
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>

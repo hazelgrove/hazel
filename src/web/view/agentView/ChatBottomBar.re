@@ -8,6 +8,14 @@ open Haz3lcore;
 open JsUtil;
 open Poly;
 
+module DemoMenuListener =
+  MenuListener.Make({
+    let menu_class = "demo-prompt-picker";
+    let supports_keys = true;
+    let scroll_into_view = false;
+    let close_on_scroll = false;
+  });
+
 // Shared bottom bar component for Chat and Workbench views
 let view =
     (
@@ -133,11 +141,138 @@ let view =
     ]);
   };
 
+  let demo_menu = chat_system.ui.demo_menu;
+  let demo_items =
+    List.map(
+      ~f=
+        group =>
+          Menu.submenu_item(
+            ~tooltip=
+              group == "Follow-ups"
+                ? "Requires an existing program"
+                : "Start on a fresh scratchpad",
+            group,
+            DemoPrompts.all
+            |> List.filter(~f=(p: DemoPrompts.t) => p.group == group)
+            |> List.map(~f=(p: DemoPrompts.t) =>
+                 Menu.action_item(p.title, p.prompt)
+               ),
+          ),
+      DemoPrompts.groups,
+    );
+  let update_demo_menu = action =>
+    agent_inject(
+      Agent.Update.Action.ChatSystemAction(
+        ChatSystem.Update.Action.DemoMenu(action),
+      ),
+    );
+  let choose_demo_prompt = prompt => {
+    ignore(
+      Dom_html.window##requestAnimationFrame(
+        Js.wrap_callback((_: float) =>
+          JsUtil.delay(
+            0.0,
+            () => {
+              Js.Opt.iter(
+                Dom_html.document##getElementById(
+                  Js.string("chat-message-input"),
+                ),
+                el =>
+                el##focus
+              );
+              autosize_textarea("chat-message-input");
+            },
+          )
+        ),
+      ),
+    );
+    Effect.Many([
+      agent_inject(
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.SaveTextBoxContent(prompt),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+  DemoMenuListener.sync(
+    ~menu_open=Menu.is_open(demo_menu),
+    ~on_close=() => update_demo_menu(Close),
+    ~handle_key=
+      Menu.key_dispatcher(
+        ~items=demo_items,
+        ~dispatch_menu=update_demo_menu,
+        ~dispatch_action=choose_demo_prompt,
+        demo_menu,
+      ),
+    (),
+  );
+  let demo_prompt_picker =
+    div(
+      ~attrs=[clss(["demo-prompt-picker"])],
+      [
+        button(
+          ~attrs=[
+            clss(["change-model-button", "demo-prompt-button"]),
+            Attr.type_("button"),
+            Attr.create("aria-label", "Demo prompts"),
+            Attr.create(
+              "aria-expanded",
+              Menu.is_open(demo_menu) ? "true" : "false",
+            ),
+            Attr.create("aria-controls", "demo-prompt-menu"),
+            Attr.title("Choose a demo prompt to edit before sending"),
+            Attr.on_focus(_ =>
+              Effect.Many([
+                signal(Editors.View.MakeActive(Editors.Selection.Assistant)),
+                Effect.Stop_propagation,
+              ])
+            ),
+            Attr.on_keydown(_ => Effect.Stop_propagation),
+            Attr.on_click(_ =>
+              Effect.Many([
+                update_demo_menu(Toggle),
+                Effect.Stop_propagation,
+              ])
+            ),
+          ],
+          [text("demo prompts ⌃")],
+        ),
+        Menu.is_open(demo_menu)
+          ? div(
+              ~attrs=[
+                Attr.id("demo-prompt-menu"),
+                clss(["context-menu", "open-up-right", "demo-prompt-menu"]),
+              ],
+              [
+                div_c(
+                  "group",
+                  [
+                    div_c(
+                      "contents",
+                      Menu.render(
+                        ~inject_action=choose_demo_prompt,
+                        ~inject_menu=update_demo_menu,
+                        ~item_class="named-menu-item",
+                        ~items=demo_items,
+                        demo_menu,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Node.none,
+      ],
+    );
+
   // Send / queue: while the agent is busy, SendMessage enqueues for later (see Agent.send_message).
   let send_message = _ => {
     let message_content = String.strip(current_text);
     if (String.length(message_content) > 0) {
-      ChatScrollPin.request := true; /* a sent prompt re-pins the list */
+      /* the trace of this run opens (or continues) with the prompt */
+      CanvasTrajectory.prompt(message_content);
+      ChatScrollPin.request := true;
       let user_message = Message.Utils.mk_user_message(message_content);
       Effect.Many([
         agent_inject(
@@ -298,7 +433,8 @@ let view =
         )
       | _ => None
       };
-    let used_word = capped_note == None ? " context used" : " budget used";
+    let used_word =
+      Option.is_none(capped_note) ? " context used" : " budget used";
     let base_label = n_str ++ " / " ++ m_str ++ used_word;
     let title = pct =>
       switch (pct, capped_note) {
@@ -644,7 +780,7 @@ let view =
               ),
             ],
           ),
-      if (current_chat.pending_send_queue != []) {
+      if (!List.is_empty(current_chat.pending_send_queue)) {
         div(
           ~attrs=[clss(["chat-send-queue-panel"])],
           [
@@ -676,7 +812,7 @@ let view =
           };
         let mode_explanation =
           switch (mode) {
-          | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only view tools (expand / collapse) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
+          | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only the view tools (open / close) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
           | Edit => "Edit mode: full latitude. All tools are enabled (subject to your per-tool toggles). The agent may plan, converse, place overlays, manage workbench tasks, and apply program edits."
           | Plan => "Plan mode: read-only with respect to program code. Edit tools are disabled; the agent is encouraged to inspect the codebase, converse with you in markdown, and build an explicit plan using the workbench (create / order tasks and subtasks). Switch to edit mode when ready to execute."
           };
@@ -986,7 +1122,11 @@ let view =
               [
                 div(
                   ~attrs=[clss(["chat-input-bottom-bar-left"])],
-                  [reasoning_effort_dropup, change_model_button],
+                  [
+                    demo_prompt_picker,
+                    reasoning_effort_dropup,
+                    change_model_button,
+                  ],
                 ),
                 div(
                   ~attrs=[clss(["chat-input-bottom-bar-right"])],

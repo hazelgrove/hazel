@@ -18,25 +18,123 @@ module Print = {
     Printer.of_segment(~holes, ~caret=None, segment);
   };
 
+  /* parenthesized as the editor would print it: a tuple type standing
+     alone reads (A, B), not A, B; an unknown reads ? */
   let term = (term: Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
-    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
+    term |> ExpToSegment.any_to_segment(~settings) |> seg(~holes="?");
   };
 
-  let typ = (ty: Typ.t): string => term(Typ(ty));
+  let typ = (ty: Typ.t): string => term(Typ(Typ.surface_names(ty)));
 };
 
 let prn = sprintf;
 
+/* A message the cursor inspector also shows, as parts: printed to a string
+   here, rendered to a view there. */
+type part =
+  | Text(string)
+  | Code(string)
+  | Label(string)
+  | Type(Typ.t);
+
+let string_of_parts = (parts: list(part)): string =>
+  parts
+  |> List.map(
+       ~f=
+         fun
+         | Text(s)
+         | Code(s)
+         | Label(s) => s
+         | Type(ty) => Print.typ(ty),
+     )
+  |> String.concat(~sep="");
+
+let codes = (names: list(Var.t)): list(part) =>
+  Util.ListUtil.join(Text(", "), List.map(~f=name => Code(name), names));
+
+/* [what] names the sort of member, e.g. "type member". */
+let member_not_found_parts =
+    (what: string, {name, members}: Mark.member_not_found): list(part) =>
+  [Text("Module has no " ++ what ++ " "), Label(name)]
+  @ (
+    switch (members) {
+    | [] => []
+    | _ => [
+        Text("; its " ++ what ++ "s are "),
+        ...Util.ListUtil.join(
+             Text(", "),
+             List.map(~f=m => Label(m), members),
+           ),
+      ]
+    }
+  );
+
+let type_member_mismatch_parts = (name, ~expected, ~actual): list(part) => [
+  Text("Type member "),
+  Code(name),
+  Text(" is defined as "),
+  Type(actual),
+  Text(" but its signature declares "),
+  Type(expected),
+];
+
+let module_missing_members_parts = (names: list(Var.t)): list(part) => [
+  Text("Module is missing members required by its signature: "),
+  ...codes(names),
+];
+
+let module_extra_members_parts = (names: list(Var.t)): list(part) => [
+  Text("Module has members its signature does not declare: "),
+  ...codes(names),
+];
+
+let module_member_is_type_parts = (name: Var.t): list(part) => [
+  Code(name),
+  Text(
+    " is a type member of the module, not a value; use it in a type position",
+  ),
+];
+
+let compare_fun_parts = ({ty, found}: Mark.compare_fun): list(part) =>
+  [Text("Values of type "), Type(ty), Text(" cannot be compared: ")]
+  @ (
+    switch (found.members) {
+    | [] when Typ.fast_equal(ty, found.ty) => [
+        Text("functions have no equality"),
+      ]
+    | [] => [
+        Text("the function type "),
+        Type(found.ty),
+        Text(" has no equality"),
+      ]
+    | members => [
+        Text("member "),
+        Code(String.concat(~sep=".", members)),
+        Text(" has the function type "),
+        Type(found.ty),
+        Text(", which has no equality"),
+      ]
+    }
+  );
+
+let member_not_found_string = (what, not_found) =>
+  string_of_parts(member_not_found_parts(what, not_found));
+
+let type_member_mismatch_string = (name, ~expected, ~actual) =>
+  string_of_parts(type_member_mismatch_parts(name, ~expected, ~actual));
+
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
-  let expectation = (ana: Typ.t, syn: Typ.t) =>
+  let expectation = (ana: Typ.t, syn: Typ.t) => {
+    let shown = Typ.surface_names_in(~ctx, [ana, syn]);
     prn(
       "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
+      Print.typ(shown(ana)),
+      Print.typ(shown(syn)),
     );
+  };
   switch (m) {
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
@@ -46,15 +144,21 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
   | IsMulti => "Broken expression"
-  | CompareFun(ty) =>
-    prn("values of type %s cannot be compared", Print.typ(ty))
+  | CompareFun(c) => string_of_parts(compare_fun_parts(c))
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
     prn(
       "Expecting branches to have consistent types but got types: %s",
-      List.map(~f=Print.typ, Typ.of_source(tys)) |> String.concat(~sep=", "),
+      {
+        let tys = Typ.of_source(tys);
+        List.map(
+          ~f=ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)),
+          tys,
+        )
+        |> String.concat(~sep=", ");
+      },
     )
   | NoMeet(wrap, _tys) =>
     let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal) |> Typ.temp);
@@ -126,13 +230,34 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     )
   | BadTrivAp(ty) =>
     prn("Function argument type \"%s\" inconsistent with ()", Print.typ(ty))
-  | DotOperatorRequiresTuple => "Expected a tuple"
+  | DotOperatorRequiresTuple => "Expected a module or tuple"
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
+  | InvalidLivelitDef(DefNotTuple) => "Livelit definition should be a module with members init, update, view, expand"
+  | InvalidLivelitDef(DefBadArity(n)) =>
+    prn(
+      "Livelit definition should have fields (init, update, view, expand), got %d",
+      n,
+    )
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    prn(
+      "Livelit definition is missing members: %s",
+      String.concat(~sep=", ", missing),
+    )
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
+  | ModuleMissingMembers(names) =>
+    string_of_parts(module_missing_members_parts(names))
+  | ModuleExtraMembers(names) =>
+    string_of_parts(module_extra_members_parts(names))
+  | ModuleMemberNotFound(not_found) =>
+    member_not_found_string("member", not_found)
+  | ModuleMemberIsType(name) =>
+    string_of_parts(module_member_is_type_parts(name))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -144,11 +269,15 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(_)
+  | ModuleTypeMemberNotFound(_)
+  | TypWantModule(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) => "(internal)"
+  | TPatNotAVar(_)
+  | SigDuplicateMember(_)
+  | SigLetNotAName => "(internal)"
   | Redundant
   | ExpectedConstructor => "(internal)"
   | FreeConstructor(_)
@@ -209,7 +338,29 @@ let typ_mark_string: Mark.t => string =
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
-    prn("Expected a tuple type, found type %s", Print.typ(ty))
+    prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    member_not_found_string(
+      TypExpectation.module_member_to_string(member),
+      not_found,
+    )
+  | TypWantModule({name, typ}) =>
+    prn("%s is a value of type %s, not a module", name, Print.typ(typ))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
+  | _ => "(static error)";
+
+let sig_mark_string: Mark.t => string =
+  fun
+  | SigDuplicateMember(member) => {
+      let (kind, name) =
+        switch (member) {
+        | Val(name, _) => ("Member", name)
+        | TypeManifest(name, _) => ("Type member", name)
+        };
+      prn("%s %s is declared more than once in this signature", kind, name);
+    }
+  | SigLetNotAName => "Not a member name: a signature declares members one at a time"
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
@@ -218,7 +369,7 @@ let tpat_mark_string: Mark.t => string =
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
   | _ => "(static error)";
 
-let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
+let marks_string = (info: Info.t, marks: list(Mark.t)): string =>
   switch (info) {
   | InfoDrv(drv) =>
     switch (DrvInfo.error_of(drv)) {
@@ -249,7 +400,110 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
       | None => ""
       }
     }
+  | InfoMod({ctx, _}) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => exp_mark_to_string(ctx, Unknown(Internal) |> Typ.temp, m)
+    | None => "(static error)"
+    }
+  | InfoSig(_) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => sig_mark_string(m)
+    | None => "(static error)"
+    }
   | _ => "(static error)"
+  };
+
+/* `M.x` inside module M's own body, where M isn't bound yet: what the
+   free constructor (or the Dot on it) should say instead. M is an
+   ancestor binding the constructor's name to a module literal: a
+   `module M =`, or the let a module member lowers to */
+let self_reference = (~info_map, info: Info.t): option(string) => {
+  let free_ctor = (i: Info.t) =>
+    List.find_map(
+      ~f=
+        (m: Mark.t) =>
+          switch (m) {
+          | FreeConstructor(name) => Some(name)
+          | _ => None
+          },
+      Info.marks_of(i),
+    );
+  let (ctor, member) =
+    switch (info) {
+    | InfoExp({user_term: {term: Dot(e1, e2), _}, _}) => (
+        Option.bind(
+          Id.Map.find_opt(Exp.rep_id(e1), info_map),
+          ~f=free_ctor,
+        ),
+        Some(e2),
+      )
+    | InfoExp(_) =>
+      let dot =
+        Option.bind(
+          Info.parent_id_of(info),
+          ~f=Statics.Map.lookup_exp(_, info_map),
+        );
+      (
+        free_ctor(info),
+        switch (dot) {
+        | Some({user_term: {term: Dot(e1, e2), _}, _})
+            when Id.equal(Exp.rep_id(e1), Info.id_of(info)) =>
+          Some(e2)
+        | _ => None
+        },
+      );
+    | _ => (None, None)
+    };
+  let rec is_module = (e: Exp.t) =>
+    switch (e.term) {
+    | Module(_) => true
+    | Parens(e) => is_module(e)
+    | _ => false
+    };
+  let rec mpat_var = (mp: MPat.t) =>
+    switch (mp.term) {
+    | Var(x) => Some(x)
+    | Asc(mp, _) => mpat_var(mp)
+    | _ => None
+    };
+  let names_module = (name, i: Info.t) =>
+    switch (i) {
+    | InfoExp({user_term: {term: Let(p, def, _), _}, _}) =>
+      Poly.equal(Pat.get_var(p), Some(name)) && is_module(def)
+    | InfoExp({user_term: {term: ModuleExp(mp, def, _), _}, _})
+    | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
+      Poly.equal(mpat_var(mp), Some(name)) && is_module(def)
+    | InfoMod({user_term: {term: ModLet(p, def), _}, _}) =>
+      Poly.equal(Pat.get_var(p), Some(name)) && is_module(def)
+    | _ => false
+    };
+  let encloses = name =>
+    List.exists(
+      ~f=
+        id =>
+          Option.value_map(
+            Id.Map.find_opt(id, info_map),
+            ~default=false,
+            ~f=names_module(name),
+          ),
+      Info.ancestors(~info_map, info),
+    );
+  switch (ctor) {
+  | Some(name) when encloses(name) =>
+    let direct =
+      switch (Option.map(~f=(e: Exp.t) => e.term, member)) {
+      | Some(Var(x) | Label(x)) => prn("; use `%s` directly", x)
+      | _ => ""
+      };
+    Some(prn("`%s` isn't in scope inside its own body%s", name, direct));
+  | _ => None
+  };
+};
+
+let string_of_marks = (~info_map, info: Info.t, marks: list(Mark.t)): string =>
+  switch (self_reference(~info_map, info)) {
+  | Some(message) => message
+  | None => marks_string(info, marks)
   };
 
 let format_error = (term, error) =>
@@ -277,6 +531,9 @@ let all = (info_map: Statics.Map.t): list(string) => {
   |> List.dedup_and_sort(~compare=Poly.compare)
   |> List.map(~f=info => {
        let term = term_string_of(info);
-       format_error(term, string_of_marks(info, Info.marks_of(info)));
+       format_error(
+         term,
+         string_of_marks(~info_map, info, Info.marks_of(info)),
+       );
      });
 };

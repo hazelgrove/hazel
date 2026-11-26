@@ -66,13 +66,12 @@ let necessary_ids: Typ.t => int =
     /* "()", "Void" and "{}" print from rep_id */
     | Prod([]) => 1
     | Sum([]) => 1
-    | Sig([]) => 1
     /* one id per separator */
     | Prod(tys) => List.length(tys) - 1
     /* one id per variant; the single-variant form prints from rep_id */
     | Sum(tys) => max(1, List.length(tys))
     /* rep_id for the braces, then one id per `;` between items */
-    | Sig(items) => max(1, List.length(items))
+    | Sig(s) => max(1, List.length(Sig.items(s)))
     /* one grout id between entries */
     | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
     /* every other form prints from rep_id alone */
@@ -92,7 +91,7 @@ let pad_variant_ann =
   | Variant(c, ann, payload) =>
     let needed = necessary_variant_ann_ids(v);
     let current = List.length(ann.ids);
-    let ids = ann.ids @ List.init(max(0, needed - current), ~f=_ => Id.mk());
+    let ids = pad_ids(max(needed, current), ann.ids);
     Variant(
       c,
       {
@@ -139,14 +138,17 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
       ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
     | ProdExtension(t1, t2) =>
       ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
+    | Sig(Open(items)) =>
+      Sig(Open(List.map(~f=Sig.map_typ(pad_variant_anns), items)))
+    | Sig(Closed(items)) =>
+      Sig(Closed(ClosedSig.map(Sig.map_typ(pad_variant_anns), items)))
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_)
-    | Sig(_) => ty.term
+    | ProofOf(_) => ty.term
     };
   {
     ...ty,
@@ -161,11 +163,11 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
         (cont, ty) => {
           let current_ids = ty.annotation.ids;
           let needed_ids = necessary_ids(ty);
+          /* Derived, never minted: preparing a type for printing must be a
+             pure function of the type (see pad_ids above). Padding only
+             extends -- a node carrying more ids than it prints keeps them. */
           let ids =
-            current_ids
-            @ List.init(max(0, needed_ids - List.length(current_ids)), ~f=_ =>
-                Id.mk()
-              );
+            pad_ids(max(needed_ids, List.length(current_ids)), current_ids);
           cont({
             ...ty,
             annotation: {

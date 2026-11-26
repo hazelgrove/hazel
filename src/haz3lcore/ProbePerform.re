@@ -49,6 +49,26 @@ let has_no_probes = (z: Zipper.t): bool =>
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleFocusPerform.reset(z) : z;
 
+/* Per-calculate cursor liveness follows SAMPLES, not probe presence (cf.
+   pin liveness): the canvas focus strip captures sample focus at anchors
+   that carry samples but no refractor, and a no-probes reset here would
+   revert every such capture on the next calculate. The probe-removal
+   paths keep the stricter probe-presence reset. */
+let maybe_reset_cursor_live =
+    (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t => {
+  let anchor_live =
+    switch (z.refractors.sample_focus.anchor) {
+    | Some(a) =>
+      switch (Id.Map.find_opt(a.probe_id, dynamics)) {
+      | Some([_, ..._]) => true
+      | _ => false
+      }
+    | None => false
+    };
+
+  has_no_probes(z) && !anchor_live ? SampleFocusPerform.reset(z) : z;
+};
+
 let rm_multi =
     (
       ~drill: bool=true,
@@ -146,8 +166,11 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
       [],
     );
 
-  /* 3. Remove colliding probes */
-  rm_manual(ids_to_remove, z);
+  /* 3. Remove colliding probes. Empty removal must be a strict no-op:
+     rm_manual unconditionally applies its no-probes cursor reset, and this
+     runs every calculate — it was wiping sample-focus captures made at
+     un-refractored anchors (the canvas wells) on the next frame. */
+  List.is_empty(ids_to_remove) ? z : rm_manual(ids_to_remove, z);
 };
 
 let add_manual_targets =
@@ -262,6 +285,13 @@ let add_ids_from_multi_term =
           && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
+  /* the ⇓ toggle's probe outlives the rebuild; a manual probe on the
+     same term wins */
+  let tail =
+    switch (z.refractors.tail_target) {
+    | Some(id) when !List.mem(manual_ids, id, ~equal=Poly.equal) => [id]
+    | _ => []
+    };
   let manual_end_rows =
     List.filter_map(
       ~f=
@@ -287,6 +317,8 @@ let add_ids_from_multi_term =
           },
       ids,
     );
+  let ids =
+    ids @ List.filter(~f=id => !List.mem(ids, id, ~equal=Poly.equal), tail);
   let old_ephemerals = z.refractors.multis.ephemerals;
   /* Preserve surviving ephemeral entries; a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
@@ -295,7 +327,12 @@ let add_ids_from_multi_term =
         (map, id) =>
           switch (Id.Map.find_opt(id, old_ephemerals)) {
           | Some(existing) => Id.Map.add(id, existing, map)
-          | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+          | None =>
+            /* the ⇓ probe opens as a drawer */
+            let model =
+              List.mem(tail, id, ~equal=Poly.equal)
+                ? Some(ProbeProj.tail_model) : None;
+            Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
           },
       ~init=Id.Map.empty,
       ids,
@@ -311,8 +348,16 @@ let add_ids_from_multi_term =
     } else {
       Zipper.update_ephemerals(_ => new_ephemeral_map, z);
     };
-  /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
-  let new_ids = List.filter(~f=id => !Id.Map.mem(id, old_ephemerals), ids);
+  /* Gated on auto_focus: in manual focus mode, don't auto-capture new
+     ephemerals; the tail probe never takes the focus. */
+  let new_ids =
+    List.filter(
+      ~f=
+        id =>
+          !Id.Map.mem(id, old_ephemerals)
+          && !List.mem(tail, id, ~equal=Poly.equal),
+      ids,
+    );
   switch (new_ids) {
   | [] => z
   | _ when !auto_focus(z) => z
@@ -380,11 +425,14 @@ let toggle_multi =
     }
   };
 
-/* Definition forms (Let/Test): the unified probe action uses a multi probe (per-line expansion) rather than manual. */
+/* Definition forms (Let/Test, binding members): the unified probe action uses a multi probe (per-line expansion) rather than manual. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
   | Some(InfoExp({user_term: {term: Let(_, _, _), _}, _})) => true
   | Some(InfoExp({user_term: {term: Test(_) | HintedTest(_, _), _}, _})) =>
+    true
+  /* a module's binding member, as a `let` */
+  | Some(InfoMod({user_term: {term: ModLet(_) | ModuleMod(_), _}, _})) =>
     true
   | _ => false
   };
@@ -497,13 +545,20 @@ let function_sugar_param_anchors =
         | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
           /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
           if (Id.equal(def_id, IdTagged.rep_id(def))) {
-            switch (FunctionSugar.detect(pat)) {
-            | Some((_, args, _)) => Some(List.map(args, ~f=Pat.rep_id))
+            switch (Pat.function_sugar(pat)) {
+            | Some((_, args, _)) => Some(List.map(~f=Pat.rep_id, args))
             | None => None
             };
           } else {
             None;
           }
+        | Some(InfoMod({user_term: {term: ModLet(pat, def), _}, _})) =>
+          Id.equal(def_id, IdTagged.rep_id(def))
+            ? Option.map(
+                ~f=((_, args, _)) => List.map(~f=Pat.rep_id, args),
+                Pat.function_sugar(pat),
+              )
+            : None
         | _ => climb(rest)
         }
       };
@@ -512,22 +567,44 @@ let function_sugar_param_anchors =
   Option.value(anchors, ~default=[]);
 };
 
-/* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
- * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
- * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
-let step_into_call_stack =
-    (
-      ~syntax: CachedSyntax.t,
-      ~call_stack: CallStack.t,
-      ~frame: CallStack.frame,
-      info_map: Statics.Map.t,
-      z: Zipper.t,
-    )
-    : option(Zipper.t) => {
-  let ap_id = frame.id;
+/* a closure's definition id, back to a function in [info_map]: a recursive
+   function's closure carries its inner Fun's derived id (Id.next of the
+   surface Fun's, which its FixF keeps: Statics' requires_fixf) */
+let fn_def_in = {
+  let memo = Util.Slot.mk();
+  (info_map: Statics.Map.t, id: Id.t) => (
+    Id.Map.mem(id, info_map)
+      ? Some(id)
+      : Stdlib.Hashtbl.find_opt(
+          Util.Slot.get(
+            memo,
+            info_map,
+            () => {
+              let derived = Stdlib.Hashtbl.create(256);
+              Id.Map.iter(
+                (fid, info: Info.t) =>
+                  switch (info) {
+                  | InfoExp({user_term: {term: Fun(_), _}, _}) =>
+                    Stdlib.Hashtbl.replace(derived, Id.next(fid), fid)
+                  | _ => ()
+                  },
+                info_map,
+              );
+              derived;
+            },
+          ),
+          id,
+        ):
+      option(Id.t)
+  );
+};
+
+/* the function a step into [frame]'s call enters, in [info_map] */
+let step_into_target =
+    (frame: CallStack.frame, info_map: Statics.Map.t): option(Id.t) => {
   /* Tier 1 (static): resolve the fn via its name's let-binding (fn position is a let-bound var). */
   let static_body_id = {
-    let* ci_ap = Statics.Map.lookup(ap_id, info_map);
+    let* ci_ap = Statics.Map.lookup(frame.id, info_map);
     let* binding_id =
       switch (ci_ap) {
       | InfoExp({
@@ -542,23 +619,43 @@ let step_into_call_stack =
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
   };
   /* Tier 2 (dynamic): fall back to the frame's recorded fn_def_id, for higher-order calls where the static binding site is only a parameter. */
-  let* body_id =
-    switch (static_body_id) {
-    | Some(id) => Some(id)
-    | None => frame.fn_def_id
-    };
+  switch (static_body_id) {
+  | Some(id) => Some(id)
+  | None => Option.bind(frame.fn_def_id, ~f=fn_def_in(info_map))
+  };
+};
+
+/* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
+ * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
+ * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
+let step_into_body =
+    (
+      ~syntax: CachedSyntax.t,
+      ~call_stack: CallStack.t,
+      ~frame: CallStack.frame,
+      body_id: Id.t,
+      info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  let ap_id = frame.id;
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
-  /* Promote any multi probe on ap_id to manual so it persists across the jump. */
+  /* Promote any multi probe on ap_id to manual so it persists across the
+     jump; a call another editor holds (a stack cell's) keeps its own. */
   let z =
-    switch (probe_status(ap_id, info_map, z.refractors)) {
-    | Manual(_)
-    | Statics(_) => z
-    | Multi
-    | Ephemeral(_)
-    | Suppressed(_)
-    | Non => promote_to_manual(ap_id, z)
-    };
+    !Id.Map.mem(ap_id, info_map)
+      ? z
+      : (
+        switch (probe_status(ap_id, info_map, z.refractors)) {
+        | Manual(_)
+        | Statics(_) => z
+        | Multi
+        | Ephemeral(_)
+        | Suppressed(_)
+        | Non => promote_to_manual(ap_id, z)
+        }
+      );
 
   let z =
     switch (probe_status(body_id, info_map, z.refractors)) {
@@ -615,6 +712,19 @@ let step_into_call_stack =
   FocusEffect.schedule_editor();
 
   Move.jump_to_id_indicated(z, jump_target);
+};
+
+let step_into_call_stack =
+    (
+      ~syntax: CachedSyntax.t,
+      ~call_stack: CallStack.t,
+      ~frame: CallStack.frame,
+      info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  let* body_id = step_into_target(frame, info_map);
+  step_into_body(~syntax, ~call_stack, ~frame, body_id, info_map, z);
 };
 
 let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
@@ -687,6 +797,14 @@ let remove_statics_at =
   );
 };
 
+let hide_steps = (z: Zipper.t): Zipper.t =>
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      stepping: None,
+    }
+  );
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -732,6 +850,13 @@ let go =
     | Some(z) => z
     | None => z
     }
+  | StepIntoBody(call_stack, frame, body_id) =>
+    switch (
+      step_into_body(~syntax, ~call_stack, ~frame, body_id, info_map, z)
+    ) {
+    | Some(z) => z
+    | None => z
+    }
   | Pin(call_stack, ap_id) =>
     /* Promote any multi probe to manual so the pin persists across cursor movement. */
     let z =
@@ -760,6 +885,38 @@ let go =
          }
        )
     |> SampleFocusPerform.reset
+    |> hide_steps
+  | ShowSteps(span) =>
+    DrawerFit.forget(span.probe_id);
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping:
+          Some({
+            span,
+            rows: 1,
+          }),
+      }
+    );
+  | HideSteps => hide_steps(z)
+  };
+
+/* an edit to the program closes a stepping drawer, as does losing its
+   probe; probe actions on other probes leave it open */
+let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.stepping) {
+  | Some(st)
+      when
+        !has_probe(st.span.probe_id, z)
+        || Action.is_edit(a)
+        && (
+          switch (a) {
+          | Probe(_) => false
+          | _ => true
+          }
+        ) =>
+    hide_steps(z)
+  | _ => z
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {

@@ -10,13 +10,19 @@ let min_prefix_len = 2;
 /* Delimiter suggestions come from the completion engine: a witness
    insertion anchored at the token left of the caret is the engine
    recognizing that token, so ghost and quiver share one recognition
-   source. Syntax-derived; needs no statics. */
-let suggest_witnesses = (z: Zipper.t): list(t) =>
+   source. Syntax-derived; needs no statics. [seg]: [z]'s zip, when the
+   caller has the frame's (CompletionQuery.engine_seg). */
+let suggest_witnesses =
+    (~root: Sort.t, ~seg: option(Segment.t)=?, z: Zipper.t): list(t) =>
   switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
   | (Outer, [Tile({id, _} as t), ..._]) when Tile.arity(t) == 1 =>
     let tok = Tile.token(t, 0);
-    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-    let result = CanonicalCompletion.for_editor(seg);
+    let seg =
+      switch (seg) {
+      | Some(seg) => seg
+      | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+      };
+    let result = CanonicalCompletion.for_editor(~root, seg);
     result.insertions
     |> List.filter_map(~f=(i: CanonicalCompletion.insertion) =>
          Id.equal(i.adjacent_id, id) && i.side == Util.Direction.Right
@@ -46,14 +52,14 @@ let has_unknown_expectation = (ci: Info.t): bool =>
   | _ => false
   };
 
-let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
+let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want missing-shard suggestions to show up first */
   switch (ci) {
-  | InfoExp({dot_labels, _}) when dot_labels != [] =>
+  | InfoExp({dot_labels, _}) when !List.is_empty(dot_labels) =>
     List.map(
       ~f=
         label =>
@@ -64,10 +70,12 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       dot_labels,
     )
   | InfoTyp({
-      expects: TypExpectation.LabelProjectionExpected(Some(labels)),
+      expects:
+        TypExpectation.LabelProjectionExpected(Some(labels)) |
+        TypExpectation.ModuleMemberExpected(_, {listed: labels, _}),
       _,
     })
-      when labels != [] =>
+      when !List.is_empty(labels) =>
     List.map(
       ~f=
         label =>
@@ -102,10 +110,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       |> List.sort(~compare=TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
-      suggest_witnesses(z) @ forms @ ctx_suggestions @ operators;
+      suggest_witnesses(~root, ~seg?, z) @ forms @ ctx_suggestions @ operators;
     } else {
       /* Known type: context variables first (type-directed), then forms */
-      suggest_witnesses(z) @ ctx_suggestions @ forms @ operators;
+      suggest_witnesses(~root, ~seg?, z) @ ctx_suggestions @ forms @ operators;
     };
   };
 };
@@ -156,7 +164,9 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
   };
 
 /* Populates the suggestion buffer with a type-directed suggestion */
-let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
+let set_buffer =
+    (~root: Sort.t, ~seg=?, ~ci: option(Info.t), z: Zipper.t)
+    : option(Zipper.t) => {
   let* _ =
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty
@@ -170,8 +180,8 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
      states they serve (completion consumed the prefix token) */
   let suggestions =
     switch (ci) {
-    | Some(ci) => suggest(ci, z)
-    | None => suggest_witnesses(z)
+    | Some(ci) => suggest(~root, ~seg?, ci, z)
+    | None => suggest_witnesses(~root, ~seg?, z)
     };
   let suggestions =
     suggestions
@@ -184,7 +194,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     List.exists(
       ~f=
         ({strategy, _}: TyDiSuggestion.t) =>
-          strategy == Any(FromMissingShards),
+          Poly.equal(strategy, Any(FromMissingShards)),
       suggestions,
     );
   /* Graphemes, not bytes: a single `é` or `日` must not clear a 2-char gate. */

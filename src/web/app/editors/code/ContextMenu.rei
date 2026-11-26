@@ -22,6 +22,7 @@ module WithContext: {
   let handle_listener_key:
     (
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.TermBase.exp_t,
       ~elaborated: Language.TermBase.exp_t,
       ~zipper: Haz3lcore.ZipperBase.t,
       ~dispatch_menu: Model.action => Ui_effect.t(unit),
@@ -32,12 +33,16 @@ module WithContext: {
     option(Ui_effect.t(unit));
 };
 
+/* The class placing a menu opened in [dir]. */
+let direction_class: Util.Menu.open_direction => string;
+
 let view:
   (
     ~inject: command => Ui_effect.t(unit),
     ~inject_menu: Model.action => Ui_effect.t(unit),
     ~syntax: Haz3lcore.CachedSyntax.t,
     ~info_map: Language.Statics.Map.t,
+    ~term: Language.TermBase.exp_t,
     ~elaborated: Language.TermBase.exp_t,
     ~font_metrics: FontMetrics.t,
     ~model: Util.Menu.t,

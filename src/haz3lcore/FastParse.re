@@ -29,6 +29,8 @@ exception Mismatch;
 
 /* Why the last of_text call bailed — fallback telemetry and debugging. */
 let bail_note: ref(option(string)) = ref(None);
+/* where the menhir parse of the bailed attempt's text stopped */
+let bail_at: ref(option(MenhirParser.Interface.stop)) = ref(None);
 let note = msg => bail_note := Some(msg);
 
 type tok = {
@@ -224,13 +226,16 @@ let weave =
   /* Fast-path half of the `¿` convention (MarkerParse is the
      recovering-parser half): markers become Grout directly in the weave. */
   let implicit_hole = Token.implicit_hole_marker;
+  let concave_hole = Token.concave_hole_marker;
   let expect_hole = (): (string, string) => {
     if (idx^ >= Array.length(toks)) {
       note("segment expects a hole but source tokens are exhausted");
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (String.equal(t.text, "?") || String.equal(t.text, implicit_hole)) {
+    if (String.equal(t.text, "?")
+        || t.text == implicit_hole
+        || t.text == concave_hole) {
       incr(idx);
       (t.gap, t.text);
     } else {
@@ -266,14 +271,26 @@ let weave =
       Token.of_projector_invoke_base(trigger),
       ~f=Language.ProjectorKind.of_name_opt,
     );
+  /* A `_sidebar` placement suffix names a docked projector PIECE, so such a
+     trigger materializes even when its kind is otherwise a refractor. */
+  let trigger_is_docked = (trigger: string): bool =>
+    switch (Token.of_projector_invoke_parts(trigger)) {
+    | Some((_, Sidebar)) => true
+    | Some((_, Inline))
+    | None => false
+    };
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      Language.ProjectorKind.is_refractor(kind)
+      && !trigger_is_docked(trigger)
     | None => false
     };
   let trigger_is_projector = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => !Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      !Language.ProjectorKind.is_refractor(kind)
+      || trigger_is_docked(trigger)
     | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {
@@ -288,14 +305,14 @@ let weave =
       | [Tile(pt), ...rest]
           when
             Tile.has_label(pt, ["+"])
-            && Tile.mold(pt).out == Sort.Typ
+            && Sort.equal(Tile.mold(pt).out, Sort.Typ)
             && peek(0) != Some("+") =>
         /* the printer emits a leading + on sums; the source may not have
            one (both spellings read as the same Sum) — skip the piece */
         weave_seg(rest)
       | [Tile(t), ..._] as seg
           when
-            Tile.mold(t).out == Sort.Typ
+            Sort.equal(Tile.mold(t).out, Sort.Typ)
             && !Tile.has_label(t, ["+"])
             && peek(0) == Some("+") =>
         /* the mirror case: the source spells the optional leading + on a
@@ -318,7 +335,9 @@ let weave =
            to fresh annotations); the source spells f() — land the POSTFIX
            empty-ap tile (operand-molded unit would read as juxtaposition) */
         let (gap, _) = expect("()");
-        let sort = Tile.mold(unit_tile).out == Sort.Pat ? Sort.Pat : Sort.Exp;
+        let sort =
+          Sort.equal(Tile.mold(unit_tile).out, Sort.Pat)
+            ? Sort.Pat : Sort.Exp;
         let tail = weave_seg(rest);
         gap_pieces(gap)
         @ [Piece.mk_tile((Form.Compound(ApEmpty), sort), []), ...tail];
@@ -482,11 +501,20 @@ let attempt =
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
-    switch (MenhirParser.Interface.parse_program(text)) {
+    switch (MenhirParser.Interface.program_or_stop(text)) {
     | exception e =>
       note("menhir: " ++ Exn.to_string(e));
       None;
-    | ast =>
+    | Error(stop) =>
+      bail_at := Some(stop);
+      note(
+        "menhir: syntax error at line "
+        ++ string_of_int(stop.line)
+        ++ ", column "
+        ++ string_of_int(stop.column),
+      );
+      None;
+    | Ok(ast) =>
       let term =
         Language.Grammar.map_exp_annotation(
           _ => Language.IdTagged.IdTag.fresh(),
@@ -536,35 +564,67 @@ let parsed_of_text =
     (
       ~materialize: materialize=(_, _) => None,
       ~collect_refractors: bool=false,
+      ~chunk: bool=false,
       ~root: Sort.t,
       text: string,
     )
     : result(parsed, string) => {
   bail_note := None;
+  bail_at := None;
   let attempt = attempt(~collect_refractors);
   let fail = (): result(parsed, string) =>
     Error(Option.value(bail_note^, ~default="no note"));
-  if (root == Sort.Mod) {
-    /* Module-member chunks (update_binding_clause on a member): parse
+  if (Sort.equal(root, Sort.Mod)) {
+    /* Module-member chunks (a member replaced whole): parse
        as a braced module body, then unwrap the brace tile. Chunks with
        spliced separators (leading/trailing ;) fail the wrap parse and
-       fall back — they are small. */
-    switch (attempt(~materialize, "{" ++ String.strip(text) ++ "}")) {
-    | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
-        when Tile.has_label(bt, ["{", "}"]) =>
-      Ok({
-        segment: inner,
-        refractors,
-      })
-    | _ =>
-      /* keep the attempt's own note when it bailed; the generic wrap
-         message only describes a successful parse of the wrong shape */
-      if (Option.is_none(bail_note^)) {
-        note("mod-root wrap did not yield a single module body");
+       fall back — they are small. A [chunk] spliced among members
+       (paste) keeps its edge whitespace, and one ending with a member's
+       `;` or an open slot (`let z =`) parses with a hole after it, which
+       is then stripped */
+    let body = chunk ? text : String.strip(text);
+    let unbraced = (wrapped: string): option(parsed) =>
+      switch (attempt(~materialize, wrapped)) {
+      | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
+          when Tile.has_label(bt, ["{", "}"]) =>
+        Some({
+          segment: inner,
+          refractors,
+        })
+      | _ => None
       };
-      fail();
+    switch (unbraced("{" ++ body ++ "}")) {
+    | Some(p) => Ok(p)
+    | None =>
+      let first_note = (bail_note^, bail_at^);
+      switch (
+        chunk
+          ? Option.bind(unbraced("{" ++ body ++ " ?}"), ~f=p =>
+              Option.map(
+                ~f=
+                  segment =>
+                    {
+                      ...p,
+                      segment,
+                    },
+                strip_appended_hole(p.segment),
+              )
+            )
+          : None
+      ) {
+      | Some(p) => Ok(p)
+      | None =>
+        /* keep the attempt's own note when it bailed; the generic wrap
+           message only describes a successful parse of the wrong shape */
+        bail_note := fst(first_note);
+        bail_at := snd(first_note);
+        if (Option.is_none(bail_note^)) {
+          note("mod-root wrap did not yield a single module body");
+        };
+        fail();
+      };
     };
-  } else if (root != Sort.Exp) {
+  } else if (!Sort.equal(root, Sort.Exp)) {
     note("root sort is not fast-parseable (Exp and Mod only)");
     fail();
   } else {
@@ -573,7 +633,7 @@ let parsed_of_text =
     | None =>
       /* keep the first attempt's bail note: the retry's failure mode
          (usually "menhir: parse error on text + ?") is less telling */
-      let first_note = bail_note^;
+      let first_note = (bail_note^, bail_at^);
       switch (attempt(~materialize, text ++ " ?")) {
       | Some(p) =>
         switch (strip_appended_hole(p.segment)) {
@@ -583,11 +643,13 @@ let parsed_of_text =
             segment,
           })
         | None =>
-          bail_note := first_note;
+          bail_note := fst(first_note);
+          bail_at := snd(first_note);
           fail();
         }
       | None =>
-        bail_note := first_note;
+        bail_note := fst(first_note);
+        bail_at := snd(first_note);
         fail();
       };
     };

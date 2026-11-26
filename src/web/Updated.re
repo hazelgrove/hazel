@@ -24,11 +24,18 @@ let merge_scroll = (a: scroll, b: scroll): scroll =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = {
   model: 'a,
-  is_edit: bool, // Should the editor autosave after this action?
+  is_edit: bool, // Did this action change program semantics? Triggers statics/eval recompute
+  save: bool, // Should the editor autosave after this action? (defaults to is_edit)
   recalculate: bool, // Should the editor recalculate after this action?
   scroll, // When should the editor scroll to the cursor after this action?
   logged: bool, // Should this action be logged?
-  historic: bool // Should this action be undoable? (consumed by History.re to gate undo-stack pushes)
+  historic: bool, // Should this action be undoable? (consumed by History.re to gate undo-stack pushes)
+  /* a historic step that a later update may retract: a new definition's
+     insertion, dropped if it's never named */
+  tentative: bool,
+  /* takes back the tentative step on top of the undo history, as if it
+     had never been made */
+  retract: bool,
 };
 
 let ( let* ) = (updated: t('a), f) => {
@@ -41,25 +48,32 @@ let ( let* ) = (updated: t('a), f) => {
 let return =
     (
       ~is_edit=true,
+      ~save=?,
       ~recalculate=true,
       ~scroll=Always,
       ~logged=true,
       ~historic=true,
+      ~tentative=false,
+      ~retract=false,
       model: 'a,
     ) => {
   {
     model,
     is_edit,
+    save: Option.value(~default=is_edit, save),
     recalculate,
     scroll,
     logged,
     historic,
+    tentative,
+    retract,
   };
 };
 
 let return_quiet =
     (
       ~is_edit=false,
+      ~save=?,
       ~recalculate=false,
       ~scroll=Never,
       ~logged=false,
@@ -69,10 +83,13 @@ let return_quiet =
   {
     model,
     is_edit,
+    save: Option.value(~default=is_edit, save),
     recalculate,
     scroll,
     logged,
     historic,
+    tentative: false,
+    retract: false,
   };
 };
 

@@ -6,6 +6,13 @@ open AgentModel;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | ChatSystemAction(ChatSystem.Update.Action.t)
+  | /** Run one edit tool outside the chat loop (canvas authoring): same
+        executor, guardrails, and formatting as agent edits, but no chat
+        message or tool-result bookkeeping. */
+    DirectEdit(
+      string,
+      API.Json.t,
+    )
   | /** Phase 1 of a send: append the message so it paints immediately;
         the expensive context/payload work is deferred to DispatchSend. */
     SendMessage(
@@ -17,15 +24,24 @@ type t =
     DispatchSend(
       Id.t,
     )
-  | /** Last [int] is elapsed wall-time (ms) from send to reply,
-        used to render "Thought for Ns" on reasoning-bearing turns. */
+  | /** Last: the reply's thinking time (ms), from its first reasoning
+        delta to its first other output, for "Thought for Ns"; None when
+        it can't be told. */
     HandleLLMResponse(
       OpenRouter.Reply.Model.t,
       Id.t,
       int,
-      int,
+      option(int),
     )
   | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
+  | /** Replay a recorded reply's tool calls through the same handler a
+        real reply goes through (canvas trajectory replay; no LLM). */
+    ReplayToolCalls(
+      list(OpenRouter.Reply.Model.tool_call),
+    )
+  | /** Replay one streamed-reasoning render (canvas trajectory replay). */
+    ReplayStreamTick
+  | ReplayBegin(string) /* a replayed trajectory opens as a user turn */
   | HandleChatNamingResponse(string, Id.t)
   | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
   | RetryApiError(Id.t, int)
@@ -35,11 +51,19 @@ type t =
   | RestoreOriginal
   | LoadSegmentIntoEditor(Segment.t)
   | SetActiveTimelineNode(option(int))
+  | /** Show the main editor as a request's view (None: the latest, live);
+        the workspace handles it (AgentLens) */
+    ViewAsAgent(
+      Id.t,
+      option(int),
+    )
+  | LeaveAgentView
   | SetToolEnabled(string, bool)
   | SetToolsInCategoryEnabled(string, bool)
   | ToggleToolsViewExpanded(string)
   | RequestForcedCompaction(Id.t)
   | StopAgenticLoop
+  | CatchUpAgent
   | FlushPendingSend(Id.t)
   | RunSlashCommandCost(Id.t)
   | RunSlashCommandHelp(Id.t)
@@ -56,3 +80,43 @@ type t =
       string,
       string,
     );
+
+/* Actions that consume the program need the live, spliced editor while
+   definitions are focused. Streaming/chat-only actions must stay cheap. */
+let uses_program = (action: t): bool =>
+  switch (action) {
+  | DirectEdit(_)
+  | SendMessage(_)
+  | DispatchSend(_)
+  | HandleLLMResponse(_)
+  | HandleCompactionLLMReply(_)
+  | ReplayToolCalls(_)
+  | ApiErrorResponse(_)
+  | RetryApiError(_)
+  | DoRetryApiSend(_)
+  | RetryEmptyResponse(_)
+  | LoadTimelineSegment(_)
+  | RestoreOriginal
+  | LoadSegmentIntoEditor(_)
+  | RequestForcedCompaction(_)
+  | StopAgenticLoop
+  | CatchUpAgent
+  | FlushPendingSend(_) => true
+  | ChatSystemAction(_)
+  | ReplayStreamTick
+  | ReplayBegin(_)
+  | HandleChatNamingResponse(_)
+  | SetActiveTimelineNode(_)
+  | SetToolEnabled(_)
+  | SetToolsInCategoryEnabled(_)
+  | ToggleToolsViewExpanded(_)
+  | RunSlashCommandCost(_)
+  | RunSlashCommandHelp(_)
+  | RunSlashCommandShowKey(_)
+  | RunSlashCommandFetchCredits(_)
+  | RunSlashCommandFetchUsage(_)
+  | AppendSlashCommandOutput(_)
+  | ViewAsAgent(_)
+  | LeaveAgentView
+  | StreamDelta(_) => false
+  };

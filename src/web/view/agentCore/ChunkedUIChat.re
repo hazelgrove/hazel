@@ -56,14 +56,6 @@ module Utils = {
     });
   };
 
-  let mk_agent_response_chunk = (message: Message.Model.t): Model.chunk => {
-    AgentResponseChunk({
-      content: [message],
-      agent_reasoning: [],
-      tool_results: [],
-    });
-  };
-
   let init = (): Model.t => {
     {
       prompt: "",
@@ -77,8 +69,8 @@ module Utils = {
     model.log |> List.rev |> ListUtil.hd_opt;
 
   /* Extend the agent response in progress, or open one: a chat may begin
-     with an agent message (a replayed run, a chat trimmed by compaction),
-     so no message may assume a chunk before it. */
+     with an agent message (a replayed trajectory, a chat trimmed by
+     compaction), so no message may assume a chunk before it. */
   let with_agent_chunk =
       (
         model: Model.t,

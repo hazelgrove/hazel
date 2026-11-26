@@ -79,6 +79,32 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | _ => None
     }
+  /* Refactor gesture MACRO layer (shift = closure of the base
+   * axis): shift+Up = explode (extract to fixpoint), shift+Down =
+   * implode (inline the chain back). Dead press when inapplicable,
+   * like any gesture. Left/Right reserved (iterated swaps). */
+  | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Down, alt: Up, _}
+  | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Down, _} =>
+    switch (key) {
+    | "ArrowUp" => now(Refactor(Explode))
+    | "ArrowDown" => now(Refactor(Implode))
+    | _ => None
+    }
+  /* Refactor gestures: move the indicated construct spatially
+   * (Cmd+Ctrl on Mac, Ctrl+Alt on PC) */
+  | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Down, alt: Up, _}
+  | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Down, _} =>
+    switch (key) {
+    | "ArrowUp" => now(RefactorGesture(Up))
+    | "ArrowDown" => now(RefactorGesture(Down))
+    | "ArrowLeft" => now(RefactorGesture(Left))
+    | "ArrowRight" => now(RefactorGesture(Right))
+    | "Enter" => now(RefactorGesture(Step))
+    /* "=" is the binding operator (cmd+ctrl+Space is the macOS
+       emoji picker — never reaches the app) */
+    | "=" => now(RefactorGesture(Bind))
+    | _ => None
+    }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Line(Left))))
@@ -156,6 +182,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     /* † is what holding option turns t into on Mac */
     Some(Project(SetIndicated(ChooseLivelit)))
+  | {key: D("s"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
+    Some(Project(TogglePlacement))
+  | {key: D("ß"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
+    /* ß is what holding option turns s into on Mac */
+    Some(Project(TogglePlacement))
   | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(ApplyCompletion(All))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>

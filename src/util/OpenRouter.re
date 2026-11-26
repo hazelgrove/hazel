@@ -366,7 +366,8 @@ module Payload = {
         cache_control_provider_prefixes,
       );
 
-    let json_of_payload = (~payload: Model.t): Json.t => {
+    /* the request body, and each message as it is in it */
+    let body_parts = (~payload: Model.t): (Json.t, list(Json.t)) => {
       let cache_enabled = supports_cache_control(payload.model_id);
       /* Cache breakpoints are carried per-message via `cache_anchor`: the static
          dev-notes floor and the per-request advancing anchor on the last history
@@ -411,6 +412,15 @@ module Payload = {
           ]
         | None => base_fields
         };
+      (`Assoc(fields), messages_json);
+    };
+
+    /* the request body: what goes over the wire */
+    let body = (~payload: Model.t): Json.t => fst(body_parts(~payload));
+
+    let json_of_payload = (~payload: Model.t): Json.t => {
+      let (body, messages_json) = body_parts(~payload);
+      let cache_enabled = supports_cache_control(payload.model_id);
       /* Record which message indices carry a cache_control breakpoint on the
          wire, then stash the request-side metrics; the matching cache_read /
          cache_creation are logged together when the response usage is parsed. */
@@ -429,7 +439,7 @@ module Payload = {
         ~breakpoints,
         payload.messages,
       );
-      `Assoc(fields);
+      body;
     };
   };
 };
@@ -798,6 +808,8 @@ module Utils = {
     type delta = {
       content_delta: string,
       reasoning_delta: string,
+      /* the chunk carried part of a tool call */
+      tool_call_delta: bool,
     };
 
     type t = {
@@ -853,13 +865,14 @@ module Utils = {
       };
     };
 
-    let absorb_tool_calls = (t: t, chunk: Json.t): unit =>
+    /* whether the chunk carried any */
+    let absorb_tool_calls = (t: t, chunk: Json.t): bool =>
       switch (Json.dot("choices", chunk)) {
-      | None => ()
+      | None => false
       | Some(choices) =>
         switch (Json.list(choices)) {
         | None
-        | Some([]) => ()
+        | Some([]) => false
         | Some([hd, ..._]) =>
           let container =
             switch (Json.dot("delta", hd)) {
@@ -867,15 +880,17 @@ module Utils = {
             | None => Json.dot("message", hd)
             };
           switch (container) {
-          | None => ()
+          | None => false
           | Some(d) =>
             switch (Json.dot("tool_calls", d)) {
-            | None => ()
+            | None => false
             | Some(tcs) =>
               switch (Json.list(tcs)) {
-              | None => ()
+              | None
+              | Some([]) => false
               | Some(tcs_list) =>
-                List.iter(~f=tc => absorb_one_tool_call(t, tc), tcs_list)
+                List.iter(~f=tc => absorb_one_tool_call(t, tc), tcs_list);
+                true;
               }
             }
           };
@@ -952,10 +967,11 @@ module Utils = {
       if (!String.equal(reasoning_delta, "")) {
         Buffer.add_string(t.reasoning, reasoning_delta);
       };
-      absorb_tool_calls(t, chunk);
+      let tool_call_delta = absorb_tool_calls(t, chunk);
       {
         content_delta,
         reasoning_delta,
+        tool_call_delta,
       };
     };
 
@@ -1022,6 +1038,12 @@ module Utils = {
       };
   };
 
+  /* a payload as the streaming request sends it */
+  let streaming = (payload: Payload.Model.t): Payload.Model.t => {
+    ...payload,
+    stream: true,
+  };
+
   let start_streaming_chat =
       (
         ~payload: Payload.Model.t,
@@ -1030,11 +1052,7 @@ module Utils = {
         ~on_done: unit => unit,
       )
       : API.streaming_handle => {
-    let streaming_payload = {
-      ...payload,
-      stream: true,
-    };
-    let body = Payload.Utils.json_of_payload(~payload=streaming_payload);
+    let body = Payload.Utils.json_of_payload(~payload=streaming(payload));
     API.request_streaming(
       ~with_credentials=false,
       ~method=POST,
@@ -1082,12 +1100,13 @@ module AvailableLLMs = {
   };
 
   // FP Lab-curated recommendations: (exact OpenRouter id, tagline).
+  // Versions checked against /api/v1/models on 2026-10-06.
   let recommended_entries: list((string, string)) = [
-    ("anthropic/claude-opus-4.6", "Most capable"),
-    ("anthropic/claude-sonnet-4.6", "High quality and speedy"),
-    ("google/gemini-3-flash-preview", "Best balance of quality and cost"),
+    ("anthropic/claude-opus-5.5", "Most capable"),
+    ("anthropic/claude-sonnet-5.5", "High quality and speedy"),
+    ("google/gemini-3.8-flash", "Best balance of quality and cost"),
     ("xiaomi/mimo-v2-pro", "Highly capable and affordable"),
-    ("google/gemma-4-31b-it", "Great cheap model"),
+    ("openai/gpt-6-luna", "Fast and affordable"),
   ];
 
   let recommended_tagline = (info: Model.llm_info): option(string) =>

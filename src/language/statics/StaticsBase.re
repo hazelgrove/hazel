@@ -48,9 +48,7 @@ module Map = {
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
-      co_ctx
-      |> Util.VarMap.to_list
-      |> List.map(~f=((n, _)) => Ctx.binding_of(ctx, n))
+      co_ctx |> CoCtx.names |> List.map(~f=n => Ctx.binding_of(ctx, n))
     | _ => []
     };
 
@@ -60,24 +58,35 @@ module Map = {
     | _ => []
     };
 
-  /* Collect all infos whose binding site is `binding_id`, plus `binding_id`
-     itself. Deduplication is handled by accumulating into an `Id.Set`. */
-  let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t =>
+  /* Collect all infos whose binding site is `binding_id` (`M.x` labels
+     of a member included), plus `binding_id` itself. Deduplication is
+     handled by accumulating into an `Id.Set`. */
+  let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t => {
+    /* a label names the binder only when spelled alike: the others skip
+       resolving their module */
+    let name = Option.bind(lookup(binding_id, m), ~f=Info.binder_name);
     Id.Map.fold(
-      (id, info, acc) =>
-        switch (Info.get_binding_site(info)) {
+      (id, info, acc) => {
+        let site =
+          switch (Info.label_name(info)) {
+          | Some(l) when !Option.equal(String.equal, Some(l), name) => None
+          | _ => Info.binding_site(~info_map=m, info)
+          };
+        switch (site) {
         | Some(id') when Id.equal(id', binding_id) => Id.Set.add(id, acc)
         | _ => acc
-        },
+        };
+      },
       m,
       Id.Set.singleton(binding_id),
     );
+  };
 
   /* IDs to highlight for a variable/type/constructor reference:
    * all infos that resolve to the same binding site id, plus the binding id. */
   let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) => {
     let binding_id =
-      switch (Info.get_binding_site(ci)) {
+      switch (Info.binding_site(~info_map=m, ci)) {
       | Some(_) as b => b
       | None =>
         switch (ci) {
@@ -125,33 +134,22 @@ module Map = {
       | [ancestor_id, ...rest] =>
         let* ci = lookup(ancestor_id, statics);
         switch (ci) {
-        | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
-          let binds = Pat.bindings(pat);
-          /* function-def sugar: Pat.bindings drops the function name f, so
-             also match f's own binding here, else the enclosing let is never
-             found. Curried sugar `f(x)(y)` nests the Aps, so walk the spine to
-             the head. (Can't reuse FunctionSugar.detect: it depends on
-             StaticsBase.) */
-          let rec spine_head_binds = (fn: Pat.t) =>
-            switch (IdTagged.term_of(fn)) {
-            | Ap(fn, _) => spine_head_binds(fn)
-            | _ => Pat.bindings(fn)
-            };
-          let fn_name_binds =
-            switch (IdTagged.term_of(pat)) {
-            | Asc(inner, _) =>
-              switch (IdTagged.term_of(inner)) {
-              | Ap(fn, _) => spine_head_binds(fn)
-              | _ => []
-              }
-            | Ap(fn, _) => spine_head_binds(fn)
-            | _ => []
-            };
+        | InfoExp({user_term: {term: Let(pat, def, _), _}, _})
+        | InfoMod({user_term: {term: ModLet(pat, def), _}, _}) =>
+          /* Pat.bindings drops the function-definition sugar's name: match
+             that binding too, else the enclosing let is never found. */
+          let binds = Pat.bindings(pat) @ Pat.bindings(Pat.binder(pat));
           List.exists(
             ~f=(b: Binding.t) => Id.equal(b.id, binding_id),
-            binds @ fn_name_binds,
+            binds,
           )
             ? Some(IdTagged.rep_id(def)) : climb(rest);
+        | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
+          List.exists(
+            ~f=(b: Binding.t) => Id.equal(b.id, binding_id),
+            Pat.bindings(MPat.to_pat(mp)),
+          )
+            ? Some(IdTagged.rep_id(def)) : climb(rest)
         | InfoExp(_) => None
         | _ => climb(rest)
         };
@@ -181,6 +179,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({ty, _}))
     | Some(InfoPat({ty, _})) => Some(ty)
+    | Some(InfoMod({ty, _})) => ty
     | _ => None
     };
 
@@ -190,9 +189,10 @@ module Map = {
     | None => None
     };
 
+  /* all of [id]'s ancestors (Info.ancestors) */
   let ancestors_of = (id: Id.t, m: t): list(Id.t) =>
     switch (lookup(id, m)) {
-    | Some(info) => Info.ancestors_of(info)
+    | Some(info) => Info.ancestors(~info_map=m, info)
     | None => []
     };
 };
@@ -254,20 +254,23 @@ let set_dot_labels_exp =
   | _ => m
   };
 
-let map_m = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ~f=((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ~init=([], m),
-    xs,
-  );
+/* these folds (and those in Statics.re) cons then rev: [acc @ [x]] is
+   quadratic, which bites on wide n-ary forms like module bodies */
+let map_m = (f, xs, m: Map.t) => {
+  let (xs, m) =
+    List.fold(xs, ~init=([], m), ~f=((xs, m), x) =>
+      f(x, m) |> (((x, m)) => ([x, ...xs], m))
+    );
+  (List.rev(xs), m);
+};
 
-let map_m2 = (f, xs, ys, m: Map.t) =>
-  List.fold2_exn(
-    ~f=((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
-    ~init=([], m),
-    xs,
-    ys,
-  );
+let map_m2 = (f, xs, ys, m: Map.t) => {
+  let (zs, m) =
+    List.fold2_exn(xs, ys, ~init=([], m), ~f=((zs, m), x, y) =>
+      f(x, y, m) |> (((z, m)) => ([z, ...zs], m))
+    );
+  (List.rev(zs), m);
+};
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
@@ -398,9 +401,10 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
     | Some({term: Unknown(Internal), _}) => d
-    /* Settle the common case before resolving anything: equal types
-       need no ascription, and comparing normalized forms expands every
-       alias on both sides first. */
+    /* Settle the common case before resolving anything: equal types need no
+       ascription, and comparing normalized forms expands every alias on both
+       sides first (`Var("HTML")` alone expands to ~7800 nodes). In practice
+       the two sides are the same type in 85-100% of calls. */
     | Some(ty) when Typ.fast_equal(ty, t) => d
     | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
     | _ => d
@@ -425,25 +429,35 @@ let fold_patterns_with_modes =
       ps: list(Pat.t),
       modes,
       m,
-    ) =>
-  List.fold2_exn(
-    ~f=
-      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-        |> (
-          ((info, elab, m)) => (
-            info.ctx,
-            tys @ [info.ty],
-            cons @ [info.constraint_],
-            m,
-            infos @ [info],
-            elabs @ [elab],
-          )
-        ),
-    ~init=(ctx, [], [], m, [], []),
-    ps,
-    modes,
+    ) => {
+  let (ctx, tys, cons, m, infos, elabs) =
+    List.fold2_exn(
+      ~f=
+        ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+          analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+          |> (
+            ((info, elab, m)) => (
+              info.ctx,
+              [info.ty, ...tys],
+              [info.constraint_, ...cons],
+              m,
+              [info, ...infos],
+              [elab, ...elabs],
+            )
+          ),
+      ~init=(ctx, [], [], m, [], []),
+      ps,
+      modes,
+    );
+  (
+    ctx,
+    List.rev(tys),
+    List.rev(cons),
+    m,
+    List.rev(infos),
+    List.rev(elabs),
   );
+};
 
 module type ExpressionStatics = {
   let uexp_to_info_map:
@@ -473,6 +487,7 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
+      ~cls: Cls.t=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

@@ -34,11 +34,7 @@ let of_text = (text: string): t => {
    editor no longer computes it at layout), so a committed .hz file keeps
    its indentation; only line endings are normalized */
 let of_slide_text = (text: string): t =>
-  of_text(
-    text
-    |> StringUtil.replace(StringUtil.regexp("\r\n"), _, "\n")
-    |> StringUtil.replace(StringUtil.regexp("\r"), _, "\n"),
-  );
+  of_text(StringUtil.normalize_line_endings(text));
 
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the

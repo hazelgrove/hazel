@@ -133,7 +133,7 @@ let check_family_uniqueness = (): unit =>
           bool,
           "every family is inhabited: " ++ Form.show_family(fam),
           true,
-          defs != [],
+          !List.is_empty(defs),
         );
         List.iter(
           ~f=
@@ -321,7 +321,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     bool,
     "TokInfix candidate iff delimiter-prefix at an IDP sort: " ++ name,
     expected_tok_infix,
-    tok_infix != [],
+    !List.is_empty(tok_infix),
   );
   List.iter(
     ~f=
@@ -392,6 +392,35 @@ let tests = (
       check_family_grouping,
     ),
     test_case("same-label candidate order", `Quick, check_same_label_order),
+    /* A hole typed where a module item, signature item or module name goes
+       is molded at that sort; with an expression mold there it would be
+       styled as sort-inconsistent rather than as a hole. */
+    test_case(
+      "hole forms have a mold at every sort a hole is typed in", `Quick, () =>
+      List.iter(
+        ~f=
+          (form: Form.atomic_form) => {
+            let (_, molds) = Form.get_atomic_form(form);
+            List.iter(
+              ~f=
+                (sort: Sort.t) =>
+                  check(
+                    bool,
+                    Form.show_atomic_form(form)
+                    ++ " at "
+                    ++ Sort.to_string(sort),
+                    true,
+                    List.exists(
+                      ~f=(m: Mold.t) => Sort.equal(m.out, sort),
+                      molds,
+                    ),
+                  ),
+              Sort.[Exp, Pat, Typ, TPat, Mod, Sig, MPat],
+            );
+          },
+        Form.[ExplicitHole, ImplicitHoleMarker],
+      )
+    ),
     test_case(
       "family uniqueness: (out sort -> mold) is a function; labels agree",
       `Quick,

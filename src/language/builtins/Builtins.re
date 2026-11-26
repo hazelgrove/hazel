@@ -38,11 +38,21 @@ let ctx_entries =
       BuiltinsColorScheme.type_aliases,
     );
 
-let ctx_init: option(Operators.mode) => Ctx.t =
-  use_mode => {
-    use_mode,
-    entries: ctx_entries,
-  };
+/* built once: of_entries is O(n) (a List.length) and ctx_init runs per
+   statics run. one record per mode, so memos keyed on context identity
+   (Statics.mk) can hit */
+let ctx_init_base: Ctx.t = Ctx.of_entries(~use_mode=None, ctx_entries);
+let ctx_init: option(Operators.mode) => Ctx.t = {
+  let by_mode = Stdlib.Hashtbl.create(5);
+  use_mode =>
+    switch (Stdlib.Hashtbl.find_opt(by_mode, use_mode)) {
+    | Some(ctx) => ctx
+    | None =>
+      let ctx = Ctx.set_use_mode(ctx_init_base, use_mode);
+      Stdlib.Hashtbl.replace(by_mode, use_mode, ctx);
+      ctx;
+    };
+};
 
 let forms_init: forms = List.filter_map(~f=form_of_builtin, builtins);
 

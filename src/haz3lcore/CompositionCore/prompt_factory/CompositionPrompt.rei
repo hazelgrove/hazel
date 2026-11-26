@@ -8,3 +8,4 @@ let identity: list(string);
 let session_modes: list(string);
 let hazel_language_guide: list(string);
 let program_model: list(string);
+let message_channels: list(string);

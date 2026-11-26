@@ -48,10 +48,56 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
+/* [t] heads a member at [sort]: `let`, `type`, `module` at Mod */
+let heads_member = (sort: Sort.t, t: Token.t): bool =>
+  switch (Form.Expansion.try_get(sort, t)) {
+  | Some((label, _)) => MemberLines.is_member_label(label)
+  | None => false
+  };
+
+/* the level of the line the caret's level starts on, mid-line: a tile's
+   line's, and a member list's its module's member level */
+let rec line_of = (ancestors: Ancestors.t): option(int) =>
+  switch (ancestors) {
+  | [] => None
+  | [(a, (pre, _)), ...rest] =>
+    let level =
+      MemberLines.level_at(
+        ~line=line_of(rest),
+        Array.of_list(pre),
+        List.length(pre),
+      );
+    Some(
+      MemberLines.at_members(Ancestor.sort(a))
+        ? MemberLines.member_level(level) : level,
+    );
+  };
+
+/* a member head typed where a member line starts, after a member not open
+   on the right, starts a member there, as after the member's `;`: the
+   member level's sort, not the expression's the line follows */
+let member_head_sort = (t: Token.t, z: t, ~root): option(Sort.t) =>
+  if (!heads_member(Sort.Mod, t) && !heads_member(Sort.Sig, t)) {
+    None;
+  } else {
+    let ancestors = z.relatives.ancestors;
+    switch (
+      MemberLines.member_line_sort(
+        ~sort=Ancestors.sort(root, ancestors),
+        ~line=() => line_of(ancestors),
+        fst(z.relatives.siblings),
+      )
+    ) {
+    | Some(sort) when heads_member(sort, t) => Some(sort)
+    | _ => None
+    };
+  };
+
 /* Determine the effective sort for insertion, considering both local and parent sorts.
    Default: local-first (try local sort, fall back to parent).
    Special cases:
    - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
+   - A member head at a member line takes the member level's sort
    - Mod context falls back to Exp since bare expressions are valid module items */
 let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let local_sort = Relatives.sort(~root, z.relatives);
@@ -59,22 +105,30 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
 
   /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
   if (String.equal(t, ";")
-      && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+      && (
+        Sort.equal(parent_sort, Sort.Mod)
+        || Sort.equal(parent_sort, Sort.Sig)
+      )) {
     parent_sort;
   } else {
-    /* Default: local-first with parent fallback */
-    switch (Form.Expansion.try_get(local_sort, t)) {
-    | Some(_) => local_sort
+    switch (member_head_sort(t, z, ~root)) {
+    | Some(sort) => sort
     | None =>
-      /* In Mod context, try Exp since bare expressions are valid module items.
-         This mirrors remold_mod which also falls back to Exp. */
-      if (local_sort == Sort.Mod) {
-        switch (Form.Expansion.try_get(Exp, t)) {
+      /* Default: local-first with parent fallback */
+      switch (Form.Expansion.try_get(local_sort, t)) {
+      | Some(_) => local_sort
+      | None =>
+        /* In Mod context, here or the parent's, try Exp since bare
+           expressions are valid module items. This mirrors remold_mod
+           which also falls back to Exp. */
+        let in_mod =
+          Sort.equal(local_sort, Sort.Mod)
+          || Sort.equal(parent_sort, Sort.Mod)
+          && Option.is_none(Form.Expansion.try_get(Sort.Mod, t));
+        switch (in_mod ? Form.Expansion.try_get(Exp, t) : None) {
         | Some(_) => Exp
         | None => parent_sort
         };
-      } else {
-        parent_sort;
       }
     };
   };
@@ -84,7 +138,7 @@ let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   let seg = Zipper.unselect_and_zip(z);
   let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
   let spaces = Indentation.make_indent_spaces(indent_level);
-  if (spaces == []) {
+  if (List.is_empty(spaces)) {
     z;
   } else {
     Zipper.put_down_seg(Left, spaces, z);
@@ -135,7 +189,7 @@ let insert_shard =
       ~root,
     )
     : t =>
-  if (Zipper.find_missing_shard(t, z) != None) {
+  if (Option.is_some(Zipper.find_missing_shard(t, z))) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.value_exn;
     Zipper.put_down_target(d, target, z, ~root);
@@ -218,7 +272,7 @@ let replace_shard_inplace =
  * has an enclosing tile/form the caret must not escape. */
 let keep_caret_inside_on_append = (z: t): bool =>
   Option.is_some(Siblings.neighbor(Left, z.relatives.siblings))
-  || z.relatives.ancestors != [];
+  || !List.is_empty(z.relatives.ancestors);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -473,7 +527,8 @@ let delimiter_label = (char: string): Label.t =>
 let wrap_balanced = (char: string, z: t, ~root): t => {
   /* Sort is read before the remainders move: they are fragments of the
    * tokens already at this position, so the wrapping tile's mold is the
-   * one it would get without them. */
+   * one it would get without them. (Reassociation is unconditional on this
+   * branch: no ~deep_reassociate.) */
   let sort = Relatives.sort(~root, z.relatives);
   /* A char-level selection holds whole boundary pieces; only the selected
    * characters go inside the new tile, the rest stay outside it. */
@@ -560,7 +615,7 @@ let selected_text = (z: t): string => {
     Token.split_nth(s, max(0, min(n, Token.length(s))));
   let drop_left =
     switch (left_offset, content) {
-    | (Some(n), [p, ..._]) when Piece.token_of(p) != None => n + 1
+    | (Some(n), [p, ..._]) when Option.is_some(Piece.token_of(p)) => n + 1
     | _ => 0
     };
   let drop_right =
@@ -642,14 +697,14 @@ let try_wrap_selection =
 let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
+    !List.is_empty(z.selection.content)
       ? try_wrap_selection(~auto_indent, char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
     /* Normal path: normalize char selection then delete (if any) */
     let z =
-      z.selection.content != []
+      !List.is_empty(z.selection.content)
         ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #

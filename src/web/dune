@@ -24,7 +24,7 @@
  (name workerServer)
  (flags
   (:standard -open Core))
- (modules WorkerServer CoverageHook)
+ (modules WorkerServer EvalPieces CoverageHook)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
@@ -49,6 +49,7 @@
   \
   Worker
   WorkerServer
+  EvalPieces
   CoverageHook
   Migrate_exercises)
  (libraries
@@ -56,6 +57,7 @@
   ezjs_min
   ezjs_idb
   workerServer
+  str
   bonsai
   bonsai.web
   virtual_dom.input_widgets
@@ -63,7 +65,10 @@
   ppx_yojson_conv.expander
   haz3lcore
   b2t2
+  mvu
+  livelitdemos
   docslides
+  constellation
   tutorialslides
   omd)
  (js_of_ocaml)
@@ -79,6 +84,7 @@
    ppx_blob
    bonsai.ppx_bonsai))
  (preprocessor_deps
+  demo-prompts.json
   (glob_files_rec *.hz)))
 
 (executable

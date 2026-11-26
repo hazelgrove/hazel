@@ -120,6 +120,12 @@ let value_display = (~globals: Globals.t): section => {
     s_name: "Value display",
     s_rows: [
       toggle(
+        "Program value",
+        globals.settings.tail_probe,
+        TailProbe,
+        "Show the program's value below its last line",
+      ),
+      toggle(
         "Functions",
         s.show_fn_bodies,
         Evaluation(ShowFnBodies),
@@ -246,6 +252,18 @@ let code_display = (~globals: Globals.t): section => {
           "Enable flip animations for code changes",
         ),
         toggle(
+          "Animate all edits",
+          globals.settings.core.animate_all_edits,
+          AnimateAllEdits,
+          "Experimental: ghost-animate code movement on every edit",
+        ),
+        toggle(
+          "Drag refactoring",
+          globals.settings.core.drag_refactor,
+          DragRefactor,
+          "Modal: drag a token to pull it along refactoring tracks",
+        ),
+        toggle(
           "Line numbers",
           globals.settings.line_numbers,
           ToggleLineNumbers,
@@ -265,6 +283,12 @@ let code_display = (~globals: Globals.t): section => {
           : []
       )
       @ [
+        toggle(
+          "Outline arrows",
+          globals.settings.outline_arrows,
+          OutlineArrows,
+          "Fold outline rows from an arrow; off, click a row's sigil",
+        ),
         toggle(
           "Simple indication",
           globals.settings.simple_indication,
@@ -349,22 +373,16 @@ let developer = (~globals: Globals.t): section => {
         "Enable probes on all top-level definitions",
       ),
       toggle(
-        "Cap undo stack",
-        globals.settings.cap_undo_stack,
-        CapUndoStack,
-        "Cap the undo history stack size",
-      ),
-      toggle(
         "Ruled lines",
         globals.settings.show_row_lines,
         ShowRowLines,
         "Show horizontal lines between each row of code",
       ),
       toggle(
-        "Incremental reuse",
+        "Eval progress",
         globals.settings.show_incremental_deco,
-        ShowIncrementalDeco,
-        "Show incremental evaluator cache hits",
+        ShowPendingEval,
+        "Highlight code pending re-evaluation after edits",
       ),
       toggle(
         "Debug sidebar",

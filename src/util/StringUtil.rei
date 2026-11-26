@@ -32,6 +32,8 @@ let escape_linebreaks: string => string;
 let unescape_linebreaks: string => string;
 /** Normalizes line endings to `\n` and strips leading spaces and tabs from
     every line. */
+/* \r\n and \r become \n */
+let normalize_line_endings: string => string;
 let trim_leading: string => string;
 /** Splits around the first occurrence of the character. */
 let split_first: (~on: char, string) => option((string, string));
@@ -47,9 +49,6 @@ let trim_trailing_whitespace: string => string;
 /** Every non-empty prefix, shortest first, cut on grapheme boundaries;
     `[""]` for the empty string. */
 let prefixes: string => list(string);
-let levenshtein_distance: (string, string) => int;
-/** Edit distance with whole strings as the symbols. */
-let levenshtein_list_distance: (list(string), list(string)) => int;
 /** Drops double quotes and escapes newlines, so the result can sit inside a
     Hazel string literal. */
 let sanitize_for_string_expression: string => string;
@@ -59,3 +58,6 @@ let sanitize_for_label: string => string;
     order, not necessarily adjacent. Case-insensitive; spaces in `sub` are
     ignored. */
 let subseq_search: (string, string) => bool;
+let search:
+  (Js_of_ocaml.Regexp.regexp, string, int) =>
+  option((int, Js_of_ocaml.Regexp.result));

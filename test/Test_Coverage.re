@@ -4,12 +4,10 @@ open Mark;
 open Test_Statics_Prelude;
 open Poly;
 
-/* InexhaustiveMatch carries elab_syn_ty for the match head; statics may use a type
-   alias (e.g. Var("Tree")) vs Unknown. Coverage tests care about the example
-   pattern and nested marks, not the exact syntactic type form. */
+/* The example pattern is compared up to its ids. */
 let rec equal_mark_for_coverage = (m1: Mark.t, m2: Mark.t): bool =>
   switch (m1, m2) {
-  | (InexhaustiveMatch(_, ms1, p1), InexhaustiveMatch(_, ms2, p2)) =>
+  | (InexhaustiveMatch(ms1, p1), InexhaustiveMatch(ms2, p2)) =>
     List.equal(equal_mark_for_coverage, ms1, ms2) && Any.fast_equal(p1, p2)
   | _ => m1 == m2
   };
@@ -171,7 +169,6 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -211,7 +208,6 @@ let odd_length : [Int] -> Bool =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(cons(wild(), list_lit([]))),
@@ -290,7 +286,6 @@ let list_inexhaustive_nil =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(list_lit([]))),
         ),
@@ -311,7 +306,6 @@ let list_inexhaustive_cons =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(cons(wild(), cons(wild(), wild()))),
@@ -336,7 +330,6 @@ let list_inexhaustive_cons_long =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -366,7 +359,6 @@ let list_inexhaustive_tuple_with_elt =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -391,7 +383,6 @@ let list_inexhaustive_triple =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -416,7 +407,6 @@ let list_inexhaustive_triple_elt_first =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -441,7 +431,6 @@ let list_inexhaustive_middle_quad =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -482,7 +471,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(big_int(Bigint.of_int(0))),
@@ -504,7 +492,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -554,7 +541,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(float(0.0))),
         ),
@@ -574,7 +560,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(tuple([float(1.0), wild()])),
@@ -622,7 +607,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(string("*"))),
         ),
@@ -642,7 +626,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(string(""))),
         ),
@@ -663,7 +646,6 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(tuple([string("*"), wild()])),
@@ -714,14 +696,12 @@ end}}} in ?
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(true))),
         ),
       ]),
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(false))),
         ),
@@ -824,7 +804,6 @@ end}}} in ?
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -851,7 +830,6 @@ let x : Rank = ? in
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
@@ -874,7 +852,6 @@ let f = {{{fun Ace -> ?}}} in
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
@@ -900,7 +877,6 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1000,7 +976,6 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1027,7 +1002,6 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1080,7 +1054,6 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1115,7 +1088,6 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(

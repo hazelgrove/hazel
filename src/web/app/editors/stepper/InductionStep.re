@@ -384,6 +384,7 @@ module F =
           EditMode.Editable({
             inject: x => inject(ScrutUpdate(x)),
             escape: _ => Ui_effect.Ignore,
+            escape_vertical: None,
             take_focus: _ => Ui_effect.Ignore,
             focus:
               switch (focus) {

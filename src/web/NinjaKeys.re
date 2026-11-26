@@ -58,12 +58,18 @@ let apply_override =
       action: ContextualAction.t,
     )
     : ContextualAction.t =>
-  switch (List.Assoc.find(overrides, action.label, ~equal=String.equal)) {
-  | Some(hotkey) => {
+  switch (
+    action.id,
+    List.Assoc.find(overrides, action.label, ~equal=String.equal),
+  ) {
+  /* A dynamic entry's label can coincide with a registry label; it stays
+     unbound. */
+  | (None, _) => action
+  | (Some(_), Some(hotkey)) => {
       ...action,
       hotkey,
     }
-  | None => action
+  | (Some(_), None) => action
   };
 
 let initialize =
@@ -77,4 +83,13 @@ let initialize =
     |> List.map(~f=of_contextual_action)
     |> Array.of_list;
   Js.Unsafe.set(elem(), "data", Js.array(opts));
+};
+
+let open_with =
+    (
+      ~overrides: list((string, option(string))),
+      actions: list(ContextualAction.t),
+    ) => {
+  initialize(~overrides, actions);
+  open_command_palette();
 };

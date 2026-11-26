@@ -25,6 +25,7 @@ let pat_view:
 let typ_view:
   (
     ~globals: Globals.t,
+    ~ctx: Language.Ctx.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
     ~message: option(Language.Message.t),
@@ -32,9 +33,23 @@ let typ_view:
   ) =>
   Virtual_dom.Vdom.Node.t;
 
+let mod_view:
+  (
+    ~globals: Globals.t,
+    ~ctx: Language.Ctx.t,
+    Language.Cls.t,
+    ~marks: list(Language.Mark.t),
+    ~ty: option(Language.Typ.t)
+  ) =>
+  Virtual_dom.Vdom.Node.t;
+
+let sig_view:
+  (Language.Cls.t, ~marks: list(Language.Mark.t)) => Virtual_dom.Vdom.Node.t;
+
 let tpat_view:
   (
     ~globals: Globals.t,
+    ~ctx: Language.Ctx.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
     ~message: option(Language.Message.t),
@@ -43,7 +58,11 @@ let tpat_view:
   Virtual_dom.Vdom.Node.t;
 
 let view:
-  (~globals: Globals.t, Cursor.cursor(Editors.Update.t)) =>
+  (
+    ~globals: Globals.t,
+    ~dynamics: Virtual_dom.Vdom.Node.t=?,
+    Cursor.cursor(Editors.Update.t)
+  ) =>
   Virtual_dom.Vdom.Node.t;
 
 /** The info the bar describes: the implied hole's when quiver is on, else

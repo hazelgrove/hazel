@@ -8,8 +8,10 @@ let buffer_clear = (z: Zipper.t): Zipper.t =>
   | Normal => z
   };
 
-let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
-  switch (TyDi.set_buffer(~ci, z)) {
+let set_tydi_buffer =
+    (~root: Sort.t, ~seg=?, ci: option(Language.Info.t), z: Zipper.t)
+    : Zipper.t =>
+  switch (TyDi.set_buffer(~root, ~seg?, ~ci, z)) {
   | None => z
   | Some(z) => z
   };
@@ -26,7 +28,7 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Parsed)
   };
 
-let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
+let buffer_accept = (~root: Sort.t=Exp, z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
@@ -49,22 +51,29 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
          * want the caret to end up to the left of the first hole, whereas
          * pasting would leave it to the left of the second. Thus we move
          * left to the previous hole. */
-        let* z = Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
+        let* z = Parser.to_zipper(~root, ~zipper_init=z, completion);
         let* z = Move.to_next_grout(Left, z);
         Move.local(ByToken, Left, z);
       } else {
-        Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
+        Parser.to_zipper(~root, ~zipper_init=z, completion);
       };
     }
   };
 
 let go =
-    (~ci: option(Language.Info.t), a: Action.buffer, z: Zipper.t)
+    (
+      ~root: Sort.t=Exp,
+      ~seg=?,
+      ~ci: option(Language.Info.t),
+      a: Action.buffer,
+      z: Zipper.t,
+    )
     : Result.t(Zipper.t, Action.Failure.t) =>
   switch (a) {
-  | Set(TyDi) => Ok(set_tydi_buffer(ci, z))
+  | Set(TyDi) => Ok(set_tydi_buffer(~root, ~seg?, ci, z))
   | Set(LLM(response)) => Ok(set_llm_buffer(z, response))
   | Accept =>
-    buffer_accept(z) |> Result.of_option(~error=Action.Failure.CantAccept)
+    buffer_accept(~root, z)
+    |> Result.of_option(~error=Action.Failure.CantAccept)
   | Clear => Ok(buffer_clear(z))
   };

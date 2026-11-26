@@ -45,3 +45,6 @@ module Width: {
   let columns_through_prefix: (string, int) => int;
   let column_to_grapheme_index: (string, int) => int;
 };
+
+/** The number of Unicode code points in UTF-8 [s]. */
+let count_codepoints: string => int;

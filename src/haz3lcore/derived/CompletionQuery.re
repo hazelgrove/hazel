@@ -26,6 +26,16 @@ let fuses_empty = (left: Segment.t, text: string): bool =>
   | [] => false
   };
 
+/* The segment to complete for [z]: the syntax's own when it was zipped
+   from [z] (CachedSyntax.semantic_source), so a frame's completions read
+   the same pieces and share CanonicalCompletion's memo. A fresh zip
+   rebuilds the caret's ancestors, whose items then miss. */
+let engine_seg = (~syntax: CachedSyntax.t, z: Zipper.t): Segment.t =>
+  switch (CachedSyntax.semantic_source(z, syntax)) {
+  | Some(seg) => seg
+  | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+  };
+
 /* Every obligation whose insertion zone contains the caret, in ENGINE
    order — landing-site order in the completed program, which is both
    the order the quiver bubble draws them and the order Tab applies.
@@ -39,7 +49,7 @@ let fuses_empty = (left: Segment.t, text: string): bool =>
    nearest anchor is NOT the answer — it flips with the caret's
    column inside the indentation and disagrees with the bubble. */
 let chips_at_caret =
-    (~seg: option(Segment.t)=?, z: Zipper.t)
+    (~root: Sort.t, ~seg: option(Segment.t)=?, z: Zipper.t)
     : list(CanonicalCompletion.insertion) =>
   switch (z.caret) {
   | Inner(_) => []
@@ -51,7 +61,7 @@ let chips_at_caret =
       | Some(seg) => seg
       | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
       };
-    let result = CanonicalCompletion.for_editor(seg);
+    let result = CanonicalCompletion.for_editor(~root, seg);
     let indexed = List.mapi(~f=(i, ins) => (i, ins), result.insertions);
     /* a witness in progress (typed prefix of a delimiter): its Tab
        text is the token REMAINDER, which only extends the prefix when
@@ -227,19 +237,22 @@ let chips_at_caret =
    takes it as ~owned), so the bubble's first delimiter is Tab's by
    construction. */
 let chip_at_caret =
-    (~seg: option(Segment.t)=?, z: Zipper.t)
+    (~root: Sort.t, ~seg: option(Segment.t)=?, z: Zipper.t)
     : option(CanonicalCompletion.insertion) =>
-  List.nth(chips_at_caret(~seg?, z), 0);
+  List.nth(chips_at_caret(~root, ~seg?, z), 0);
 
 /* Whether an existing operand hole can remain after this delimiter.
    Closers with convex right nibs consume trailing grout instead. */
-let accepts_right_hole = (z: Zipper.t): bool =>
-  switch (chip_at_caret(z)) {
+let accepts_right_hole =
+    (~root: Sort.t, ~seg: option(Segment.t)=?, z: Zipper.t): bool => {
+  let seg =
+    switch (seg) {
+    | Some(seg) => seg
+    | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+    };
+  switch (chip_at_caret(~root, ~seg, z)) {
   | Some({delimiters: [{of_shard: Some((id, shard)), _}, ..._], _}) =>
-    let result =
-      CanonicalCompletion.for_editor(
-        Zipper.unselect_and_zip(~erase_buffer=true, z),
-      );
+    let result = CanonicalCompletion.for_editor(~root, seg);
     switch (Segment.find_ctx(result.completed_seg, id)) {
     | Some((_, _, Tile(t))) =>
       let (_, rn) = Mold.nibs(~index=shard, Tile.mold(t));
@@ -251,9 +264,10 @@ let accepts_right_hole = (z: Zipper.t): bool =>
     };
   | _ => false
   };
+};
 
-let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
-  chip_at_caret(z)
+let obligation_at_caret = (~root: Sort.t, z: Zipper.t): option(Id.t) =>
+  chip_at_caret(~root, z)
   |> Option.map(~f=(ins: CanonicalCompletion.insertion) =>
        switch (ins.delimiters) {
        | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
@@ -341,8 +355,10 @@ let is_opener = (ins: CanonicalCompletion.insertion): bool =>
    the bubble shows it paired with — at `¦?) x ⏎ a)` a typed ( closed
    the outer ), the bubble promised the inner. ApplyCompletion(One)
    lands the engine's own placement. */
-let tab_action = (~seg: option(Segment.t)=?, z: Zipper.t): option(Action.t) =>
-  switch (chip_at_caret(~seg?, z)) {
+let tab_action =
+    (~root: Sort.t, ~seg: option(Segment.t)=?, z: Zipper.t)
+    : option(Action.t) =>
+  switch (chip_at_caret(~root, ~seg?, z)) {
   | None => None
   | Some(ins) when is_opener(ins) =>
     switch (ins.delimiters) {
