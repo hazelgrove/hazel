@@ -264,7 +264,9 @@ DRAG = r"""
   // slider wherever the page is scrolled)
   const target = view === 'picture' ? picture() : inp;
   (target || inp).scrollIntoView({ block: 'center' });
-  const st = { label, from: +inp.value, frames: [], inputs: 0, done: false, t0: performance.now() };
+  const st = { label, from: +inp.value, frames: [], inputs: 0, done: false, t0: performance.now(),
+               /* (^ticket(887)) what ran how, counted by the page, as the drag starts */
+               counts0: JSON.stringify((globalThis.hazelJit && globalThis.hazelJit.counts) || {}), href0: location.href };
   window.__drag = st;
   // (the page's own timeline over the drag: update, calculate, view, the compiled run, summed by kind)
   window.hazelBenchMarks = [];
@@ -315,8 +317,11 @@ DRAG_DONE = r"""
   }
   const names = (globalThis.hazelJit && globalThis.hazelJit.views) ? Object.keys(globalThis.hazelJit.views) : [];
   delete window.hazelBenchMarks;
+  /* (^ticket(887)) what ran how over the drag: the page's counts at its end less those at its start */
+  const c0 = JSON.parse(st.counts0), c1 = (globalThis.hazelJit && globalThis.hazelJit.counts) || {}, counts = {};
+  for (const k of Object.keys(c1)) if ((c1[k] || 0) !== (c0[k] || 0)) counts[k] = (c1[k] || 0) - (c0[k] || 0);
   return { label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames, marks: sums,
-           byid, names };
+           byid, names, counts, href0: st.href0, href1: location.href };
 """
 DRAGS = [("neck", 0, 60)]
 
@@ -368,6 +373,9 @@ def drags(d, sid, shots):
                     print("      the views' call memo: at the first frame (since the page loaded) " + "; ".join(
                         f"{k[5:]} {x0.get(k, 0):.0f}" for k in sorted(memo)) + "; over the rest of the drag " + "; ".join(
                         f"{k[5:]} {memo[k] - x0.get(k, 0):.0f}" for k in sorted(memo)), flush=True)
+            # (^ticket(887)) what ran how over the drag, by the page's own counts, and its address
+            print(f"      what ran how over the drag: {json.dumps(got.get('counts'))}; the address: "
+                  f"{got.get('href0')}" + ("" if got.get("href0") == got.get("href1") else f" -> {got.get('href1')}"), flush=True)
             # (^ticket(887)) which livelits were drawn, and what each draw cost
             names = {n.split(" ")[-1][:8]: n for n in (got.get("names") or [])}
             byid = sorted((got.get("byid") or {}).items(), key=lambda kv: -kv[1]["ms"])[:8]
