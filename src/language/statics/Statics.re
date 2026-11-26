@@ -1991,7 +1991,7 @@ and uexp_to_info_map =
             };
           };
           let ctx_body =
-            Ctx.extend_tvar(
+            Typ.extend_tvar(
               ctx,
               {
                 name,
@@ -2159,7 +2159,7 @@ and uexp_to_info_map =
               |> ModuleHelpers.type_exports_alias_type;
             switch (exports_ty) {
             | Some(exports_ty) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+              Typ.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
             | None => p_ana_ctx
             };
           | None => p_ana_ctx
@@ -2170,7 +2170,7 @@ and uexp_to_info_map =
           | (Some(name), Some(rhs)) =>
             switch (Ctx.lookup_tvar(ctx, rhs)) {
             | Some(Singleton(exports_ty)) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+              Typ.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
             | _ => p_ana_ctx
             }
           | _ => p_ana_ctx
@@ -2597,7 +2597,7 @@ and uexp_to_info_map =
         |> snd;
       switch (alias) {
       | Some((name, def)) =>
-        let bind = ty => Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty);
+        let bind = ty => Typ.extend_alias(ctx, name, TPat.rep_id(typat), ty);
         let (ty_def, ctx_def, ctx_body) =
           switch (def) {
           | Plain => (utyp_desugared, ctx, bind(utyp_desugared))
@@ -4028,7 +4028,7 @@ and utyp_to_info_map =
     add(m);
   | Poly({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(
+      Typ.extend_tvar(
         ctx,
         {
           name,
@@ -4073,7 +4073,7 @@ and utyp_to_info_map =
     add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(
+      Typ.extend_tvar(
         ctx,
         {
           name,
