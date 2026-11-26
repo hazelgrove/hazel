@@ -574,6 +574,11 @@ let rec go =
       |> Option.map(~f=maybe_reassoc)
     )
     |> return(Cant_insert)
+  | SyncReplace(delta_doc) => Ok(SyncReplace.sync_replace(z, delta_doc))
+
+  | UpdateRemoteCarets =>
+    /* No-op on zipper state, just triggers re-render for remote cursors */
+    Ok(z)
   | ApplyCompletion(Next) =>
     switch (
       CompletionQuery.chip_at_caret(z)
