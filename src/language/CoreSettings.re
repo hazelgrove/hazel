@@ -47,7 +47,22 @@ module FormatShortcut = {
     | Breaks; /* full pretty print (may change linebreaks) */
 };
 
+module DragChain = {
+  /* drag ladders: each drag track runs through its refactor repeated
+     (D2's list reorder — every position a state of one drag), landing
+     on the nearest rung at release. Off = one rung. (Everything is
+     reserved for mixing kinds in one pull; it acts as SameKind.) */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Off
+    | SameKind /* only more of the first commit's kind */
+    | Everything;
+};
+
+/* Extra fields are tolerated so settings saved by an older build (e.g.
+   the removed `drag_refactor`) still load instead of resetting. */
 [@deriving (show({with_path: false}), sexp, yojson)]
+[@sexp.allow_extra_fields]
 type t = {
   statics: bool,
   elaborate: bool,
@@ -63,6 +78,26 @@ type t = {
      (test harnesses position carets by counted moves). */
   indentation_ux: bool,
   flip_animations: bool,
+  /* Experimental: FLIP-ghost every edit's code movement, not just
+   * refactor invocations (see GhostFlip.re) */
+  animate_all_edits: bool,
+  [@sexp.default DragChain.SameKind]
+  drag_chain: DragChain.t,
+  /* a blocked drag move pushes through: carries its dependencies or
+     lifts to a helper (the keyboard's second press) */
+  [@sexp.default true]
+  drag_push: bool,
+  /* a drag runs through every move that changes where a value lives
+     (extract, hoist, sink, merge, lift, feed), and a grabbed value
+     moves its own line */
+  [@sexp.default true]
+  drag_composites: bool,
+  /* drag overlay: the refactoring names, and the tracks + target dots
+     (both off = no decoration beyond the moving code itself) */
+  [@sexp.default true]
+  drag_labels: bool,
+  [@sexp.default true]
+  drag_tracks: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
    * smart-rounded selection (char inside the starting token, whole-token
@@ -83,6 +118,12 @@ let off: t = {
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: false,
   flip_animations: false,
+  animate_all_edits: false,
+  drag_chain: DragChain.SameKind,
+  drag_push: true,
+  drag_composites: true,
+  drag_labels: true,
+  drag_tracks: true,
   display_warnings: false,
   selection_chunkiness: false,
   evaluation: Evaluation.init,
@@ -98,6 +139,12 @@ let on: t = {
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: true,
   flip_animations: true,
+  animate_all_edits: false,
+  drag_chain: DragChain.SameKind,
+  drag_push: true,
+  drag_composites: true,
+  drag_labels: true,
+  drag_tracks: true,
   display_warnings: true,
   selection_chunkiness: false,
   evaluation: Evaluation.init,

@@ -3,7 +3,22 @@ open Util;
 module IdTag = {
   /* Secondary runs stored as (before, after) pairs.
      - before: secondary immediately before this term (after preceding delimiter or sibling)
-     - after: secondary immediately after this term (before following delimiter or sibling) */
+     - after: secondary immediately after this term (before following delimiter or sibling)
+
+     TRAP: a node's PRINTED lead is not necessarily stored on that
+     node. Whitespace attaches to the piece it precedes, so a
+     construct whose first printed piece is a descendant stores its
+     lead down there. In
+         let f = fun x -> x + 1 in
+         f(3) + f(4)
+     the break after `in` precedes the BinOp body, but a BinOp
+     prints its LEFT OPERAND first — the "\n" lives on `f(3)`'s
+     annotation (or deeper), and the BinOp's own before-run is [].
+     Reading fst(e.annotation.secondary) to ask "does e start a
+     line" is therefore wrong for any left-open form. Ask through
+     an aggregating API (Refactor.Slot.of_exp/lead_of, which print
+     the term and read the edge runs) unless the node is provably
+     its own first token (a let/case/fun head, a leaf). */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type secondary_runs = (list(Secondary.t), list(Secondary.t));
 

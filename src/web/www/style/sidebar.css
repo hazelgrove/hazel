@@ -61,6 +61,45 @@
   background-color: var(--surface-raised);
 }
 
+/* touch-only controls: undo/redo (there is no Cmd+Z to put a drag
+   back) heads the tab strip on touch screens; the sheet grabber is
+   phone-only (style.css's phone layout shows it) */
+#persistent .touch-history,
+#side-bar .sheet-grabber {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  #persistent .touch-history {
+    display: flex;
+    flex-direction: column;
+  }
+  #persistent .touch-history .tab {
+    height: 2.75em;
+  }
+}
+
+#persistent .touch-history .redo svg {
+  transform: scaleX(-1);
+}
+
+#side-bar .sheet-grabber {
+  flex: 0 0 auto;
+  justify-content: center;
+  align-items: center;
+  height: 1.25em;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.sheet-grabber-pill {
+  width: 2.5em;
+  height: 0.3em;
+  border-radius: 0.15em;
+  background-color: var(--border-strong);
+  opacity: 0.6;
+}
+
 /* Status indicator inside sidebar tab */
 .tab-status-indicator {
   display: flex;

@@ -223,6 +223,11 @@ let paths =
     let hx = Stdlib.abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
+    /* head: term start to first delimiter; tail: last delimiter to
+       term end; inner: between delimiter rows (a drag rides or fades
+       each by role) */
+    let as_role = (role, paths) =>
+      paths |> List.map(~f=svg(~font_metrics, ~path_cls=path_cls @ [role]));
     List.concat([
       l_path(
         ~flip=false,
@@ -231,12 +236,13 @@ let paths =
         ~first,
         ~last=snd(List.hd_exn(shards)).origin,
       )
-      |> Option.to_list,
+      |> Option.to_list
+      |> as_role("arm-head"),
       r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
-      |> Option.to_list,
-      inner_lines(~hx, ~min_col, ~shard_rows),
-    ])
-    |> List.map(~f=svg(~font_metrics, ~path_cls));
+      |> Option.to_list
+      |> as_role("arm-tail"),
+      inner_lines(~hx, ~min_col, ~shard_rows) |> as_role("arm-inner"),
+    ]);
   };
 
 /* This draws the shards backing decorations,
@@ -245,6 +251,10 @@ let shards =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
+      /* stable per-shard DOM ids ("<prefix><tile>-<shard>") so each
+         backing piece rides ITS OWN token in drag scrubs and commit
+         FLIPs (prefix distinguishes deco kinds on the same token) */
+      ~dom_prefix: option(string)=?,
       ~font_metrics: FontMetrics.t,
       ~base_clss: option(string),
       tiles: tile_data,
@@ -256,9 +266,24 @@ let shards =
         let sort = refine_sort(id, mold.out);
         List.map(
           ~f=
-            ((index: int, measurement: Measured.measurement)) =>
+            ((index: int, measurement: Measured.measurement)) => {
+              let attr =
+                Option.value(attr, ~default=[])
+                @ (
+                  switch (dom_prefix) {
+                  | Some(prefix) => [
+                      Attr.id(
+                        prefix
+                        ++ Id.to_string(id)
+                        ++ "-"
+                        ++ string_of_int(index),
+                      ),
+                    ]
+                  | None => []
+                  }
+                );
               ShardDec.simple(
-                ~attr?,
+                ~attr,
                 {
                   font_metrics,
                   measurement,
@@ -267,7 +292,8 @@ let shards =
                 },
                 Option.to_list(base_clss)
                 @ ["indicated", Sort.class_of(sort)],
-              ),
+              );
+            },
           shards,
         );
       },
@@ -280,6 +306,7 @@ let term =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
+      ~dom_prefix: option(string)=?,
       ~font_metrics: FontMetrics.t,
       ~rows: Rows.t,
       ~tiles: tile_data,
@@ -288,7 +315,7 @@ let term =
       range: (Point.t, Point.t),
     )
     : list(Node.t) =>
-  shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss, tiles)
+  shards(~refine_sort, ~attr?, ~dom_prefix?, ~font_metrics, ~base_clss, tiles)
   @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
 
 let tiles_data =
@@ -316,6 +343,7 @@ let term =
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~attr: option(list(Attr.t))=?,
+      ~dom_prefix: option(string)=?,
       ~clip_right: option(Point.t)=None,
       tile: Tile.t,
     )
@@ -345,6 +373,7 @@ let term =
       shards(
         ~refine_sort,
         ~attr?,
+        ~dom_prefix?,
         ~font_metrics,
         ~base_clss=None,
         [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
@@ -362,8 +391,11 @@ let term =
         ~font_metrics,
         ~rows=measured.rows,
         ~tiles,
+        ~line_clss=
+          dom_prefix == Some("indication-") ? ["indication-arm"] : [],
         (l, r),
         ~attr?,
+        ~dom_prefix?,
       );
     | _ => []
     };
@@ -375,6 +407,7 @@ let term =
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
+      ~dom_prefix: option(string)=?,
       ~clip_right: option(Point.t)=None,
     ) =>
   term(
@@ -383,6 +416,7 @@ let term =
     ~terms=syntax.terms,
     ~measured=syntax.measured,
     ~font_metrics,
+    ~dom_prefix?,
     ~clip_right,
   );
 
@@ -565,8 +599,18 @@ module Errors = {
             };
           backing @ arm;
         | Some(t) =>
+          /* per-piece anchor ids: each backing piece rides its own
+             token (a multi-token error term's pieces move
+             independently — case stays, end drops on add-arm) */
           let clip_right = completion_clip(~syntax, ~completion, t);
-          term(~refine_sort, ~syntax, ~font_metrics, ~clip_right, t);
+          term(
+            ~refine_sort,
+            ~syntax,
+            ~font_metrics,
+            ~dom_prefix=is_warning ? "warndec-" : "errdec-",
+            ~clip_right,
+            t,
+          );
         | None => []
         }
       },
@@ -634,7 +678,14 @@ module Indicated = {
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
-        term(~refine_sort, ~font_metrics, ~syntax, ~clip_right, t);
+        term(
+          ~refine_sort,
+          ~font_metrics,
+          ~syntax,
+          ~dom_prefix="indication-",
+          ~clip_right,
+          t,
+        );
       }
     };
   };
