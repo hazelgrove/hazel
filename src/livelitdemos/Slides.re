@@ -92,6 +92,8 @@ let playground_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Mouth", [%blob "mouth.hz"]),
     ("Full Body", [%blob "full-body.hz"]),
     ("Witch", [%blob "witch.hz"]),
+    ("Witch, a hole off the run", [%blob "witch-hole-off.hz"]),
+    ("Witch, a hole on the run", [%blob "witch-hole-on.hz"]),
     ("Scenes", [%blob "scenes.hz"]),
   ]
   |> List.map(((name, text)) =>

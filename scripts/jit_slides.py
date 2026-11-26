@@ -36,7 +36,9 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import deck_regress as D  # noqa: E402
 
-SLIDES = ["Polygons", "Polygon Viewer", "Full Body", "Witch", "Hands", "Scenes"]
+# (^ticket(885)) the Witch twice more, with a hole: one no run opens, and one every run does
+SLIDES = ["Polygons", "Polygon Viewer", "Full Body", "Witch", "Witch, a hole off the run", "Witch, a hole on the run", "Hands",
+          "Scenes"]
 
 SNAPSHOT = r"""
   const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
