@@ -33,20 +33,10 @@ let separate_and_keep_labels:
   ('a => option((label, 'b)), list('a)) =>
   (list(option(label)), list('a))
  =
-  (get_label, es) => {
-    let results =
-      List.fold_left(
-        ~f=
-          ((ls, ns), e) =>
-            switch (get_label(e)) {
-            | Some((s1, _)) => (ls @ [Some(s1)], ns @ [e])
-            | None => (ls @ [None], ns @ [e])
-            },
-        ~init=([], []),
-        es,
-      );
-    results;
-  };
+  (get_label, es) => (
+    List.map(es, ~f=e => Option.map(get_label(e), ~f=fst)),
+    es,
+  );
 
 // Keeps the labels in x that exist in y. Maintains the order from x.
 let intersect = (xs: list(label), ys: list(label)) => {
@@ -73,16 +63,34 @@ let get_duplicate_labels_base: list(label) => list(label) =
     duplicates;
   };
 
+/* As get_duplicate_labels_base over the labels present, in linear time:
+   meet and weak_head_normalize ask this of every product they see. */
 let get_duplicate_labels:
   'a 'b.
   ('a => option((label, 'b)), list('a)) => list(label)
  =
-  (get_label, es) => {
-    separate_and_keep_labels(get_label, es)
-    |> fst
-    |> List.filter_map(~f=Fn.id)
-    |> get_duplicate_labels_base;
-  };
+  (get_label, es) =>
+    switch (es) {
+    | []
+    | [_] => []
+    | _ =>
+      let seen = Stdlib.Hashtbl.create(8);
+      let dupes = ref([]);
+      List.iter(es, ~f=e =>
+        switch (get_label(e)) {
+        | Some((l, _)) =>
+          switch (Stdlib.Hashtbl.find_opt(seen, l)) {
+          | None => Stdlib.Hashtbl.add(seen, l, false)
+          | Some(false) =>
+            Stdlib.Hashtbl.replace(seen, l, true);
+            dupes := [l, ...dupes^];
+          | Some(true) => ()
+          }
+        | None => ()
+        }
+      );
+      List.rev(dupes^);
+    };
 
 /**
  * Assumes all labels are unique.

@@ -21,6 +21,14 @@ type ok_common =
   | Syn(Typ.t)
   | Ana(ok_ana);
 
+/* A `poly`-typed expression implicitly applied to type arguments: `poly`
+   is its type, `args` what the hidden `@<…>` was filled with. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type instance = {
+  poly: Typ.t,
+  args: list(Typ.t),
+};
+
 /* Non-error inspector payload for expressions / patterns. Principal syn type
    is Info.elab_syn_ty; Default is synthesis-only (no Ana payload). */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

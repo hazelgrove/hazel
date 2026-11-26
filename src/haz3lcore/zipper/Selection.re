@@ -4,7 +4,10 @@ open Poly;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
   | Parsed
-  | Unparsed;
+  | Unparsed
+  /* Unparsed, but the shown text may abbreviate this full text, which is
+     what accepting inserts */
+  | Abbreviated(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type mode =
@@ -63,7 +66,7 @@ let non_empty_parsed_buffer: t => bool =
 
 let buffer_cls: t => string =
   fun
-  | {mode: Buffer(Unparsed), _} => "buffer-unparsed"
+  | {mode: Buffer(Unparsed | Abbreviated(_)), _} => "buffer-unparsed"
   | {mode: Buffer(Parsed), _} => "buffer-parsed"
   | _ => "not-buffer";
 

@@ -13,6 +13,8 @@ let fn_names = (d: Language.Exp.t): list(option(string)) => {
       ~f_exp=
         (continue, e: Language.Exp.t) => {
           switch (e.term) {
+          /* implicit polymorphism's hidden type functions aren't the program's */
+          | TypFun(_) when Id.is_implicit(Language.Exp.rep_id(e)) => ()
           | Fun(_, _, _, n)
           | TypFun(_, _, n) => names := [n, ...names^]
           | _ => ()

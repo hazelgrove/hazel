@@ -10,6 +10,7 @@ let view =
       ~measured,
       ~term_data,
       ~buffer_ids,
+      ~hidden_hole=?,
       ~shape_map,
       ~refractor_rows,
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
@@ -26,6 +27,7 @@ let view =
       ~term_data,
       ~refine_sort,
       ~buffer_ids,
+      ~hidden_hole?,
       segment,
     );
   div_c("code", [span_c("code-text", code)]);
