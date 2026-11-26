@@ -134,6 +134,8 @@ let equality =
     let any' = any(alphas_exp, alphas_typ);
     let mod' = mod_(alphas_exp, alphas_typ);
     switch (e1 |> Annotated.term_of, e2 |> Annotated.term_of) {
+    /* Short-circuit: physical equality */
+    | _ when phys_equal(e1, e2) => true
     // Wrappers when ignored: unwrap. These cases must come first.
     | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors => exp'(x, e2)
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
@@ -631,6 +633,8 @@ let equality =
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = tpat;
     switch (t1 |> Annotated.term_of, t2 |> Annotated.term_of) {
+    /* Short-circuit: physical equality */
+    | _ when phys_equal(t1, t2) => true
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)

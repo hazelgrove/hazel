@@ -102,7 +102,7 @@ let fast_equal_with_lexemes = (a: t, b: t): bool =>
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 let fresh: term => t = IdTagged.fresh;
 

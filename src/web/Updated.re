@@ -24,7 +24,8 @@ let merge_scroll = (a: scroll, b: scroll): scroll =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = {
   model: 'a,
-  is_edit: bool, // Should the editor autosave after this action?
+  is_edit: bool, // Did this action change program semantics? Triggers statics/eval recompute
+  save: bool, // Should the editor autosave after this action? (defaults to is_edit)
   recalculate: bool, // Should the editor recalculate after this action?
   scroll, // When should the editor scroll to the cursor after this action?
   logged: bool, // Should this action be logged?
@@ -41,6 +42,7 @@ let ( let* ) = (updated: t('a), f) => {
 let return =
     (
       ~is_edit=true,
+      ~save=?,
       ~recalculate=true,
       ~scroll=Always,
       ~logged=true,
@@ -50,6 +52,7 @@ let return =
   {
     model,
     is_edit,
+    save: Option.value(~default=is_edit, save),
     recalculate,
     scroll,
     logged,
@@ -60,6 +63,7 @@ let return =
 let return_quiet =
     (
       ~is_edit=false,
+      ~save=?,
       ~recalculate=false,
       ~scroll=Never,
       ~logged=false,
@@ -69,6 +73,7 @@ let return_quiet =
   {
     model,
     is_edit,
+    save: Option.value(~default=is_edit, save),
     recalculate,
     scroll,
     logged,

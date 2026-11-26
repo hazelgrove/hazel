@@ -69,6 +69,16 @@ module Action = {
     | SetMetaDown(bool)
     | SetSettingsFilter(string)
     | UpdateVisibleRows(VisibleRows.t)
+    | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
+    // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
+    | InitAppView(
+        Haz3lcore.Id.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+      )
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -83,6 +93,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    // MVU apps, keyed by app-projector syntax id; not persisted
+    apps: AppStore.t,
     /* the settings panel's filter text; not saved */
     settings_filter: string,
     // Calculated:
@@ -110,6 +122,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    apps: AppStore.empty,
     settings_filter: "",
     color_highlights: None,
     inject_global: _ =>
