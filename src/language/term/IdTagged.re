@@ -120,23 +120,39 @@ type t('a) = Annotated.t('a, IdTag.t);
 //   };
 /* Constructors for t('a) - wrapped terms */
 
+/* Nodes built: each term made fresh, copied or rewrapped here counts one.
+   Read around an evaluation (Test_PerfBudgets) it is the nodes that
+   evaluation built: deterministic, as its steps are, and it sees what a
+   step count does not, a step that copies a whole value (an ascription
+   pushed through a list, before #2679). */
+let built = ref(0);
+
 /* Create term with fresh id and empty secondary */
 let fresh = (term: 'a): t('a) => {
-  term,
-  annotation: IdTag.fresh(),
+  incr(built);
+  {
+    term,
+    annotation: IdTag.fresh(),
+  };
 };
 
 /* Create term with deterministic next id and empty secondary */
 let fresh_deterministic = (prev_id, term): t('a) => {
-  term,
-  annotation: IdTag.mk_internal([Id.next(prev_id)]),
+  incr(built);
+  {
+    term,
+    annotation: IdTag.mk_internal([Id.next(prev_id)]),
+  };
 };
 
 /* Create term with specific ids and empty secondary.
    Use for internally-generated terms that don't touch surface syntax. */
 let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {
-  term,
-  annotation: IdTag.mk_internal(ids),
+  incr(built);
+  {
+    term,
+    annotation: IdTag.mk_internal(ids),
+  };
 };
 
 /* Create term with specific ids and secondary.
@@ -158,8 +174,11 @@ let term_of = (x: Annotated.t('a, 'b)) => x.term;
 let unwrap = (x: t('a)) => (
   x.term,
   term' => {
-    ...x,
-    term: term',
+    incr(built);
+    {
+      ...x,
+      term: term',
+    };
   },
 );
 let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
@@ -173,13 +192,16 @@ let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
    Also discards shard provenance: the new ids no longer reference the
    original tiles. */
 let fast_copy = (id, {term, annotation}: t('a)): t('a) => {
-  term,
-  annotation: {
-    ids: [id],
-    secondary: IdTag.empty_secondary,
-    incomplete: [],
-    lexeme: annotation.lexeme,
-  },
+  incr(built);
+  {
+    term,
+    annotation: {
+      ids: [id],
+      secondary: IdTag.empty_secondary,
+      incomplete: [],
+      lexeme: annotation.lexeme,
+    },
+  };
 };
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
