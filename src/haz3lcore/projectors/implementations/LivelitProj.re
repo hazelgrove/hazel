@@ -9,16 +9,24 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
+  /* The statics at the projector's id describe the Projector node itself,
+     and a slide's ^^livelit(...) invoke adds a Parens layer — look through
+     both to find the application. */
+  let rec strip_wrappers = (term: TermBase.Exp.term): TermBase.Exp.term =>
+    switch (term) {
+    | Parens({term, _})
+    | Projector(_, {term, _}) => strip_wrappers(term)
+    | term => term
+    };
+
   let get_model = (info: info) =>
     switch (info.statics) {
-    | Some(
-        InfoExp({
-          user_term:
-            {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
-          _,
-        }),
-      ) =>
-      Some((llname, model))
+    | Some(InfoExp({user_term, _})) =>
+      switch (strip_wrappers(user_term.term)) {
+      | Ap(_dir, {term: LivelitName(llname), _}, model) =>
+        Some((llname, model))
+      | _ => None
+      }
     | _ => None
     };
 
@@ -53,10 +61,21 @@ module M: Projector = {
       (updated_model_term: TermBase.Exp.t, start_term: TermBase.Any.t)
       : TermBase.Any.t =>
     switch (start_term) {
-    | Exp({term: Ap(Forward, name, _model), _} as rest) =>
+    | Exp({term: Ap(dir, name, _model), _} as rest) =>
       Exp({
         ...rest,
-        term: Ap(Forward, name, updated_model_term),
+        term: Ap(dir, name, updated_model_term),
+      })
+    | Exp(
+        {term: Parens({term: Ap(dir, name, _model), _} as inner), _} as rest,
+      ) =>
+      Exp({
+        ...rest,
+        term:
+          Parens({
+            ...inner,
+            term: Ap(dir, name, updated_model_term),
+          }),
       })
     | _ =>
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
@@ -114,7 +133,12 @@ module M: Projector = {
 
           let list_contents = ll.view(model, action_callback);
           Node.div(
-            ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
+            ~attrs=[
+              Attr.class_(ll_name),
+              Attr.id(Id.cls(info.id)),
+              /* keep keys typed into the livelit's own controls out of the editor */
+              Attr.on_keydown(_ => Effect.Stop_propagation),
+            ],
             [list_contents],
           );
         | None =>
