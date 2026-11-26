@@ -217,7 +217,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (Bigint.equal(n, Bigint.zero)) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("int_mod"), tuple([d1, d2])),
               DivideByZero,
             ),
           );
@@ -239,7 +239,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (n == 0) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("sint_mod"), tuple([d1, d2])),
               DivideByZero,
             ),
           );
@@ -261,7 +261,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (Bigint.equal(n, Bigint.zero)) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("nat_mod"), tuple([d1, d2])),
               DivideByZero,
             ),
           );
@@ -283,7 +283,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (Float.equal(n, 0.0)) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("float_mod"), tuple([d1, d2])),
               DivideByZero,
             ),
           );
@@ -462,10 +462,12 @@ let string_fns: list(BuiltinsUtil.fn) = [
         switch (sliced) {
         | Some(sliced) => Some(string(sliced))
         | None =>
-          let d' = BuiltinFun("string_sub") |> DHExp.fresh;
-          let d' = Ap(Forward, d', d1) |> DHExp.fresh;
-          let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;
-          Some(d');
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun("string_sub"), tuple([d1, d2, d3])),
+              IndexOutOfBounds,
+            ),
+          )
         };
       }),
     custom_statics: None,
