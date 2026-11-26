@@ -38,8 +38,10 @@ module Card = {
         [],
       );
 
+  /* One tuple argument, so the memo is keyed on both: memoizing the
+     curried version cached only its partial application on the sort. */
   let view =
-    Core.Memo.general((sort: Sort.t, card: card) =>
+    Core.Memo.general(~cache_size_bound=256, ((sort: Sort.t, card: card)) =>
       Node.div(
         ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
         [
@@ -132,7 +134,7 @@ module Chooser = {
         Attr.on_mousedown(_ => on_pick(c)),
         card_pos(col, row),
       ],
-      [Card.view(sort, c)],
+      [Card.view((sort, c))],
     );
 
   let view =

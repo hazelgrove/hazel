@@ -131,13 +131,13 @@ let padding_nodes =
   Token.to_list(text)
   |> List.map(~f=c =>
        String.equal(c, Token.implicit_hole_marker)
-         ? EmptyHoleDec.view(
+         ? EmptyHoleDec.view((
              FontMetrics.{
                col_width: font_metrics.col_width *. chip_font_scale,
                row_height: font_metrics.row_height *. chip_font_scale,
              },
              shape,
-           )
+           ))
          : Node.text(c)
      );
 
