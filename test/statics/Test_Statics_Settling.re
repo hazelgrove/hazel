@@ -29,6 +29,26 @@ let marked_with = (name, program, expected) =>
 let marked_once = (name, program, message) =>
   marked_with(name, program, [message]);
 
+/* Exactly one node of any sort is marked, and its message is `message`. */
+let one_mark_anywhere = (name, program, message) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let map = statics(parse_exp(program));
+      check(
+        list(string),
+        "messages",
+        [message],
+        Statics.Map.error_ids(map)
+        |> List.filter_map(~f=id => Statics.Map.lookup(id, map))
+        |> List.map(~f=(info: Info.t) =>
+             Haz3lcore.ErrorPrint.string_of_marks(info, Info.marks_of(info))
+           ),
+      );
+    },
+  );
+
 /* No node is marked. */
 let unmarked = (name, program) =>
   test_case(name, `Quick, () =>
@@ -288,6 +308,26 @@ let tests = (
       | _ => false,
       ~syn=T.var("T"),
       ~elab_syn=T.int(),
+    ),
+    one_mark_anywhere(
+      "Parentheses around a pattern do not repeat its mark",
+      "let f : Int -> Int = fun (x : String) -> 1 in f(1)",
+      "Expecting type Int but got inconsistent type String",
+    ),
+    one_mark_anywhere(
+      "Nested parentheses around a pattern do not repeat its mark",
+      "let f : Int -> Int = fun ((x : String)) -> 1 in f(1)",
+      "Expecting type Int but got inconsistent type String",
+    ),
+    one_mark_anywhere(
+      "A tuple pattern does not repeat the mark of an entry",
+      "let f : (Int, Int) -> Int = fun (a, (b : String)) -> 1 in f((1, 2))",
+      "Expecting type Int but got inconsistent type String",
+    ),
+    one_mark_anywhere(
+      "A list pattern does not repeat the mark of an element",
+      {|case [1] | [1, "s"] => 0 | _ => 1 end|},
+      "Expecting type Int but got inconsistent type String",
     ),
     types_of(
       "A function's syn type keeps its body's error",

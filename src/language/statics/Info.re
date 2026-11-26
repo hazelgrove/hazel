@@ -15,9 +15,13 @@ open OptUtil.Syntax;
    with it but says more (a hole expected to be an Int), elab_syn_ty stays as
    the rule built it: the elaboration is not ascribed for that.
 
-   A pattern's elab_syn_ty is not settled this way: it is what the pattern
-   demands on its own. A pattern also records ty, its elab syn type refined
-   by ana, which is the type of the value it matches.
+   A pattern has ana and syn_ty too, syn_ty being what it demands on its own.
+   Its ty is the type of the value it matches: the type its rule builds from
+   its children's ty, refined by ana, or ana where the two are inconsistent
+   (marked here, as for an expression). Parents build from ty. Unlike an
+   expression's elab syn type, it takes in what ana says: a variable's type
+   comes from ana alone, and the elaboration records it (a function's
+   parameter type).
    Marks on Info are statics errors; use marks_of for problem display.
 
    See Message.re for inspector payload types; statics computes marks/messages.
@@ -70,13 +74,12 @@ type pat = {
   co_ctx: CoCtx.t,
   probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   ana: Typ.t,
-  elab_syn_ty: Typ.t,
-  syn_ty: Typ.t,
+  syn_ty: Typ.t, /* What the pattern demands on its own, built from its parts' syn_ty */
   marks: list(Mark.t),
   cls: Cls.t,
   message: Message.t, /* DERIVED: non-error inspector payload (Pat only) */
   warnings: list(Warning.list_item),
-  ty: Typ.t,
+  ty: Typ.t, /* The type of the value it matches: settled on ana, and what parents build from */
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),

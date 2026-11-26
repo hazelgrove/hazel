@@ -996,7 +996,6 @@ let tests = (
               fn(
                 Pat.(
                   parens(
-                    ~ann=duplicate_a_tuple_pat_ann,
                     tuple(
                       ~ann=duplicate_a_tuple_pat_ann,
                       [

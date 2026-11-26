@@ -140,7 +140,6 @@ let add_binder_infos =
       ...f_info,
       cls: Cls.Pat(ApFunc),
       ty: f_info.ana,
-      elab_syn_ty: f_info.ana,
       syn_ty: f_info.ana,
     };
     let add_for = (pat, m) =>
