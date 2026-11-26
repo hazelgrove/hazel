@@ -477,6 +477,20 @@ module View = {
         ~syntax,
         globals.color_highlights,
       ),
+      Node.div(
+        ~attrs=[Attr.class_("action-highlights")],
+        List.concat_map(
+          ~f=
+            id =>
+              Highlight.color(
+                ~syntax,
+                ~font_metrics=globals.font_metrics,
+                ["action-explorer-match"],
+                id,
+              ),
+          globals.action_highlights,
+        ),
+      ),
       VarHighlight.view(
         ~measured=syntax.measured,
         ~font_metrics=globals.font_metrics,

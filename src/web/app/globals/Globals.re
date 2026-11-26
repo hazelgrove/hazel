@@ -87,6 +87,7 @@ module Model = {
     settings_filter: string,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
+    action_highlights: list(Haz3lcore.Id.t),
     // Other:
     inject_global: Action.t => Ui_effect.t(unit),
     /* inject_global is not really part of the model, but added here for
@@ -112,6 +113,7 @@ module Model = {
     visible_rows: None,
     settings_filter: "",
     color_highlights: None,
+    action_highlights: [],
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
     get_log_and: _ =>
