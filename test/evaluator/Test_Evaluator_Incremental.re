@@ -1743,7 +1743,7 @@ let lexeme_edit_test =
       let (r2, _, _) = eval_incr(~prev=incr1, exp2);
       let has_lex = (l, e: Exp.t) =>
         List.mem(
-          Exp.lexeme_trace(e),
+          List.map(Exp.annotation_trace(e), ~f=fst),
           Some(l),
           ~equal=Option.equal(String.equal),
         );
@@ -1753,10 +1753,73 @@ let lexeme_edit_test =
     },
   );
 
+/* Typing the `)` of `Water(5` completes the existing tile: structure,
+ * ids and lexemes stay the same and only the shard-provenance masks go.
+ * Reuse must notice, or the sample keeps printing `Water(5`. */
+let completion_edit_test =
+  test_case(
+    "completing a tile invalidates reuse",
+    `Quick,
+    () => {
+      let has_masks = (e: Exp.t) =>
+        !Id.Map.is_empty(ExpToSegment.collect_shard_masks(Exp(e)));
+      let exp1 =
+        switch (
+          Haz3lcore.Parser.to_segment(
+            "type W = Water(Int) in let y = Water(5 in y",
+            ~root=Exp,
+          )
+        ) {
+        | Some(seg) =>
+          let result =
+            CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+          let masks =
+            CanonicalCompletion.masks_of_records(result.shard_records);
+          MakeTerm.go_impl(~masks, result.completed_seg).term;
+        | None => Alcotest.fail("parse failed")
+        };
+      let exp2 =
+        Exp.map_term(
+          ~f_exp=
+            (continue, t: Exp.t) =>
+              continue({
+                ...t,
+                annotation: {
+                  ...t.annotation,
+                  incomplete: [],
+                },
+              }),
+          exp1,
+        );
+      check(bool, "source carries a mask", true, has_masks(exp1));
+      check(
+        bool,
+        "recompute gate sees the edit",
+        false,
+        Exp.fast_equal_with_lexemes(exp1, exp2),
+      );
+      let (_, _, incr1) = eval_incr(exp1);
+      let root = Exp.rep_id(snd(statics_and_elab(exp1)));
+      check(
+        bool,
+        "unchanged program reuses the root",
+        true,
+        directly_reused(root, reuse_plan(~prev=incr1, exp1)),
+      );
+      check(
+        bool,
+        "completed program is re-evaluated",
+        false,
+        directly_reused(root, reuse_plan(~prev=incr1, exp2)),
+      );
+    },
+  );
+
 let tests = (
   "Evaluator.Incremental",
   [
     lexeme_edit_test,
+    completion_edit_test,
     test_case(
       "Top-level cast call: incremental reuse preserves result",
       `Quick,
