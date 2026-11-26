@@ -224,13 +224,16 @@ let weave =
   /* Fast-path half of the `¿` convention (MarkerParse is the
      recovering-parser half): markers become Grout directly in the weave. */
   let implicit_hole = Token.implicit_hole_marker;
+  let concave_hole = Token.concave_hole_marker;
   let expect_hole = (): (string, string) => {
     if (idx^ >= Array.length(toks)) {
       note("segment expects a hole but source tokens are exhausted");
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (String.equal(t.text, "?") || String.equal(t.text, implicit_hole)) {
+    if (String.equal(t.text, "?")
+        || String.equal(t.text, implicit_hole)
+        || String.equal(t.text, concave_hole)) {
       incr(idx);
       (t.gap, t.text);
     } else {

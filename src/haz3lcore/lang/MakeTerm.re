@@ -415,6 +415,7 @@ let is_hole_label = (t: string) =>
   String.equal(t, " ")
   || Token.is_explicit_hole(t)
   || Token.is_implicit_hole_marker(t)
+  || Token.is_concave_hole_marker(t)
   || Token.is_llm_hole(t);
 
 /* A construct whose root tiles are all exp-only forms (if/then/else,
