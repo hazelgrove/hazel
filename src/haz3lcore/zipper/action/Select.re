@@ -229,7 +229,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         );
       | CaretBase.Inner(an) =>
         let locator =
-          Move.shard_locator(Selection.anchor_piece(z.selection));
+          Move.inner_locator_of_piece(Selection.anchor_piece(z.selection));
         let z = Zipper.directional_unselect(Left, z);
         Some(
           Move.canonicalize_inner_unselect(
@@ -289,7 +289,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           };
         if (crossover_at_edge) {
           let locator =
-            Move.shard_locator(Selection.anchor_piece(z.selection));
+            Move.inner_locator_of_piece(Selection.anchor_piece(z.selection));
           let z = Zipper.directional_unselect(Left, z);
           Some(
             Move.canonicalize_inner_unselect(
@@ -951,4 +951,9 @@ let to_end: t => t = Zipper.do_to_extreme(local(Right));
 let all = (z: t): t => z |> Move.to_start |> to_end;
 
 let to_linebreak = (d: Direction.t, z: t): option(t) =>
-  Zipper.do_until_linebreak(local(d), d, z);
+  Zipper.do_until_text_linebreak(
+    (d, z) =>
+      Zipper.multiline_step(d, z) ? local_by_char(d, z) : local(d, z),
+    d,
+    z,
+  );

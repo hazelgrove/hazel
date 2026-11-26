@@ -21,6 +21,8 @@ let (suite, exit_with_test_status) =
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
+      Test_MultilineComments.tests,
+      Test_StringEnterProjector.tests,
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,
       Test_ListUtil.tests,

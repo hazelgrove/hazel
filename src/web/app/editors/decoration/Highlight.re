@@ -100,6 +100,42 @@ let rows_of_segment =
           Some(shard_svg(~start_shape, find_g(g), p)) |> tag(false),
         ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
+      | Secondary(w)
+          when String.contains(Secondary.get_string(w.content), '\n') =>
+        let token = Secondary.get_string(w.content);
+        let m = find_w(w);
+        let lines = String.split(token, ~on='\n');
+        let (_, shards) =
+          List.fold_map(
+            lines,
+            ~init=0,
+            ~f=(count, line) => {
+              let origin = Measured.point_in_token(m, token, count);
+              let last =
+                Point.add(
+                  origin,
+                  Point.mk(~row=0, ~col=Token.columns(line)),
+                );
+              (
+                count + Token.length(line) + 1,
+                [
+                  Some((
+                    Measured.{
+                      origin,
+                      last,
+                    },
+                    (None, None),
+                  ))
+                  |> tag(false),
+                ],
+              );
+            },
+          );
+        ListUtil.interleave(
+          shards,
+          List.init(List.length(lines) - 1, ~f=_ => [None]),
+        )
+        |> List.concat;
       | Secondary(w) => [
           Some((
             find_w(w),
@@ -524,59 +560,39 @@ let clip_char_selection =
       | Left => (focus_inner, anchor_inner)
       };
 
-    /* Clip left boundary of first row */
-    let rows =
-      switch (left_inner) {
-      | None => rows
-      | Some(n) =>
-        let left_piece = List.hd_exn(content);
-        let shard = List.hd_exn(Piece.disassemble(left_piece));
-        switch (Piece.token_of(shard)) {
-        | Some(tok) =>
-          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
-          switch (rows) {
-          | [] => []
-          | [first, ...rest] => [
-              {
-                ...first,
-                left_col: first.left_col + offset,
-                left_tip: None,
-              },
-              ...rest,
-            ]
-          };
-        | None => rows
-        };
+    let boundary = (inner, piece, d) => {
+      let shards = Piece.disassemble(piece);
+      let shard =
+        Direction.equal(d, Left)
+          ? List.hd_exn(shards) : ListUtil.last(shards);
+      let m = Measured.find_p(shard, measured);
+      switch (inner, Piece.token_of(shard)) {
+      | (Some(n), Some(tok)) => Measured.point_in_token(m, tok, n + 1)
+      | _ => Direction.equal(d, Left) ? m.origin : m.last
       };
-
-    /* Clip right boundary of last row */
+    };
+    let left = boundary(left_inner, List.hd_exn(content), Left);
+    let right = boundary(right_inner, ListUtil.last(content), Right);
     let rows =
-      switch (right_inner) {
-      | None => rows
-      | Some(n) =>
-        let right_piece = ListUtil.last(content);
-        let last_shard = ListUtil.last(Piece.disassemble(right_piece));
-        switch (Piece.token_of(last_shard)) {
-        | Some(tok) =>
-          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
-          let m =
-            Measured.find_p(~msg="clip_char_sel_right", last_shard, measured);
-          let new_right_col = m.origin.col + offset;
-          switch (ListUtil.split_last_opt(rows)) {
-          | None => []
-          | Some((init, last_row)) =>
-            init
-            @ [
-              {
-                ...last_row,
-                right_col: new_right_col,
-                right_tip: None,
-              },
-            ]
-          };
-        | None => rows
-        };
-      };
+      rows
+      |> List.filter(~f=r => r.row_num >= left.row && r.row_num <= right.row)
+      |> List.map(~f=r =>
+           {
+             ...r,
+             left_col:
+               r.row_num == left.row && Option.is_some(left_inner)
+                 ? left.col : r.left_col,
+             right_col:
+               r.row_num == right.row && Option.is_some(right_inner)
+                 ? right.col : r.right_col,
+             left_tip:
+               r.row_num == left.row && Option.is_some(left_inner)
+                 ? None : r.left_tip,
+             right_tip:
+               r.row_num == right.row && Option.is_some(right_inner)
+                 ? None : r.right_tip,
+           }
+         );
 
     rows;
   };
