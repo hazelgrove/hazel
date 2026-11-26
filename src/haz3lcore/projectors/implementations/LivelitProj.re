@@ -1635,10 +1635,30 @@ module M: Projector = {
       : view_answer =>
     switch (Hashtbl.find_opt(view_memo, id)) {
     | Some((d, m, a))
-        when
-          (d === def_elab || Exp.fast_equal(d, def_elab))
-          && (m === view_model || Exp.fast_equal(m, view_model)) => a
-    | _ =>
+        /* (^ticket(887)) each look in the memo counted by what it found,
+           for the check: why a drag with compiling off draws the
+           picture in 1.4 ms on some machines and 11 on others */
+        when {
+          let d_same = d === def_elab;
+          let d_eq = d_same || Exp.fast_equal(d, def_elab);
+          let m_same = m === view_model;
+          let m_eq = d_eq && (m_same || Exp.fast_equal(m, view_model));
+          HazelJitValue.count(
+            "view memo: the definition "
+            ++ (d_same ? "the same" : d_eq ? "equal" : "changed")
+            ++ (
+              d_eq
+                ? ", the model "
+                  ++ (m_same ? "the same" : m_eq ? "equal" : "changed")
+                : ""
+            ),
+          );
+          d_eq && m_eq;
+        } => a
+    | found =>
+      if (Option.is_none(found)) {
+        HazelJitValue.count("view memo: none kept");
+      };
       let a = compute();
       if (Option.is_some(a.js)
           || (
