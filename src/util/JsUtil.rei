@@ -82,3 +82,14 @@ let navigate_probes:
     ]
   ) =>
   option(Id.t);
+
+/* attached to the document: a stale node's reads are meaningless */
+let connected: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => bool;
+
+/* scrolls #main the least that shows the last element matching a selector */
+let reveal_last: string => unit;
+
+/* a text selection within the focused element (a drawer's text, say) */
+let selection_in_focus: unit => bool;
+
+let clear_page_selection: unit => unit;

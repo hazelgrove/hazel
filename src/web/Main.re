@@ -4,6 +4,8 @@ open Web;
 open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
+/* a drawer's newest step to show once it has its rows (Updated.NewStep) */
+let reveal_step = ref(false);
 
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
    user last left it; revisiting a slide restores that scroll position, while
@@ -131,6 +133,7 @@ let apply =
   switch (updated.scroll) {
   | Updated.Always => scroll_to_caret := true
   | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | NewStep => reveal_step := true
   | IfCaretVisible
   | Never => ()
   };
@@ -334,6 +337,30 @@ let start = default_model => {
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
+        );
+        DrawerRows.update(
+          ~row_height=font_metrics.row_height,
+          ~known=model.model.current.current.globals.drawer_rows,
+          ~report=
+            rows =>
+              app_inject(Page.Update.Globals(SetDrawerRows(rows)))
+              |> Bonsai.Effect.Expert.handle,
+          /* a step taken: once the drawer has its rows, show the new step */
+          ~reveal=
+            reveal_step^
+              ? Some(
+                  () => {
+                    reveal_step := false;
+                    JsUtil.reveal_last(".probe-stepper .step-border");
+                  },
+                )
+              : None,
+        );
+        DrawerRows.watch_width(~report=cols =>
+          if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
+            app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
+            |> Bonsai.Effect.Expert.handle;
+          }
         );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();

@@ -4,18 +4,22 @@ open Util;
    scrolls only if the caret was in view before the action: for re-measures
    that move the caret without the user moving it, which should keep a
    visible caret visible but not pull the view back to a caret the user has
-   scrolled away from. */
+   scrolled away from. NewStep scrolls a drawer's newest step into view
+   instead, once the drawer has its rows. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scroll =
   | Never
   | Always
-  | IfCaretVisible;
+  | IfCaretVisible
+  | NewStep;
 
 /* The stronger of two requests, for merging several actions' results */
 let merge_scroll = (a: scroll, b: scroll): scroll =>
   switch (a, b) {
   | (Always, _)
   | (_, Always) => Always
+  | (NewStep, _)
+  | (_, NewStep) => NewStep
   | (IfCaretVisible, _)
   | (_, IfCaretVisible) => IfCaretVisible
   | (Never, Never) => Never

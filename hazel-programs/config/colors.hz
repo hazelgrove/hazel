@@ -174,7 +174,9 @@ let sort_plate(c) =
     inspector = (
       `badge` = role.`inspector-badge`,
       `text` = role.`inspector-text`,
-      `separator` = role.`frame-border`
+      `separator` = role.`frame-border`,
+      # behind the program's dynamics glyph, across from the badge #
+      `dynamics` = p.`attention-2`
     ),
     # probes: live values pinned to the program #
     probe = (

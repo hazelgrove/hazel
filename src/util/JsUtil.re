@@ -156,6 +156,33 @@ let install_text_selection_guards = (): unit =>
     [||],
   );
 
+/* a selection within the focused element: a drawer's text, say, whose
+   copy is the browser's, not the element's own */
+let selection_in_focus = (): bool =>
+  Js.to_bool(
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        {|(function(){
+          var s = window.getSelection(), a = document.activeElement;
+          return !!s && !s.isCollapsed && !!a
+            && a.contains(s.anchorNode) && a.contains(s.focusNode);
+        })|},
+      ),
+      [||],
+    ),
+  );
+
+let clear_page_selection = (): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(){
+          var s = window.getSelection();
+          if (s) s.removeAllRanges();
+        })|},
+    ),
+    [||],
+  );
+
 /* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
    itself must hold DOM focus. preventScroll: don't fight an in-progress
    jump/scroll. */
@@ -478,6 +505,28 @@ let set_main_scroll_top = (top: float) =>
   try({
     let main = get_elem_by_id("main");
     main##.scrollTop := int_of_float(top);
+  }) {
+  | Assert_failure(_) => ()
+  };
+
+/* scroll #main the least that shows the last element matching sel, its
+   top first if it's taller than the view; vertical only */
+let reveal_last = (sel: string): unit =>
+  try({
+    let main = get_elem_by_id("main");
+    let nodes = Dom_html.document##querySelectorAll(Js.string(sel));
+    switch (Js.Opt.to_option(nodes##item(nodes##.length - 1))) {
+    | None => ()
+    | Some(el) =>
+      let r = el##getBoundingClientRect;
+      let m = main##getBoundingClientRect;
+      let below = r##.bottom -. m##.bottom;
+      let above = r##.top -. m##.top;
+      let by = Float.(below > 0. ? min(below, above) : min(above, 0.));
+      if (Float.(by != 0.)) {
+        main##.scrollTop :=  main##.scrollTop + Float.iround_up_exn(by);
+      };
+    };
   }) {
   | Assert_failure(_) => ()
   };
@@ -848,3 +897,9 @@ let navigate_probes =
   | None => None
   };
 };
+
+/* attached to the document: a stale node's reads are meaningless */
+let connected = (el: Js.t(Dom_html.element)): bool =>
+  try(Js.to_bool(Js.Unsafe.get(el, "isConnected"))) {
+  | _ => false
+  };

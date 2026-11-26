@@ -95,10 +95,68 @@ module Update = {
     };
   };
 
+  /* the stepping drawer and the proof drawers take the rows their
+     steppers need, or have measured; true when that changed, which the
+     layout must pick up */
+  let fit_drawers =
+      (
+        ~settings,
+        ~measured: Id.Map.t(int),
+        result: EvalResult.Model.t,
+        editor: CodeEditable.Model.t,
+      )
+      : (CodeEditable.Model.t, bool) => {
+    let z = editor.editor.state.zipper;
+    let proofs =
+      Id.Map.is_empty(z.refractors.proofs)
+        ? Id.Map.empty : Theorems.rows(~settings, result.theorems);
+    let counted =
+      switch (z.refractors.stepping) {
+      | Some(span) =>
+        let rows =
+          switch (result.probe_steps) {
+          | Some(ps) when Language.Sample.equal_span_ref(ps.span, span) =>
+            ProbeSteps.rows(~settings, ps)
+          | _ => 1
+          };
+        Id.Map.add(span.probe_id, rows, proofs);
+      | None => proofs
+      };
+    let drawer_rows = Haz3lcore.DrawerFit.fit(~counted, ~measured);
+    if (Id.Map.equal(Int.equal, drawer_rows, z.refractors.drawer_rows)) {
+      (editor, false);
+    } else {
+      Haz3lcore.ProbeProj.Settings.redraw();
+      (
+        {
+          ...editor,
+          editor: {
+            ...editor.editor,
+            state: {
+              ...editor.editor.state,
+              zipper:
+                Zipper.update_refractors(z, r =>
+                  {
+                    ...r,
+                    drawer_rows,
+                  }
+                ),
+            },
+          },
+        },
+        true,
+      );
+    };
+  };
+
   let calculate =
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
+        /* drawers' rows as rendered (Globals.drawer_rows) */
+        ~measured_drawers=Id.Map.empty,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~queue_worker,
@@ -112,11 +170,17 @@ module Update = {
       CodeEditable.Update.calculate(
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe,
+        ~proofs,
         ~is_edited,
         ~statics_mode,
         ~stitch,
         ~ana?,
-        ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics=
+          EvalResult.Model.dynamics(
+            ~tail=editor.editor.state.zipper.refractors.tail_target,
+            result,
+          ),
         ~is_dynamic_term=false,
         editor,
       );
@@ -131,9 +195,12 @@ module Update = {
         },
         ~queue_worker,
         ~is_edited,
+        ~stepping=editor.editor.state.zipper.refractors.stepping,
         editor |> CodeEditable.Model.get_statics,
         result,
       );
+    let (editor, drawers_resized) =
+      fit_drawers(~settings, ~measured=measured_drawers, result, editor);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
     let probes_after = EvalResult.Model.probe_results(result);
@@ -154,17 +221,26 @@ module Update = {
         editor.editor.state.zipper.refractors.pending_probe_cursor,
       );
     let needs_second_pass =
-      has_pending_focus || has_pending_cursor || dynamics_changed;
+      has_pending_focus
+      || has_pending_cursor
+      || dynamics_changed
+      || drawers_resized;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
         CodeEditable.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~ana?,
-          ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics=
+            EvalResult.Model.dynamics(
+              ~tail=editor.editor.state.zipper.refractors.tail_target,
+              result,
+            ),
           ~is_dynamic_term=false,
           editor,
         );
@@ -263,17 +339,97 @@ module View = {
         ~locked,
         model.result,
       );
+    let (steps_result, steps_inject) = (
+      model.result,
+      a => inject(ResultAction(a)),
+    );
+    let tail = model.editor.editor.state.zipper.refractors.tail_target;
+    let stop = EvalResult.Model.stopped(~tail, steps_result);
+    let drawers: Haz3lcore.ProjectorBase.View.drawers = {
+      /* a stepping drawer renders its result's stepper */
+      steps: id =>
+        switch (steps_result.probe_steps) {
+        | Some(ps) when Id.equal(ps.span.probe_id, id) =>
+          ProbeSteps.view(
+            ~globals,
+            ~inject=a => steps_inject(ProbeStepperAction(a)),
+            ~focus=f => steps_inject(ProbeStepperFocus(f)),
+            ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
+            ~stepped=
+              switch (
+                Haz3lcore.TermData.segment(
+                  ps.span.probe_id,
+                  model.editor.editor.syntax.term_data,
+                )
+              ) {
+              | Some(seg) =>
+                ProbeSteps.one_line(
+                  Haz3lcore.Printer.of_segment(
+                    ~holes="?",
+                    ~indent="",
+                    ~is_single_line=true,
+                    seg,
+                  ),
+                )
+              | None => ""
+              },
+            ps,
+          )
+        | _ => None
+        },
+      /* the ⇓ drawer, when the program stopped before its last line */
+      stopped: id =>
+        Option.equal(Id.equal, tail, Some(id))
+          ? Option.map(~f=EvalResult.View.stopped_view(~globals), stop)
+          : None,
+      proof: id =>
+        Theorems.View.view_one(
+          ~globals,
+          ~inject=a => steps_inject(TheoremsAction(a)),
+          steps_result.theorems,
+          id,
+        ),
+    };
     div(
-      ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
+      ~attrs=[
+        Attr.classes(
+          ["cell", locked ? "locked" : "unlocked"]
+          /* dims what the ⇓ drawer kept from the last run */
+          @ (
+            EvalResult.Model.eval_is_pending(model.result) ? ["running"] : []
+          ),
+        ),
+      ],
       Option.to_list(caption)
       @ [
         CodeEditable.View.view(
           ~globals,
+          ~drawers,
           ~signal=
             locked
               ? _ => Ui_effect.Ignore
               : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
+                | MakeActive =>
+                  Ui_effect.Many(
+                    [signal(MakeActive(MainEditor))]
+                    /* the program takes focus back from a drawer's step */
+                    @ (
+                      switch (steps_result.probe_steps) {
+                      | Some({focus: Some(_), _}) => [
+                          steps_inject(ProbeStepperFocus(None)),
+                        ]
+                      | _ => []
+                      }
+                    )
+                    @ (
+                      switch (steps_result.theorems.focus) {
+                      | Some(_) => [
+                          steps_inject(TheoremsAction(TheoremFocus(None))),
+                        ]
+                      | None => []
+                      }
+                    ),
+                  ),
           ~edit_mode=
             locked
               ? EditMode.ReadOnly
@@ -286,7 +442,11 @@ module View = {
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~cull,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~dynamics=
+            EvalResult.Model.dynamics(
+              ~tail=model.editor.editor.state.zipper.refractors.tail_target,
+              model.result,
+            ),
           ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),

@@ -17,6 +17,14 @@ module Model = {
     | Stepper(StepperView.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type settled = {
+    failed: option(ProgramResult.error),
+    /* the program's value, when it ran */
+    value: option(Exp.t),
+    probes: Sample.Map.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
@@ -30,8 +38,13 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
+    /* the last finished run, which the status line and the ⇓ drawer
+       keep while the next one runs */
+    settled: option(settled),
     display,
     theorems: Theorems.Model.t,
+    /* a probe drawer's stepper over one of its samples */
+    probe_steps: option(ProbeSteps.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -51,9 +64,35 @@ module Model = {
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
+    settled: None,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
+    probe_steps: None,
   };
+
+  /* a finished run replaces the last one; a pending one keeps it */
+  let settle =
+      (
+        settled: option(settled),
+        r: ProgramResult.t(Exp.t),
+        probes: Sample.Map.t,
+      )
+      : option(settled) =>
+    switch (r) {
+    | ResultOk(value) =>
+      Some({
+        failed: None,
+        value: Some(value),
+        probes,
+      })
+    | ResultFail(err) =>
+      Some({
+        failed: Some(err),
+        value: None,
+        probes,
+      })
+    | ResultPending(_) => settled
+    };
 
   let persist = (model: t): persistent => {
     stepper:
@@ -78,8 +117,10 @@ module Model = {
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
+        settled: None,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
+        probe_steps: None,
       }
     | None => {
         ...init,
@@ -98,14 +139,69 @@ module Model = {
     |> Calc.get_saved(None)
     |> Option.map(~f=(d: Dynamics.t) => d.test_results);
 
-  let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
+  let has_samples = (id: Id.t, probes: Sample.Map.t): bool =>
+    switch (Dynamics.Map.lookup(id, Dynamics.Map.mk(probes))) {
+    | Some([_, ..._]) => true
+    | _ => false
     };
+
+  /* memoised so views cached on the map's identity stay cached */
+  let kept_tail_memo:
+    ref(option((Id.t, Sample.Map.t, Sample.Map.t, Sample.Map.t))) =
+    ref(None);
+
+  /* the ⇓ probe ([tail]) gets its value last: until this run has it,
+     it keeps the last finished run's */
+  let dynamics = (~tail: option(Id.t)=None, model: t): Dynamics.Map.t => {
+    let probes =
+      probe_results(model) |> Option.value(~default=Sample.Map.empty);
+    switch (tail, model.settled) {
+    | (Some(id), Some({probes: last, _}))
+        when !has_samples(id, probes) && has_samples(id, last) =>
+      switch (kept_tail_memo^) {
+      | Some((id', probes', last', kept))
+          when
+            Id.equal(id, id')
+            && phys_equal(probes, probes')
+            && phys_equal(last, last') => kept
+      | _ =>
+        let kept = Id.Map.add(id, Id.Map.find(id, last), probes);
+        kept_tail_memo := Some((id, probes, last, kept));
+        kept;
+      }
+    | _ => Dynamics.Map.mk(probes)
+    };
+  };
 
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
+
+  /* a finished run that never reached the program's last line: the ⇓
+     probe ([tail]) got no value, so its drawer shows how far the program
+     got instead (a stuck expression, or the error) */
+  type stop =
+    | Stuck(Exp.t)
+    | Failed(ProgramResult.error);
+
+  /* as of the last finished run, until this one gets a value there */
+  let stopped = (~tail: option(Id.t), model: t): option(stop) =>
+    switch (tail, model.settled) {
+    | (Some(id), Some(s))
+        when
+          !has_samples(id, s.probes)
+          && !
+               has_samples(
+                 id,
+                 probe_results(model)
+                 |> Option.value(~default=Sample.Map.empty),
+               ) =>
+      switch (s.failed, s.value) {
+      | (Some(err), _) => Some(Failed(err))
+      | (None, Some(exp)) => Some(Stuck(exp))
+      | (None, None) => None
+      }
+    | _ => None
+    };
 
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
@@ -140,6 +236,8 @@ module Update = {
   type t =
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
+    | ProbeStepperAction(StepperView.Update.t)
+    | ProbeStepperFocus(option(StepperView.Focus.t))
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
@@ -156,6 +254,8 @@ module Update = {
     | MergeStreamingEval(_) => true
     | ToggleStepper
     | StepperAction(_)
+    | ProbeStepperAction(_)
+    | ProbeStepperFocus(_)
     | EvalEditorAction(_)
     | TheoremsAction(_) => false
     };
@@ -182,6 +282,25 @@ module Update = {
         display: Stepper(stepper),
       };
     | (StepperAction(_), _) => model |> Updated.raise_invalid_action
+    | (ProbeStepperAction(a), {probe_steps: Some(ps), _}) =>
+      let* ps = ProbeSteps.update(~settings, a, ps);
+      {
+        ...model,
+        probe_steps: Some(ps),
+      };
+    | (ProbeStepperAction(_), _) => model |> Updated.raise_invalid_action
+    | (ProbeStepperFocus(focus), {probe_steps: Some(ps), _}) =>
+      Haz3lcore.ProbeProj.Settings.redraw();
+      {
+        ...model,
+        probe_steps:
+          Some({
+            ...ps,
+            focus,
+          }),
+      }
+      |> Updated.return_quiet;
+    | (ProbeStepperFocus(_), _) => model |> Updated.return_quiet
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -246,6 +365,8 @@ module Update = {
         ~settings: CoreSettings.t,
         ~queue_worker: option(WorkerServer.Request.value => unit),
         ~is_edited: bool,
+        /* the sample a probe drawer steps, if any */
+        ~stepping: option(Sample.span_ref)=None,
         statics: Haz3lcore.CachedStatics.t,
         {
           cached_settings,
@@ -258,8 +379,10 @@ module Update = {
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
+          settled,
           display,
           theorems,
+          probe_steps,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -475,13 +598,7 @@ module Update = {
         Model.Stepper(
           StepperView.Update.calculate(
             ~settings,
-            ~ctx=
-              OldValue(
-                SemanticCtx.of_ctx_and_env(
-                  Builtins.ctx_init(None),
-                  Builtins.closure_env,
-                ),
-              ),
+            ~ctx=OldValue(ProbeSteps.ctx),
             elab,
             stepper,
           ),
@@ -501,22 +618,58 @@ module Update = {
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
         : theorems;
 
-    (
-      {
-        cached_settings: settings |> Calc.save,
-        elab: elab |> Calc.save,
-        cached_targets: targets |> Calc.save,
-        result: result |> Calc.make_old,
-        dynamics: dynamics |> Calc.save,
-        incr_eval: incr_eval |> Calc.save,
-        predicted_reuse,
-        streaming_outbox: streaming_outbox |> Calc.save,
-        streaming_state: streaming_state |> Calc.save,
-        pending_eval_ids,
-        display,
-        theorems,
-      }: Model.t
-    );
+    /* only a new result of the program settles (not of the stand-in
+       elaboration a load can briefly run); a change redraws the probe
+       views, whose cache can't see the ⇓ drawer's stop */
+    let settled' =
+      switch (result) {
+      | NewValue(r)
+          when !Haz3lcore.CachedStatics.is_placeholder(Calc.get_value(elab)) =>
+        Model.settle(
+          settled,
+          switch (r) {
+          | ResultOk({result, _}) => ResultOk(result)
+          | ResultFail(err) => ResultFail(err)
+          | ResultPending(phase) => ResultPending(phase)
+          },
+          Calc.get_value(dynamics)
+          |> Option.value_map(~default=Sample.Map.empty, ~f=(d: Dynamics.t) =>
+               d.probe_map
+             ),
+        )
+      | NewValue(_)
+      | OldValue(_) => settled
+      };
+    if (!phys_equal(settled', settled)) {
+      Haz3lcore.ProbeProj.Settings.redraw();
+    };
+    let model: Model.t = {
+      cached_settings: settings |> Calc.save,
+      elab: elab |> Calc.save,
+      cached_targets: targets |> Calc.save,
+      result: result |> Calc.make_old,
+      dynamics: dynamics |> Calc.save,
+      incr_eval: incr_eval |> Calc.save,
+      predicted_reuse,
+      streaming_outbox: streaming_outbox |> Calc.save,
+      streaming_state: streaming_state |> Calc.save,
+      pending_eval_ids,
+      settled: settled',
+      display,
+      theorems,
+      probe_steps,
+    };
+    {
+      ...model,
+      probe_steps:
+        ProbeSteps.calculate(
+          ~settings,
+          ~info_map=Calc.get_value(statics).info_map,
+          ~dynamics=Model.dynamics(model),
+          ~stepping,
+          probe_steps,
+        ),
+    };
   };
 };
 
@@ -660,6 +813,128 @@ module View = {
     );
   };
 
+  /* the ⇓ drawer when the program stopped before its last line: how far
+     it got, marked as such */
+  let stopped_view = (~globals: Globals.t, stop: Model.stop): Node.t =>
+    div(
+      ~attrs=[Attr.classes(["value-stopped", "program-value"])],
+      [
+        span(
+          ~attrs=[
+            Attr.classes(["value-stopped-label"]),
+            Attr.title(
+              "The program stopped before its last line: this is how far it got",
+            ),
+          ],
+          [text("Stopped")],
+        ),
+        switch (stop) {
+        | Stuck(exp) =>
+          div(
+            ~attrs=[Attr.classes(["value-stopped-code"])],
+            [
+              CodeViewable.view_any(
+                ~globals,
+                ~settings=
+                  Haz3lcore.ExpToSegment.Settings.of_core(
+                    ~inline=false,
+                    ~fold_fn_bodies=`Text,
+                    globals.settings.core,
+                  ),
+                Exp(exp),
+              ),
+            ],
+          )
+        | Failed(err) =>
+          div(
+            ~attrs=[Attr.classes(["value-stopped-error"])],
+            [text(error_msg(err))],
+          )
+        },
+      ],
+    );
+
+  /* the program's dynamics, at the cursor inspector's right end: the ⇓
+     toggle (the value in a drawer below the last line), whether it ran,
+     the error if not and, after a finished run, the proofs. A run under
+     way keeps the last finished one, dimmed */
+  let dynamics =
+      /* the ⇓ toggle: the last expression's value in a drawer below it */
+      (
+        ~tail=false,
+        ~toggle_tail=Effect.Ignore,
+        /* the run ended before the program's last line */
+        ~stopped=false,
+        model: Model.t,
+      )
+      : Node.t => {
+    let result = Calc.get_value(model.result);
+    let (mark, msg, outcome) =
+      switch (model.settled) {
+      | None => ("", {js|Running…|js}, "pending")
+      | Some({failed: None, _}) when stopped => (
+          "!",
+          "Stopped early",
+          "stuck",
+        )
+      | Some({failed: None, _}) => ({js|✓|js}, "Ran", "ok")
+      | Some({failed: Some(err), _}) => (
+          {js|✗|js},
+          error_msg(err),
+          "fail",
+        )
+      };
+    let running =
+      switch (result) {
+      | ResultPending(_) => ["running"]
+      | _ => []
+      };
+    let proofs =
+      switch (outcome, Theorems.Model.proof_count(model.theorems)) {
+      | ("fail", _)
+      | (_, (_, 0)) => []
+      | (_, (proven, all)) => [
+          div(
+            ~attrs=[
+              Attr.classes(["dyn-chip"]),
+              Attr.title("Theorems proven, of all the program's theorems"),
+            ],
+            [text(sprintf("Proofs %d of %d", proven, all))],
+          ),
+        ]
+      };
+    div(
+      ~attrs=[Attr.id("dynamics"), Attr.classes([outcome] @ running)],
+      [
+        div(
+          ~attrs=[
+            Attr.classes(["dyn-glyph"] @ (tail ? ["on"] : [])),
+            Attr.title(
+              tail
+                ? "Hide the program's value"
+                : "Show the program's value below its last line",
+            ),
+            Attr.on_mousedown(_ => Effect.Prevent_default),
+            Attr.on_click(_ => toggle_tail),
+          ],
+          [text({js|⇓|js})],
+        ),
+        div(
+          ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],
+          [
+            div(~attrs=[Attr.classes(["spinner"])], []),
+            div(~attrs=[Attr.classes(["eq"])], [text(mark)]),
+          ],
+        ),
+        div(
+          ~attrs=[Attr.classes(["dyn-msg"]), Attr.title(msg)],
+          [text(msg)],
+        ),
+      ]
+      @ proofs,
+    );
+  };
+
   let footer =
       (
         ~globals: Globals.t,
@@ -667,10 +942,13 @@ module View = {
         ~inject,
         ~selected: option(Selection.t),
         ~locked,
+        ~status=false,
         model: Model.t,
       ) =>
     switch (model.display) {
     | _ when !globals.settings.core.dynamics => []
+    /* the status is the inspector's (dynamics); steps are a probe's */
+    | _ when status => []
     | Evaluation(editor) => [
         live_eval(
           ~globals,
@@ -742,6 +1020,9 @@ module View = {
            | `TestSigilsOnly
            | `TestResults
            | `EvalResults
+           /* the decks' results: the status in the inspector, no value
+              row; the stepper and proofs below */
+           | `StatusLine
            | `NoTheorems
            | `JustTheorems
            | `Custom(Node.t)
@@ -752,11 +1033,21 @@ module View = {
     switch (result_kind) {
     // Normal case:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems
     | `JustTheorems when globals.settings.core.dynamics =>
       let result =
         result_kind == `JustTheorems
-          ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
+          ? []
+          : footer(
+              ~globals,
+              ~signal,
+              ~inject,
+              ~selected,
+              ~locked,
+              ~status=result_kind == `StatusLine,
+              model,
+            );
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
@@ -768,8 +1059,9 @@ module View = {
           ]
         | None => []
         };
+      /* the decks' proofs live in drawers under their theorems */
       let theorems =
-        result_kind == `NoTheorems
+        result_kind == `NoTheorems || result_kind == `StatusLine
           ? []
           : Theorems.View.view(
               ~globals,
@@ -789,6 +1081,7 @@ module View = {
 
     // Just showing elaboration because evaluation is off:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems when globals.settings.core.elaborate =>
       let result = [
         text("Evaluation disabled, showing elaboration:"),
@@ -825,6 +1118,7 @@ module View = {
 
     // Not showing any results:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems
     | `JustTheorems
     | `TestSigilsOnly

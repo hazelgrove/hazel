@@ -132,7 +132,10 @@ type probe =
   | ToggleStatics
   | StepInto(Language.CallStack.t, Language.CallStack.frame)
   | Pin(Language.CallStack.t, Id.t)
-  | RemoveAll;
+  | RemoveAll
+  /* the drawer steps this sample in place of the samples */
+  | ShowSteps(Language.Sample.span_ref)
+  | HideSteps;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type destruct =
@@ -245,6 +248,7 @@ let is_edit: t => bool =
     | Escape(_)
     | EscapeToLineEnd(_) => false
     }
+  | Probe(ShowSteps(_) | HideSteps) => false
   | Probe(_) => true;
 
 /* Determines whether undo/redo skips action */
@@ -278,6 +282,7 @@ let is_historic: t => bool =
     | Escape(_)
     | EscapeToLineEnd(_) => false
     }
+  | Probe(ShowSteps(_) | HideSteps) => false
   | Probe(_) => true;
 
 let should_animate: t => bool =

@@ -19,6 +19,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Color => (module Cook(ColorProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
+  | Proof => (module Cook(ProofProj.M))
   };
 
 let init =

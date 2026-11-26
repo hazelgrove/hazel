@@ -102,6 +102,13 @@ type info = {
    * Available when statics/elaboration is enabled. The elaborated
    * form has labels inserted/rearranged by the elaborator. */
   elaborated: option(Language.Exp.t),
+  /* Set when this probe's drawer steps one of its samples */
+  stepping: option(Sample.span_ref),
+  /* Set on the ⇓ toggle's probe: its drawer shows the program's value,
+     after the program */
+  program_value: bool,
+  /* the rows each drawer the web layer fills reserves (DrawerFit) */
+  drawer_rows: Id.Map.t(int),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,
@@ -152,6 +159,23 @@ module View = {
     ) =>
     Node.t;
 
+  /* What the web layer renders into drawers, by anchor id: a probe's
+   * stepper, how far a stopped program got (for the ⇓ probe), a
+   * theorem's proof. Provided here, like [seg], to address a dependency
+   * cycle */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type drawers = {
+    steps: Id.t => option(Node.t),
+    stopped: Id.t => option(Node.t),
+    proof: Id.t => option(Node.t),
+  };
+
+  let no_drawers = {
+    steps: _ => None,
+    stopped: _ => None,
+    proof: _ => None,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {
     model: 'model,
@@ -163,6 +187,7 @@ module View = {
     /* Creates a non-interactive embedded syntax view,
      * provided here to address a dependency cycle */
     view_seg: seg,
+    drawers,
     /* Parent editor context on the projector */
     status,
     /* Core settings for feature flags */
@@ -280,6 +305,7 @@ module Cook = (C: Projector) : Cooked => {
       local: a => args.local(serialize_a(a)),
       parent: args.parent,
       view_seg: args.view_seg,
+      drawers: args.drawers,
       status: args.status,
       core_settings: args.core_settings,
     });

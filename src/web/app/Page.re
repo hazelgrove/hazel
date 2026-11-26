@@ -249,6 +249,18 @@ module Update = {
         },
       }
       |> return_quiet
+    | UpdateDrawerWidth(cols) =>
+      Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
+      model |> Updated.return_quiet(~recalculate=true);
+    | SetDrawerRows(drawer_rows) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          drawer_rows,
+        },
+      }
+      |> Updated.return_quiet(~recalculate=true)
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -490,6 +502,8 @@ module Update = {
                 dynamics: false,
               },
           ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~tail_probe=model.globals.settings.tail_probe,
+          ~measured_drawers=model.globals.drawer_rows,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -913,7 +927,36 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    /* the slide program's dynamics, at the inspector's right end */
+    let dynamics =
+      switch (editors) {
+      | Scratch(m)
+      | Documentation(m) when globals.settings.core.dynamics =>
+        switch (List.nth(m.scratchpads, m.current)) {
+        | Some({kind: Code({editor, _}), dormant: false, _}) =>
+          let tail = globals.settings.tail_probe;
+          Some(
+            EvalResult.View.dynamics(
+              ~tail,
+              ~stopped=
+                tail
+                && Option.is_some(
+                     EvalResult.Model.stopped(
+                       ~tail=
+                         editor.editor.editor.state.zipper.refractors.
+                           tail_target,
+                       editor.result,
+                     ),
+                   ),
+              ~toggle_tail=inject(Globals(Set(TailProbe))),
+              editor.result,
+            ),
+          );
+        | _ => None
+        }
+      | _ => None
+      };
+    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>

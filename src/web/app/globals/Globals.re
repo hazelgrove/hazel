@@ -69,6 +69,10 @@ module Action = {
     | SetMetaDown(bool)
     | SetSettingsFilter(string)
     | UpdateVisibleRows(VisibleRows.t)
+    /* the editor's visible width in columns, which drawers print at */
+    | UpdateDrawerWidth(int)
+    /* the rows drawers take as rendered: lay the editors out again */
+    | SetDrawerRows(Id.Map.t(int))
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -83,6 +87,9 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    /* the rows each drawer the web layer fills takes as rendered, by
+       drawer id (DrawerRows) */
+    drawer_rows: Id.Map.t(int),
     /* the settings panel's filter text; not saved */
     settings_filter: string,
     // Calculated:
@@ -110,6 +117,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    drawer_rows: Id.Map.empty,
     settings_filter: "",
     color_highlights: None,
     inject_global: _ =>

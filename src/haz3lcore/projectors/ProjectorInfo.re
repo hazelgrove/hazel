@@ -61,8 +61,27 @@ let utility: ProjectorBase.utility = {
   };
 };
 
+/* the ⇓ toggle's probe: the probe on [tail] (Refractors.tail_target)
+   while it keeps the bare model, as it does when a pin or step-into makes
+   it manual. its drawer is drawn after the program's last line and
+   reserves no rows */
+let is_program_value =
+    (
+      ~tail: option(Id.t),
+      id: Id.t,
+      kind: ProjectorCore.Kind.t,
+      model: string,
+    )
+    : bool =>
+  Poly.equal(tail, Some(id))
+  && Poly.equal(kind, Probe)
+  && ProbeProj.is_bare(model);
+
 let mk_info =
     (
+      ~stepping: option(Sample.span_ref)=None,
+      ~tail: option(Id.t)=None,
+      ~drawer_rows: Id.Map.t(int)=Id.Map.empty,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
@@ -107,6 +126,13 @@ let mk_info =
       None;
     };
   },
+  stepping:
+    switch (stepping) {
+    | Some(span: Sample.span_ref) when Id.equal(span.probe_id, p.id) => stepping
+    | _ => None
+    },
+  program_value: is_program_value(~tail, p.id, p.kind, p.model),
+  drawer_rows,
   utility,
 };
 

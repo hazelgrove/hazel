@@ -279,6 +279,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~measured_drawers=Id.Map.empty,
         ~is_edited,
         ~schedule_action,
         model: Model.t,
@@ -288,6 +289,7 @@ module Update = {
       TutorialMode.Update.calculate(
         ~settings,
         ~autoprobe_mode,
+        ~measured_drawers,
         ~is_edited,
         ~schedule_action=a => schedule_action(Tutorial(a)),
         List.nth_exn(model.exercises, model.current),

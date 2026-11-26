@@ -21,6 +21,8 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    stepping: option(Language.Sample.span_ref),
+    program_value: bool,
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
@@ -36,6 +38,8 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
+        ~program_value,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -48,6 +52,12 @@ module ViewCache = {
           phys_equal(e.statics_map, statics_map)
           && phys_equal(e.dynamics_map, dynamics_map)
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && Option.equal(
+               Language.Sample.equal_span_ref,
+               e.stepping,
+               stepping,
+             )
+          && e.program_value == program_value
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && Poly.equal(e.core_settings, core_settings)
           && e.settings_version == ProbeProj.Settings.version^
@@ -63,6 +73,8 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
+        ~program_value,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -76,6 +88,8 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_focus,
+        stepping,
+        program_value,
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
@@ -472,6 +486,7 @@ let mk_view =
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
+      ~drawers=View.no_drawers,
       {
         p,
         info,
@@ -491,6 +506,8 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~stepping=info.stepping,
+      ~program_value=info.program_value,
       ~elaborated,
       ~core_settings,
       ~status,
@@ -546,6 +563,7 @@ let mk_view =
             sort,
             segment,
           ),
+        drawers,
         status,
         core_settings,
       });
@@ -554,6 +572,8 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~stepping=info.stepping,
+      ~program_value=info.program_value,
       ~elaborated,
       ~core_settings,
       ~status,
@@ -571,6 +591,7 @@ let split_views =
       make_active,
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
+      ~drawers=View.no_drawers,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
@@ -585,6 +606,7 @@ let split_views =
       inject,
       font_metrics,
       ~core_settings,
+      ~drawers,
       projector_data,
       projector_list,
     );

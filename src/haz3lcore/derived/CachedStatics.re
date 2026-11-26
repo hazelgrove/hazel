@@ -30,6 +30,18 @@ let empty: t = {
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
+let statics_disabled = "Statics disabled";
+let dynamics_disabled = "Dynamics & Elaboration disabled";
+
+/* the elaboration's stand-in while statics or dynamics are off: what it
+   evaluates to is no run of the program */
+let is_placeholder = (elaborated: Exp.t): bool =>
+  switch (elaborated.term) {
+  | Var(x) =>
+    String.equal(x, statics_disabled) || String.equal(x, dynamics_disabled)
+  | _ => false
+  };
+
 /* Predicate for whether a term should be probed when ProbeAll is on.
  * Currently const true - probes all expressions / patterns */
 let should_probe = (info: Info.t): bool =>
@@ -56,6 +68,9 @@ let compute_targets =
       ~settings: CoreSettings.t,
       ~info_map: Statics.Map.t,
       ~probe_ids: Id.Map.t(unit),
+      /* probes whose drawer steps a sample: they keep function values */
+      ~full_ids: Id.Map.t(unit)=Id.Map.empty,
+      (),
     )
     : Sample.targets => {
   let effective_probe_ids =
@@ -79,7 +94,10 @@ let compute_targets =
           | None => []
           }
         };
-      let spec: Sample.capture_spec = {refs: refs};
+      let spec: Sample.capture_spec = {
+        refs,
+        full: Id.Map.mem(id, full_ids),
+      };
       Id.Map.add(id, spec, acc);
     },
     effective_probe_ids,
@@ -95,6 +113,12 @@ let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
     Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
     Id.Map.map(_ => (), z.refractors.multis.ephemerals),
   );
+
+let full_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
+  switch (z.refractors.stepping) {
+  | Some(span: Sample.span_ref) => Id.Map.singleton(span.probe_id, ())
+  | None => Id.Map.empty
+  };
 
 let init_from_term =
     (
@@ -117,12 +141,12 @@ let init_from_term =
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
     switch () {
-    | _ when !settings.statics => dh_err("Statics disabled")
+    | _ when !settings.statics => dh_err(statics_disabled)
     | _ when !settings.dynamics && !settings.elaborate =>
-      dh_err("Dynamics & Elaboration disabled")
+      dh_err(dynamics_disabled)
     | _ => elaborated
     };
-  let targets = compute_targets(~settings, ~info_map, ~probe_ids);
+  let targets = compute_targets(~settings, ~info_map, ~probe_ids, ());
   {
     term,
     elaborated,
@@ -140,7 +164,14 @@ let init_from_term =
  * effects (collision cleanup, auto-probe regen), without redoing statics. */
 let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
   let probe_ids = probe_ids_of_zipper(z);
-  let targets = compute_targets(~settings, ~info_map=s.info_map, ~probe_ids);
+  let targets =
+    compute_targets(
+      ~settings,
+      ~info_map=s.info_map,
+      ~probe_ids,
+      ~full_ids=full_ids_of_zipper(z),
+      (),
+    );
   {
     ...s,
     targets,
