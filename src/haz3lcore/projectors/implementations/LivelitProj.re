@@ -1610,6 +1610,10 @@ module M: Projector = {
      edit). Display-only cache; entries overwrite on every successful
      render. */
   let last_good_view: Hashtbl.t(Id.t, Node.t) = Hashtbl.create(16);
+  /* (^ticket(887)) the picture's samples at its last draw, for the check */
+  let picture_seen:
+    Hashtbl.t(Id.t, (option(list(Sample.t)), option(TermBase.Exp.t), int)) =
+    Hashtbl.create(4);
 
   /* Each use's last evaluated view: its definition, the model value it was
      drawn from, and the Html. A view is a function of those two -- a
@@ -2543,8 +2547,50 @@ module M: Projector = {
             Exp(term)
             |> info.utility.term_to_seg(~inline=true)
             |> view_seg(~background=false, Exp);
-          let model_value =
-            Option.bind(info.dynamics_at(Exp.rep_id(model)), latest_value);
+          /* (^ticket(887)) for the check, on the picture alone: whether its
+             model's samples, and the latest one's value, are the very
+             objects of its last draw, or made again */
+          let samples_at = info.dynamics_at(Exp.rep_id(model));
+          if (ll_name == "Drawing.picture") {
+            let latest =
+              switch (samples_at) {
+              | Some([_, ..._] as ss) =>
+                Some(
+                  List.fold_left(
+                    (b: Sample.t, s: Sample.t) => s.seq > b.seq ? s : b,
+                    List.hd(ss),
+                    ss,
+                  ),
+                )
+              | _ => None
+              };
+            let (was_ss, was_v, was_seq) =
+              Option.value(
+                Hashtbl.find_opt(picture_seen, info.id),
+                ~default=(None, None, (-1)),
+              );
+            let same = (a, b) =>
+              switch (a, b) {
+              | (Some(x), Some(y)) => x === y
+              | (None, None) => true
+              | _ => false
+              };
+            let v = Option.map((s: Sample.t) => s.value, latest);
+            let seq =
+              Option.value(
+                Option.map((s: Sample.t) => s.seq, latest),
+                ~default=-1,
+              );
+            HazelJitValue.count(
+              "the picture's samples: the list "
+              ++ (same(was_ss, samples_at) ? "the same" : "made again")
+              ++ ", the latest value "
+              ++ (same(was_v, v) ? "the same" : "made again")
+              ++ (seq == was_seq ? ", the same seq" : ", a new seq"),
+            );
+            Hashtbl.replace(picture_seen, info.id, (samples_at, v, seq));
+          };
+          let model_value = Option.bind(samples_at, latest_value);
           /* Model terms contain no projectors or refractors, so trivial
              handlers suffice (the real ones live above this module in the
              dependency order). */
