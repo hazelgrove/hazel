@@ -1,0 +1,27 @@
+; The performance report's measurements (docs/performance.md). Two
+; executables, not one, so that a merge base the work counter no longer
+; compiles against can still be timed, and the other way round: CI copies
+; these files into the base checkout and builds each on its own.
+;
+; Neither bundle is part of the default alias (the empty rule below replaces
+; it in this directory), so `dune build` and `make watch-test` do not link two
+; more full js_of_ocaml bundles. They are built only when asked for by name,
+; as bench/perf-compare.sh does. `dune build @check` still type-checks them.
+
+(rule
+ (alias default)
+ (action (progn)))
+
+(executable
+ (name perf_work)
+ (modules perf_work)
+ (libraries haz3lcore yojson)
+ (modes js))
+
+(executable
+ (name hazel_bench)
+ (modules hazel_bench)
+ (libraries haz3lcore yojson js_of_ocaml)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
