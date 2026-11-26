@@ -54,7 +54,19 @@ type compiled = {
   params: U.any,
   /* each parameter's value as the run last had it (the program's literal, or the latest step's model), as JSON */
   given: Hashtbl.t(string, string),
+  /* (^ticket(885)) whether the program holds a hole, so the run was compiled checked (HazelJit.compile_full ~holes) */
+  holes: bool,
 };
+
+/* (^ticket(885)) whether a compiled answer holds a hole: the page draws answers straight from their JS, which has no form
+   for one, so such a run's answers are not used, and the worker's run draws, as on any other failure */
+let holds_hole = (v: U.any): bool =>
+  switch (
+    U.meth_call(Lazy.force(HazelJitValue.runtime), "deep", [|U.inject(v)|])
+  ) {
+  | _ => false
+  | exception _ => true
+  };
 
 /* The program the page draws livelits from, and its compilation (or why the program it was tried on has none) */
 let program: ref(option(Exp.t)) = ref(None);
@@ -353,8 +365,19 @@ let compile = (e: Exp.t): result(compiled, string) => {
       HazelJit.last_param := None;
       let t0 = HazelJitValue.now();
       let r =
-        switch (HazelJit.compile_full(~env=Builtins.env_init, fold_views(e))) {
+        /* (^ticket(885)) holes allowed: an empty hole is an opaque constant, and the run compiled checked, so a run
+           that opens one stops (a multihole and an error hole stay stubs that throw if reached, as before) */
+        switch (
+          HazelJit.compile_full(
+            ~holes=true,
+            ~env=Builtins.env_init,
+            fold_views(e),
+          )
+        ) {
         | c =>
+          if (c.holes) {
+            HazelJitValue.count("the slide's run compiled checked: holes");
+          };
           let t1 = HazelJitValue.now();
           switch (
             U.fun_call(
@@ -395,6 +418,7 @@ let compile = (e: Exp.t): result(compiled, string) => {
               param_of,
               params: U.obj([||]),
               given,
+              holes: c.holes,
             });
           | exception exn => Error(HazelJitValue.message(exn))
           };
@@ -738,7 +762,27 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
           | Error(why) =>
             warn(why);
             Error(why);
+          | Ok ()
+              when
+                c.holes
+                && {
+                  let keys: Js.t(Js.js_array(Js.t(Js.js_string))) =
+                    U.fun_call(
+                      U.js_expr("Object.keys"),
+                      [|U.inject(samples)|],
+                    );
+                  Array.exists(
+                    k => holds_hole(U.get(samples, k)),
+                    Js.to_array(keys),
+                  );
+                } =>
+            let why = "a compiled answer holds a hole";
+            warn(why);
+            Error(why);
           | Ok () =>
+            if (c.holes) {
+              HazelJitValue.count("the slide's run answered, checked: holes");
+            };
             let before = Hashtbl.copy(printed);
             Hashtbl.reset(answers);
             Hashtbl.reset(printed);

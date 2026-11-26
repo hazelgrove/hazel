@@ -38,6 +38,37 @@ exception Unsupported(string);
 
 let unsupported = reason => raise(Unsupported(reason));
 
+/* (^ticket(885), carried here by hand from hazel-jit's ^ticket(769), whose files moved to Jane Street Core) the checked
+   version: compiled code that asks the runtime before it looks inside a value, so that an opaque one (a hole) stops the
+   run instead of giving a wrong answer silently; set by compile_full ~checked */
+let checked = ref(false);
+let chk = (v: string): list(string) =>
+  checked^ ? ["$R.no(" ++ v ++ ")"] : [];
+let opw = (s: string): string => checked^ ? "$R.op(" ++ s ++ ")" : s;
+
+/* (^ticket(885), from ^ticket(769)'s step 2) An empty hole, or invalid text, compiled: a constant opaque value standing
+   for the hole's own term, held here by a negative key, {$opaque: -k}; a cast around the hole is held with it. Only where
+   the caller asks (compile_full ~holes: a slide's run, HazelJitRun); everywhere else a hole is Unsupported. A multihole
+   and an error hole stay the interpreter's. A unit with a hole in it is compiled checked: its own code may meet its
+   holes. */
+let holes_ok = ref(false);
+let holes_met = ref(false);
+let hole_terms: Hashtbl.t(int, Exp.t) = Hashtbl.create(8);
+let hole_site = (e: Exp.t): string => {
+  let k = 0 - (Hashtbl.length(hole_terms) + 1);
+  Hashtbl.replace(hole_terms, k, e);
+  holes_met := true;
+  "$R.hole(" ++ string_of_int(k) ++ ")";
+};
+let rec is_hole = (e: Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | Parens(e)
+  | Asc(e, _) => is_hole(e)
+  | EmptyHole
+  | Invalid(_) => true
+  | _ => false
+  };
+
 /* (^ticket(760), found by ^ticket(756)'s sweep) A type with a hole written in it, ?, is a hole too: a cast through it
    can fail at run time with no static error, where the interpreter stops at the failed cast and compiled code, its
    types erased, runs on (Evaluator.Function's "Ascription around deferral": f([1.0, 2.0] : ?), f taking [Int], is
@@ -106,6 +137,23 @@ module Runtime = {
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
+  /* (^ticket(885), from ^ticket(769)) A hole is carried as an opaque object, {$opaque: k}: compiled code may store it,
+     pass it and return it, never open it. The checked version asks these where it would look inside a value: op, an
+     operand or a condition; no, a pattern's test; deep, a value given whole to an equality or a builtin; meeting one, the
+     run stops as indeterminate, and the interpreter's run is the answer. The unchecked version asks none of them. */
+  op(x) { if (x !== null && typeof x === "object" && x.$opaque !== undefined) this.indet("a hole, opened"); return x; },
+  no(x) { this.op(x); return true; },
+  deep(x) { for (;;) { if (x === null || typeof x !== "object") return;
+      if (x.$opaque !== undefined) this.indet("a hole, opened");
+      if ("t" in x && "h" in x) { this.deep(x.h); x = x.t; continue; }
+      if (Array.isArray(x)) { for (const y of x) this.deep(y); return; }
+      for (const k in x) this.deep(x[k]); return; } },
+  dp(x) { this.deep(x); return x; },
+  eqc(a, b) { this.deep(a); this.deep(b); return this.eq(a, b); },
+  appendc(a, b) { for (let p = this.op(a); p !== null; p = this.op(p.t)) {} return this.append(a, b); },
+  bc(name) { const c = this.bcs || (this.bcs = {}); return c[name] || (c[name] = (...xs) => this.b[name](...xs.map(x => this.dp(x)))); },
+  /* a hole in compiled code: one frozen opaque value for its site (HazelJit.hole_site) */
+  hole(k) { const h = this.hs || (this.hs = new Map()); let o = h.get(k); if (o === undefined) { o = Object.freeze({$opaque: k}); h.set(k, o); } return o; },
   /* (^ticket(757)) Int and Nat, exact as the interpreter's Bigint: a JS number while it is a safe integer, a BigInt past
      that; each result normalized (inorm), so equal values are one value and === compares them. Measured in Node against
      plain numbers: fib x1.6, list walks x0.7-0.9, arithmetic-heavy updates x3.7 (plain BigInt: x4.1, x1.5, x9.6) */
@@ -566,27 +614,31 @@ let rec pat =
     pat(st, scope, lex, p, v);
   | Atom(Int(n))
   | Atom(Nat(n))
-  | Atom(SInt(n)) => ([v ++ " === " ++ js_int(n)], [], lex)
-  | Atom(Float(f)) => ([v ++ " === " ++ js_float(f)], [], lex)
-  | Atom(Bool(b)) => ([v ++ " === " ++ string_of_bool(b)], [], lex)
-  | Atom(String(s)) => ([v ++ " === " ++ js_string(s)], [], lex)
+  | Atom(SInt(n)) => (chk(v) @ [v ++ " === " ++ js_int(n)], [], lex)
+  | Atom(Float(f)) => (chk(v) @ [v ++ " === " ++ js_float(f)], [], lex)
+  | Atom(Bool(b)) => (
+      chk(v) @ [v ++ " === " ++ string_of_bool(b)],
+      [],
+      lex,
+    )
+  | Atom(String(s)) => (chk(v) @ [v ++ " === " ++ js_string(s)], [], lex)
   | ListLit(ps) =>
     let rec go = (ps, v, (tests, binds, lex)) =>
       switch (ps) {
-      | [] => (tests @ [v ++ " === null"], binds, lex)
+      | [] => (tests @ chk(v) @ [v ++ " === null"], binds, lex)
       | [p, ...rest] =>
         let (t, b, lex) = pat(st, scope, lex, p, v ++ ".h");
         go(
           rest,
           v ++ ".t",
-          (tests @ [v ++ " !== null"] @ t, binds @ b, lex),
+          (tests @ chk(v) @ [v ++ " !== null"] @ t, binds @ b, lex),
         );
       };
     go(ps, v, ([], [], lex));
   | Cons(ph, pt) =>
     let (t1, b1, lex) = pat(st, scope, lex, ph, v ++ ".h");
     let (t2, b2, lex) = pat(st, scope, lex, pt, v ++ ".t");
-    ([v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
+    (chk(v) @ [v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
   | Tuple(ps) =>
     List.fold_left(
       ((tests, binds, lex, i), p: Pat.t) => {
@@ -609,24 +661,37 @@ let rec pat =
         let (t, b, lex) = pat(st, scope, lex, p, key);
         (tests @ t, binds @ b, lex, i + 1);
       },
-      ([], [], lex, 0),
+      (chk(v), [], lex, 0),
       ps,
     )
     |> (((t, b, lex, _)) => (t, b, lex))
   | TupLabel(l, p') when pat_is_nonlabel(l) =>
-    pat(st, scope, lex, p', v ++ "[0]")
+    let (t, b, lex) = pat(st, scope, lex, p', v ++ "[0]");
+    (chk(v) @ t, b, lex);
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
     | Some(name) =>
-      pat(st, scope, lex, p', v ++ "[" ++ js_string(label_key(name)) ++ "]")
+      let (t, b, lex) =
+        pat(
+          st,
+          scope,
+          lex,
+          p',
+          v ++ "[" ++ js_string(label_key(name)) ++ "]",
+        );
+      (chk(v) @ t, b, lex);
     | None => unsupported("a tuple label that is not a name")
     }
-  | Constructor(name, _) => ([v ++ ".c === " ++ js_string(name)], [], lex)
+  | Constructor(name, _) => (
+      chk(v) @ [v ++ ".c === " ++ js_string(name)],
+      [],
+      lex,
+    )
   | Ap(c, arg) =>
     switch (Pat.term_of(c)) {
     | Constructor(name, _) =>
       let (t, b, lex) = pat(st, scope, lex, arg, v ++ ".v");
-      ([v ++ ".c === " ++ js_string(name)] @ t, b, lex);
+      (chk(v) @ [v ++ ".c === " ++ js_string(name)] @ t, b, lex);
     | _ => unsupported("an applied pattern that is not a constructor")
     }
   | EmptyHole
@@ -722,6 +787,8 @@ and exp_inner =
   | TyAlias(tp, ty, e) =>
     note_alias(st, tp, ty);
     go(e);
+  /* (^ticket(885)) a hole and its cast, held whole */
+  | Asc(inner, _) when holes_ok^ && is_hole(inner) => hole_site(e)
   | Asc(e, t)
   | TypAp(e, t) =>
     no_type_hole(t);
@@ -756,7 +823,12 @@ and exp_inner =
       "null",
     )
   | Cons(h, t) => "{h: " ++ go(h) ++ ", t: " ++ go(t) ++ "}"
-  | ListConcat(a, b) => "$R.append(" ++ go(a) ++ ", " ++ go(b) ++ ")"
+  | ListConcat(a, b) =>
+    (checked^ ? "$R.appendc(" : "$R.append(")
+    ++ go(a)
+    ++ ", "
+    ++ go(b)
+    ++ ")"
   | Tuple(es) =>
     let parts =
       List.map(
@@ -959,7 +1031,8 @@ and exp_inner =
          [tmp ++ " = " ++ v1] @ check @ binds @ [exp(st, scope, lex', e2)],
        )
     ++ ")";
-  | If(c, a, b) => "(" ++ go(c) ++ " ? " ++ go(a) ++ " : " ++ go(b) ++ ")"
+  | If(c, a, b) =>
+    "(" ++ opw(go(c)) ++ " ? " ++ go(a) ++ " : " ++ go(b) ++ ")"
   | Seq(a, b) => "(" ++ go(a) ++ ", " ++ go(b) ++ ")"
   | Match(scrut, rules) =>
     let tmp = fresh(st, scope, "m");
@@ -979,12 +1052,13 @@ and exp_inner =
         "$R.nomatch(\"case\")",
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
-  | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ go(e) ++ ")"
-  | UnOp(SInt(Minus), e) => "$R.sneg(" ++ go(e) ++ ")"
-  | UnOp(Float(Minus), e) => "(-(" ++ go(e) ++ "))"
-  | UnOp(Bool(Not), e) => "(!(" ++ go(e) ++ "))"
+  | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ opw(go(e)) ++ ")"
+  | UnOp(SInt(Minus), e) => "$R.sneg(" ++ opw(go(e)) ++ ")"
+  | UnOp(Float(Minus), e) => "(-(" ++ opw(go(e)) ++ "))"
+  | UnOp(Bool(Not), e) => "(!(" ++ opw(go(e)) ++ "))"
   | BinOp(op, a, b) =>
-    let (a, b) = (go(a), go(b));
+    /* (^ticket(885)) checked: each operand asked first (&& and || still short-circuit), and == through eqc */
+    let (a, b) = (opw(go(a)), opw(go(b)));
     let infix = o => "(" ++ a ++ " " ++ o ++ " " ++ b ++ ")";
     switch (op) {
     /* (^ticket(757)) exact, through the runtime; a number and a BigInt compare correctly as they are */
@@ -1031,12 +1105,16 @@ and exp_inner =
     | Bool(And) => infix("&&")
     | Bool(Or) => infix("||")
     | String(Concat) => infix("+")
-    | Poly(Equals) => "$R.eq(" ++ a ++ ", " ++ b ++ ")"
-    | Poly(NotEquals) => "(!$R.eq(" ++ a ++ ", " ++ b ++ "))"
+    | Poly(Equals) =>
+      (checked^ ? "$R.eqc(" : "$R.eq(") ++ a ++ ", " ++ b ++ ")"
+    | Poly(NotEquals) =>
+      (checked^ ? "(!$R.eqc(" : "(!$R.eq(") ++ a ++ ", " ++ b ++ "))"
     };
   | BuiltinFun(name) => builtin(name)
   | Closure(env, e) when Environment.to_list(env) == [] => go(e)
   | Closure(_) => unsupported("a closure with its own environment")
+  | Invalid(_)
+  | EmptyHole when holes_ok^ => hole_site(e)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -1316,7 +1394,11 @@ and global = (st: state, x: string): string =>
   }
 and builtin = (name: string): string =>
   List.mem(name, Runtime.builtins)
-    ? "$R.b[" ++ js_string(name) ++ "]" : unsupported("the builtin " ++ name);
+    /* (^ticket(885)) checked: a builtin's arguments asked whole first */
+    ? checked^
+        ? "$R.bc(" ++ js_string(name) ++ ")"
+        : "$R.b[" ++ js_string(name) ++ "]"
+    : unsupported("the builtin " ++ name);
 
 /* An elaborated term as the source of a JS function's body, run as new Function("$R", source)(runtime): the builtins it
    uses first, then its value. Raises Unsupported when it holds a form hazel-jit does not compile. */
@@ -1327,31 +1409,58 @@ type compiled = {
   ctors: Hashtbl.t(string, option(Typ.t)),
   aliases: Hashtbl.t(string, Typ.t),
   funs: Hashtbl.t(int, (Exp.t, list(string))),
+  /* (^ticket(885)) whether it holds a hole (compile_full ~holes), so it was compiled checked */
+  holes: bool,
 };
 
-let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
-  let st = {
-    env,
-    counter: 0,
-    globals: [],
-    global_names: Hashtbl.create(8),
-    ctors: Hashtbl.create(16),
-    aliases: Hashtbl.create(8),
-    funs: Hashtbl.create(16),
-    frames: [],
-  };
-  let scope = {decls: []};
-  let v = exp(st, scope, [], e);
-  {
-    src:
-      "\"use strict\"; "
-      ++ String.concat(" ", List.rev(st.globals))
-      ++ " "
-      ++ body_with_decls(scope, v),
-    ctors: st.ctors,
-    aliases: st.aliases,
-    funs: st.funs,
-  };
+let rec compile_full =
+        (
+          ~checked as c=false,
+          ~holes=false,
+          ~env: Environment.t(Exp.t),
+          e: Exp.t,
+        )
+        : compiled => {
+  let (was, was_ok, was_met) = (checked^, holes_ok^, holes_met^);
+  checked := c;
+  holes_ok := holes;
+  holes_met := false;
+  let r =
+    Stdlib.Fun.protect(
+      ~finally=
+        () => {
+          checked := was;
+          holes_ok := was_ok;
+          holes_met := was_met;
+        },
+      () => {
+        let st = {
+          env,
+          counter: 0,
+          globals: [],
+          global_names: Hashtbl.create(8),
+          ctors: Hashtbl.create(16),
+          aliases: Hashtbl.create(8),
+          funs: Hashtbl.create(16),
+          frames: [],
+        };
+        let scope = {decls: []};
+        let v = exp(st, scope, [], e);
+        {
+          src:
+            "\"use strict\"; "
+            ++ String.concat(" ", List.rev(st.globals))
+            ++ " "
+            ++ body_with_decls(scope, v),
+          ctors: st.ctors,
+          aliases: st.aliases,
+          funs: st.funs,
+          holes: holes_met^,
+        };
+      },
+    );
+  /* (^ticket(885)) a hole met, compiled unchecked: compiled again, checked */
+  r.holes && !c ? compile_full(~checked=true, ~holes, ~env, e) : r;
 };
 
 let compile = (~env: Environment.t(Exp.t), e: Exp.t): string =>
