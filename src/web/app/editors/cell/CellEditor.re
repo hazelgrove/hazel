@@ -117,6 +117,7 @@ module Update = {
         ~stitch,
         ~ana?,
         ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics_complete=EvalResult.Model.dynamics_complete(result),
         ~is_dynamic_term=false,
         editor,
       );
@@ -165,6 +166,7 @@ module Update = {
           ~stitch,
           ~ana?,
           ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics_complete=EvalResult.Model.dynamics_complete(result),
           ~is_dynamic_term=false,
           editor,
         );

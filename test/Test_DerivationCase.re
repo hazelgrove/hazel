@@ -57,6 +57,7 @@ let update_once =
     ~settings,
     ~autoprobe_mode=AutoProbe.Off,
     ~is_edited=true,
+    ~dynamics_complete=true,
     new_statics,
     Language.Dynamics.Map.empty,
     model,
