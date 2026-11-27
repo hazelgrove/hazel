@@ -81,9 +81,10 @@ let get_duplicate_labels:
   ('a => option((label, 'b)), list('a)) => list(label)
  =
   (get_label, es) => {
-    separate_and_keep_labels(get_label, es)
-    |> fst
-    |> List.filter_map(~f=Fn.id)
+    /* (^ticket(791)) the labels in order, in one pass: not both of separate_and_keep_labels's lists, of which this kept
+       only the labels present */
+    es
+    |> List.filter_map(~f=e => Option.map(get_label(e), ~f=fst))
     |> get_duplicate_labels_base;
   };
 
