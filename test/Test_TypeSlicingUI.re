@@ -441,7 +441,7 @@ let var_use_id = (name: string, model: Web.CodeEditable.Model.t): Id.t =>
     }
   );
 
-let digit_parser_src = Web.SlicingExamples.parse_digit;
+let digit_parser_src = Web.SlicingExamples.parse_pin;
 
 let digit_parser_folds =
   test_case(
