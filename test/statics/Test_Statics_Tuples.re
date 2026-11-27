@@ -1101,8 +1101,6 @@ let tests = (
                   )
                 ),
                 int(1),
-                None,
-                None,
               )
             )
           ),

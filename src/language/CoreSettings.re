@@ -53,6 +53,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  live_typing: bool,
   probe_all: bool,
   /* Completion-triggered local re-indentation (experimental) */
   auto_reindent: bool,
@@ -78,6 +79,7 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  live_typing: false,
   probe_all: false,
   auto_reindent: false,
   format_shortcut: FormatShortcut.Spaces,
@@ -93,6 +95,7 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
+  live_typing: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   auto_reindent: true,
   format_shortcut: FormatShortcut.Spaces,

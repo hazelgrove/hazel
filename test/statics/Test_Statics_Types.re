@@ -537,8 +537,6 @@ let tests = (
                         parens(asc(var("x"), FIError.Typ.int()))
                       ),
                       var("x"),
-                      None,
-                      None,
                     ),
                     parens(tuple([var("a"), var("b"), var("c")])),
                   ),
@@ -573,8 +571,6 @@ let tests = (
                     parens(asc(empty_hole(), FIError.Typ.var("T"))),
                   ]),
                 ),
-                None,
-                None,
               ),
             )
           ),
@@ -635,8 +631,6 @@ let tests = (
                   )
                 ),
                 list_lit([]),
-                None,
-                None,
               )
             ),
           );
@@ -680,8 +674,6 @@ let tests = (
                   )
                 ),
                 float(132032.832758),
-                None,
-                None,
               )
             ),
           );
@@ -799,8 +791,6 @@ let tests = (
                   FIError.Typ.int(),
                 ),
               ),
-              None,
-              None,
             )
           ),
         );
@@ -837,8 +827,6 @@ let tests = (
                   FIError.Typ.int(),
                 ),
               ),
-              None,
-              None,
             )
           ),
         );
@@ -873,8 +861,6 @@ let tests = (
                 )
               ),
               var("f"),
-              None,
-              None,
             )
           ),
         );
@@ -912,8 +898,6 @@ let tests = (
                 )
               ),
               var("f"),
-              None,
-              None,
             )
           ),
         );
@@ -951,8 +935,6 @@ let tests = (
                 )
               ),
               var("f"),
-              None,
-              None,
             )
           ),
         );

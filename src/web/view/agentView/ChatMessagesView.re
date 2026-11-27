@@ -147,7 +147,8 @@ module ViewComponents = {
         ],
       );
     let test_section = {
-      let test_results_opt = EvalResult.Model.test_results(eval_result);
+      let test_results_opt =
+        EvalResult.Model.test_results(eval_result) |> Calc.get_value;
       div(
         ~attrs=[clss(["agent-context-section"])],
         [

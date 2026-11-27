@@ -67,6 +67,13 @@ module Env = {
     | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
     };
 
+  /* TODO: resolve the binding by id, not by name. `Binding.t` carries the
+     id of the binder statics resolved this reference to, but the runtime
+     environment is name-keyed, so a shadowed same-named binder yields the
+     wrong value while the sample still reports the other binder's id. The
+     recorded `binding.id` is currently read by nothing (ProbeProj renders
+     only the name), so closing this also needs a UI answer for how to show
+     a shadowed binder. */
   let mk_entry = (env: Environment.t(Exp.t), {name, id, _}: Binding.t) =>
     switch (Environment.lookup(env, name)) {
     | Some(d) =>

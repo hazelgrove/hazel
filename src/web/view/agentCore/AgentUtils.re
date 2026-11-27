@@ -92,7 +92,7 @@ let llm_context_snapshot_text =
     : string => {
   let agent_editor_view_string =
     CompositionView.Public.print(
-      ~probe_map=cws.dynamics,
+      ~probe_map=cws.dynamics.probe_map,
       cws.editor,
       chat.agent_view,
     );
@@ -100,7 +100,9 @@ let llm_context_snapshot_text =
     ErrorPrint.all(CompositionGo.Public.mk_statics(cws.editor.state.zipper))
     |> String.concat(~sep="\n");
   let test_results_info_string =
-    test_results_for_context(EvalResult.Model.test_results(cell_result));
+    test_results_for_context(
+      EvalResult.Model.test_results(cell_result) |> Util.Calc.get_value,
+    );
   Message.Utils.context_snapshot_body_for_llm(
     ~session_mode,
     agent_editor_view_string,
@@ -148,7 +150,7 @@ let update_context =
         when
           phys_equal(z, editor.editor.state.zipper)
           && phys_equal(info, editor.statics.info_map)
-          && phys_equal(dyn, editor.dynamics)
+          && phys_equal(dyn, editor.dynamics.probe_map)
           && view == curr_chat.agent_view => (
         printed,
         errs,
@@ -158,7 +160,7 @@ let update_context =
       let info_map = editor.statics.info_map;
       let printed =
         CompositionView.Public.print(
-          ~probe_map=editor.dynamics,
+          ~probe_map=editor.dynamics.probe_map,
           ~info_map,
           editor.editor,
           curr_chat.agent_view,
@@ -168,7 +170,7 @@ let update_context =
         Some((
           editor.editor.state.zipper,
           editor.statics.info_map,
-          editor.dynamics,
+          editor.dynamics.probe_map,
           curr_chat.agent_view,
           printed,
           errs,

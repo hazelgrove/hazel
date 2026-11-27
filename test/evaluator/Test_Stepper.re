@@ -33,12 +33,7 @@ let tests = (
           full_small_step_reduction(
             ap(
               Forward,
-              fn(
-                Pat.var("x"),
-                bin_op(Int(Plus), var("x"), int(1)),
-                None,
-                None,
-              ),
+              fn(Pat.var("x"), bin_op(Int(Plus), var("x"), int(1))),
               int(5),
             ),
           );

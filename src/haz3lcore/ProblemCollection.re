@@ -10,13 +10,22 @@ type problem_category =
   | Hole
   | Static
   | Warning
+  | LiveTyping
   | Projector;
 
 /* ---------- Problem data types ---------- */
 
+/* A live typing error, and the static info at the same term, which the
+   live info refines. */
+type live_typing_error = {
+  live: Info.t,
+  static: Info.t,
+};
+
 type problem_source =
   | Structural(string)
   | FromInfo(Info.t)
+  | FromLiveTyping(live_typing_error)
   | FromProjector(ProjectorKind.t, ProjectorBase.error);
 
 type problem = {
@@ -34,6 +43,7 @@ type problem_context = {
   concave_holes: list(Grout.t),
   static_error_ids: list((Id.t, Info.t)),
   warning_ids: list((Id.t, Info.t)),
+  live_typing_error_ids: list((Id.t, live_typing_error)),
   projector_errors: list((Id.t, ProjectorKind.t, ProjectorBase.error)),
   segment: Segment.t,
   measured: Measured.t,
@@ -135,6 +145,24 @@ let make_problem_context =
     } else {
       [];
     };
+  /* Collect live typing error ids from dynamic statics */
+  let live_typing_error_ids =
+    List.filter_map(statics.live_typing_error_ids, ~f=id =>
+      switch (
+        Statics.Map.lookup(id, statics.live_typing_info_map),
+        Statics.Map.lookup(id, info_map),
+      ) {
+      | (Some(live), Some(static)) when Info.is_error(live) =>
+        Some((
+          id,
+          {
+            live,
+            static,
+          },
+        ))
+      | _ => None
+      }
+    );
   /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
   let all_holes = Segment.holes(syntax.segment);
   let (hole_ids, concave_holes) =
@@ -157,6 +185,7 @@ let make_problem_context =
     concave_holes,
     static_error_ids,
     warning_ids,
+    live_typing_error_ids,
     projector_errors,
     segment: syntax.segment,
     measured,
@@ -246,6 +275,16 @@ let collect_category =
            source: FromInfo(ci),
          }
        )
+  | LiveTyping =>
+    ctx.live_typing_error_ids
+    |> Stdlib.List.to_seq
+    |> Stdlib.Seq.map(((id, error)) =>
+         {
+           id,
+           category: LiveTyping,
+           source: FromLiveTyping(error),
+         }
+       )
   | Projector =>
     ctx.projector_errors
     |> Stdlib.List.to_seq
@@ -261,7 +300,7 @@ let collect_category =
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
-  [Syntax, Hole, Static, Warning, Projector]
+  all_of_problem_category
   |> List.concat_map(~f=cat =>
        collect_category(ctx, cat) |> Stdlib.List.of_seq
      );
@@ -364,7 +403,7 @@ let make =
               |> List.sort(~compare=(a, b) => compare(a.pos, b.pos));
             (cat, located);
           },
-        [Syntax, Hole, Static, Warning],
+        all_of_problem_category,
       );
     problems_by_category;
   };
@@ -391,7 +430,7 @@ let make =
                       per_source,
                     ),
                   ),
-              [Syntax, Hole, Static, Warning],
+              all_of_problem_category,
             );
           let counts =
             List.map(
@@ -413,7 +452,7 @@ let make =
       inputs,
     );
   let counts =
-    [Syntax, Hole, Static, Warning]
+    all_of_problem_category
     |> List.map(~f=cat =>
          (
            cat,
