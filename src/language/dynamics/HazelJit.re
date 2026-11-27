@@ -198,8 +198,13 @@ module Runtime = {
   isub(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a - b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) - BigInt(b)); },
   imul(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a * b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) * BigInt(b)); },
   ineg(a) { return typeof a === "number" ? (a === 0 ? 0 : -a) : this.inorm(-a); },
-  /* toward zero, as Bigint's and BigInt's; (a - a % b) / b is exact where Math.trunc(a / b) rounds */
-  idiv(a, b) { if (b === 0 || b === 0n) this.invalid("DivideByZero"); if (typeof a === "number" && typeof b === "number") return (a - a % b) / b; return this.inorm(BigInt(a) / BigInt(b)); },
+  /* toward zero, as Bigint's and BigInt's. (^ticket(891)) Math.trunc(a / b) is exact for safe integers: the quotient's rounding
+     error is under |a / b| 2^-53, and a quotient that is not whole lies 1 / |b| or more from a whole number, so it cannot round to
+     one when |a| < 2^53 (checked against BigInt on 2 million divisions); + 0, so never -0, which (a - a % b) / b gave for a
+     negative divisor and no quotient (-1 / -2), as the interpreter's 0 is not; and half the time (Gnome world's step: idiv was
+     a sixth of its compiled time) */
+  idiv(a, b) { if (typeof a === "number" && typeof b === "number") { if (b === 0) this.invalid("DivideByZero"); return Math.trunc(a / b) + 0; }
+    if (b === 0 || b === 0n) this.invalid("DivideByZero"); return this.inorm(BigInt(a) / BigInt(b)); },
   ipow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return this.inorm(BigInt(a) ** BigInt(b)); },
   /* An operation the interpreter stops at with an error (Error: Divide by Zero, a stuck term): the compiled run stops
      too, and its caller falls back to the interpreter, which makes the stuck term (^ticket(759)) */
@@ -973,6 +978,29 @@ let rec pat_is = (x: string, p: Pat.t): bool =>
 let survey_examples: Stdlib.Hashtbl.t(string, string) =
   Stdlib.Hashtbl.create(8);
 
+/* (^ticket(891)) An Int written out, or +, - and * on such, its value at compile time: folded where it is written, so that
+   0 - 1, as Hazel writes -1 (it has no negative literal), is -1 in the compiled code, not a call into the runtime on every
+   pass, and == against it is ===. Division is left to run (a divisor of 0 must stop the run there), and so is a Nat's. */
+let rec int_const = (e: Exp.t): option(Bigint.t) =>
+  switch (Exp.term_of(e)) {
+  | Parens(e) => int_const(e)
+  | Atom(Int(n)) => Some(n)
+  | UnOp(Int(Minus), e) => Option.map(int_const(e), ~f=Bigint.neg)
+  | BinOp(Int(Plus), a, b) =>
+    Option.map(Option.both(int_const(a), int_const(b)), ~f=((x, y)) =>
+      Bigint.(+)(x, y)
+    )
+  | BinOp(Int(Minus), a, b) =>
+    Option.map(Option.both(int_const(a), int_const(b)), ~f=((x, y)) =>
+      Bigint.(-)(x, y)
+    )
+  | BinOp(Int(Times), a, b) =>
+    Option.map(Option.both(int_const(a), int_const(b)), ~f=((x, y)) =>
+      Bigint.( * )(x, y)
+    )
+  | _ => None
+  };
+
 let rec exp =
         (st: state, scope: scope, lex: list((string, string)), e: Exp.t)
         : string =>
@@ -1426,6 +1454,10 @@ and exp_inner =
         ~init="$R.nomatch(\"case\")",
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
+  | UnOp(Int(Minus), _)
+  | BinOp(Int(Plus | Minus | Times), _, _)
+      when Option.is_some(int_const(e)) =>
+    js_int(Option.value_exn(int_const(e)))
   | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ opw(go(e)) ++ ")"
   | UnOp(SInt(Minus), e) => "$R.sneg(" ++ opw(go(e)) ++ ")"
   | UnOp(Float(Minus), e) => "(-(" ++ opw(go(e)) ++ "))"
@@ -1444,6 +1476,9 @@ and exp_inner =
         true
       | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Float(Minus), e) =>
         literal(e)
+      /* (^ticket(891)) Int arithmetic on numbers written out, folded */
+      | BinOp(Int(Plus | Minus | Times), _, _) =>
+        Option.is_some(int_const(e))
       | _ => false
       };
     let infix = o => "(" ++ a ++ " " ++ o ++ " " ++ b ++ ")";
