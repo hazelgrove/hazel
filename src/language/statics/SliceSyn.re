@@ -2238,6 +2238,39 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
           ),
         ),
     };
+  | Module(items) =>
+    let holds = (item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(_, inner)
+      | ModExp(inner)
+      | ModuleMod(_, inner) => is_child(inner)
+      | _ => false
+      };
+    let rec split = (before, rest) =>
+      switch (rest) {
+      | [] => (List.rev(before), [])
+      | [item, ...after] =>
+        holds(item)
+          ? (List.rev(before), after) : split([item, ...before], after)
+      };
+    let (prefix, suffix) = split([], items);
+    let (omitted, gamma) =
+      List.fold_right(
+        module_item(env, ctx, gap),
+        prefix,
+        (inner.omitted, inner.gamma),
+      );
+    {
+      kept: true,
+      omitted:
+        List.fold_left(
+          (acc, item: Mod.t) => union(acc, note(Mod.rep_id(item))),
+          omitted,
+          suffix,
+        ),
+      gamma,
+      psi: inner.psi,
+    };
   | Match(_, rules)
       when List.for_all(((_, body)) => !is_child(body), rules) => {
       ...base,
@@ -2339,69 +2372,7 @@ and syn_module =
   let ctx = ctx_at(env, e);
   let (omitted, gamma) =
     List.fold_right(
-      (item: Mod.t, (omitted, gamma)) =>
-        switch (item.term) {
-        | ModLet(p, def) =>
-          let member =
-            switch (Pat.bound_vars(p)) {
-            | [name, ..._] => name
-            | [] => ""
-            };
-          let demand =
-            Typ.meet_gap(
-              ctx,
-              SliceQuery.labelled(ctx, query, member),
-              SliceGamma.demand(gamma, member),
-            );
-          if (!query_has_label(ctx, query, member)
-              && SliceQuery.is_gap(demand)) {
-            (union(omitted, note(Mod.rep_id(item))), gamma);
-          } else {
-            let d = syn(env, def, demand);
-            (
-              union(omitted, d.omitted),
-              SliceGamma.join(
-                ctx,
-                SliceGamma.without(gamma, [member]),
-                d.gamma,
-              ),
-            );
-          };
-        | ModType(binder, definition) =>
-          let name = alias_name(binder);
-          if (Ctx.lookup_alias(gamma, name) == None) {
-            (union(omitted, note(Mod.rep_id(item))), gamma);
-          } else {
-            let demand = SliceGamma.alias_demand(gamma, name);
-            let inside = typ_ctx_at(env, definition, ctx);
-            let own =
-              alias_omissions(inside, ~gamma, demand, binder, definition);
-            (
-              union(omitted, own),
-              SliceGamma.join(
-                ctx,
-                SliceGamma.without_tvars(gamma, [name]),
-                referenced_aliases(
-                  inside,
-                  ~omitted=own,
-                  name,
-                  true,
-                  demand,
-                  definition,
-                ),
-              ),
-            );
-          };
-        | ModExp(inner) =>
-          let r = syn(env, inner, query);
-          (union(omitted, r.omitted), SliceGamma.join(ctx, gamma, r.gamma));
-        | ModuleMod(_, inner) =>
-          let r = syn(env, inner, query);
-          (union(omitted, r.omitted), SliceGamma.join(ctx, gamma, r.gamma));
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => (omitted, gamma)
-        },
+      module_item(env, ctx, query),
       items,
       (Id.Set.empty, members),
     );
@@ -2423,6 +2394,72 @@ and syn_module =
     psi: ty_at(env, e),
   };
 }
+
+and module_item =
+    (
+      env: env,
+      ctx: Ctx.t,
+      query: Typ.t,
+      item: Mod.t,
+      (omitted: Id.Set.t, gamma: Ctx.t),
+    )
+    : (Id.Set.t, Ctx.t) =>
+  switch (item.term) {
+  | ModLet(p, def) =>
+    let member =
+      switch (Pat.bound_vars(p)) {
+      | [name, ..._] => name
+      | [] => ""
+      };
+    let demand =
+      Typ.meet_gap(
+        ctx,
+        SliceQuery.labelled(ctx, query, member),
+        SliceGamma.demand(gamma, member),
+      );
+    if (!query_has_label(ctx, query, member) && SliceQuery.is_gap(demand)) {
+      (union(omitted, note(Mod.rep_id(item))), gamma);
+    } else {
+      let d = syn(env, def, demand);
+      (
+        union(omitted, d.omitted),
+        SliceGamma.join(ctx, SliceGamma.without(gamma, [member]), d.gamma),
+      );
+    };
+  | ModType(binder, definition) =>
+    let name = alias_name(binder);
+    if (Ctx.lookup_alias(gamma, name) == None) {
+      (union(omitted, note(Mod.rep_id(item))), gamma);
+    } else {
+      let demand = SliceGamma.alias_demand(gamma, name);
+      let inside = typ_ctx_at(env, definition, ctx);
+      let own = alias_omissions(inside, ~gamma, demand, binder, definition);
+      (
+        union(omitted, own),
+        SliceGamma.join(
+          ctx,
+          SliceGamma.without_tvars(gamma, [name]),
+          referenced_aliases(
+            inside,
+            ~omitted=own,
+            name,
+            true,
+            demand,
+            definition,
+          ),
+        ),
+      );
+    };
+  | ModExp(inner) =>
+    let r = syn(env, inner, query);
+    (union(omitted, r.omitted), SliceGamma.join(ctx, gamma, r.gamma));
+  | ModuleMod(_, inner) =>
+    let r = syn(env, inner, query);
+    (union(omitted, r.omitted), SliceGamma.join(ctx, gamma, r.gamma));
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => (omitted, gamma)
+  }
 
 and retained_tvars = (omitted: Id.Set.t, e: Exp.t): list(string) => {
   let found = ref([]);
@@ -2802,18 +2839,8 @@ and ana_step =
       | ModLet(_, inner) => is_child(inner)
       | _ => false
       };
-    let siblings =
-      List.fold_left(
-        (acc, item: Mod.t) =>
-          holds_child(item) ? acc : union(acc, note(Mod.rep_id(item))),
-        Id.Set.empty,
-        items,
-      );
     (
-      {
-        ...shell,
-        omitted: union(shell.omitted, siblings),
-      },
+      shell,
       SliceQuery.mk_prod(
         List.filter_map(
           (item: Mod.t) =>
