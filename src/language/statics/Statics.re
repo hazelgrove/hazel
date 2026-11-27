@@ -228,8 +228,8 @@ and uexp_to_info_map =
        question when neither type has an ExplicitNonlabel wrapper to strip
        (it strips by returning its argument), so it is asked once. */
     let plain =
-      ana_skip_explicit_nonlabel(ana) === ana
-      && ana_skip_explicit_nonlabel(elab_syn_ty) === elab_syn_ty;
+      phys_equal(ana_skip_explicit_nonlabel(ana), ana)
+      && phys_equal(ana_skip_explicit_nonlabel(elab_syn_ty), elab_syn_ty);
     let met = lazy(Typ.meet(ctx, ana, elab_syn_ty));
     let shared = plain ? Some(met) : None;
     let marks =
