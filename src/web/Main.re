@@ -366,6 +366,8 @@ CoverageExport.install();
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
+/* Hazel in another page's frame (src/web/embed) */
+| Some("embed") => EmbedMain.go()
 | _ =>
   /* Start the eval worker now, while the page is idle waiting on
      IndexedDB, not on first use. First use comes in the middle of a

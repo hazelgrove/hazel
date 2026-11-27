@@ -1,0 +1,63 @@
+/* Hazel as a JavaScript library (a draft): window.Hazel. The working part,
+   and what the values look like, is HazelLibCore. */
+open Js_of_ocaml;
+open HazelLibCore;
+
+let () =
+  Js.Unsafe.set(
+    Js.Unsafe.global,
+    "Hazel",
+    Js.Unsafe.obj([|
+      ("version", js_string(version)),
+      ("build", js_string(build)),
+      (
+        "analyze",
+        Js.Unsafe.inject(Js.wrap_callback(t => analyze(Js.to_string(t)))),
+      ),
+      (
+        "run",
+        Js.Unsafe.inject(Js.wrap_callback(t => run(Js.to_string(t)))),
+      ),
+      (
+        "analyzeProgram",
+        Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
+      ),
+      ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
+      (
+        "compile",
+        Js.Unsafe.inject(Js.wrap_callback(t => compile(Js.to_string(t)))),
+      ),
+      (
+        "jit",
+        Js.Unsafe.inject(Js.wrap_callback(t => jit(Js.to_string(t)))),
+      ),
+      (
+        "compileProgram",
+        Js.Unsafe.inject(Js.wrap_callback(compile_program)),
+      ),
+      ("jitProgram", Js.Unsafe.inject(Js.wrap_callback(jit_program))),
+      (
+        "jitProgramSaved",
+        Js.Unsafe.inject(Js.wrap_callback(jit_program_saved)),
+      ),
+      (
+        "development",
+        Js.Unsafe.inject(
+          Js.wrap_callback((on: Js.Unsafe.any) =>
+            Js.bool(
+              development(
+                Js.to_bool(
+                  Js.Unsafe.coerce(
+                    Js.Unsafe.fun_call(
+                      Js.Unsafe.pure_js_expr("(x => x === true)"),
+                      [|on|],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          ),
+        ),
+      ),
+    |]),
+  );

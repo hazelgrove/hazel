@@ -50,7 +50,10 @@
   Worker
   WorkerServer
   CoverageHook
-  Migrate_exercises)
+  Migrate_exercises
+  HazelLib
+  HazelLibCore
+  BuildStamp)
  (libraries
   core
   ezjs_min
@@ -63,6 +66,8 @@
   ppx_yojson_conv.expander
   haz3lcore
   b2t2
+  hazelLibCore
+  buildStamp
   docslides
   tutorialslides
   omd)
@@ -107,6 +112,49 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries core workerServer)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
+
+; The commit a build is from: GITHUB_SHA on GitHub's runners, so a deploy
+; carries its commit, and "local" elsewhere. Hazel.build in hazel-lib.js, and
+; the build in embed mode's ready message, so a page can tell whether the two
+; came from one build.
+
+(rule
+ (targets BuildStamp.ml)
+ (action
+  (with-stdout-to
+   BuildStamp.ml
+   (echo "let commit = \"%{env:GITHUB_SHA=local}\"\n"))))
+
+(library
+ (name buildStamp)
+ (flags
+  (:standard -open Core))
+ (modules BuildStamp)
+ (libraries core)
+ (js_of_ocaml))
+
+; Hazel as a JS library (a draft): window.Hazel, to analyze and run programs
+; from any page. Served as www/hazel-lib.js. See HazelLib.re.
+
+(library
+ (name hazelLibCore)
+ (flags
+  (:standard -open Core))
+ (modules HazelLibCore)
+ (libraries core haz3lcore language buildStamp)
+ (js_of_ocaml)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
+
+(executable
+ (name hazelLib)
+ (flags
+  (:standard -open Core))
+ (modules HazelLib)
+ (libraries core hazelLibCore)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

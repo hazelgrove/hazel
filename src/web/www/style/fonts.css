@@ -1,15 +1,17 @@
+/* IBM Plex Sans, the interface font, under the SIL Open Font License
+   (licenses/LICENSE.IBMPlexSans). Latin subset. */
 @font-face {
-  font-family: "Helvetica Neue";
+  font-family: "IBM Plex Sans";
   font-style: normal;
   font-weight: normal;
-  src: url("fonts/HelveticaNeue-Regular.woff2") format("woff2");
+  src: url("fonts/IBMPlexSans-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "Helvetica Neue";
+  font-family: "IBM Plex Sans";
   font-style: normal;
   font-weight: bold;
-  src: url("fonts/HelveticaNeue-Bold.woff2") format("woff2");
+  src: url("fonts/IBMPlexSans-Bold.woff2") format("woff2");
 }
 
 @font-face {
@@ -34,4 +36,16 @@
   font-style: normal;
   font-stretch: normal;
   src: url("fonts/SourceCodePro-Black.otf.woff2") format("woff2");
+}
+
+/* Material Icons, the command palette's icons (ninja-keys draws each one
+   from its name, e.g. "undo"), shipped with Hazel rather than loaded from
+   Google Fonts, so they work offline. Apache License 2.0
+   (licenses/LICENSE.MaterialIcons). */
+@font-face {
+  font-family: "Material Icons";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/MaterialIcons-Regular.woff2") format("woff2");
 }

@@ -34,6 +34,7 @@ module WithContext: {
 
 let view:
   (
+    ~any_name: bool=?,
     ~inject: command => Ui_effect.t(unit),
     ~inject_menu: Model.action => Ui_effect.t(unit),
     ~syntax: Haz3lcore.CachedSyntax.t,
