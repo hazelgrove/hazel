@@ -12,6 +12,34 @@ type deferral_position_t =
   | InAp
   | OutsideAp;
 
+/* A list literal's elements and element type. Saved data (a stepper's
+   state holds terms) predates the type, so an untyped list's sexp is its
+   elements alone, as it was, and a typed one is tagged `typed`. */
+module ListLitArgs = {
+  [@deriving (show({with_path: false}), yojson, eq)]
+  type t('e, 't) = (list('e), option('t));
+
+  let sexp_of_t = (sexp_of_elem, sexp_of_ty, (es, ty): t('e, 't)) =>
+    switch (ty) {
+    | None => Sexplib.Std.sexp_of_list(sexp_of_elem, es)
+    | Some(ty) =>
+      Sexplib.Sexp.List([
+        Atom("typed"),
+        Sexplib.Std.sexp_of_list(sexp_of_elem, es),
+        sexp_of_ty(ty),
+      ])
+    };
+
+  let t_of_sexp = (elem_of_sexp, ty_of_sexp, sexp): t('e, 't) =>
+    switch (sexp) {
+    | Sexplib.Sexp.List([Atom("typed"), es, ty]) => (
+        Sexplib.Std.list_of_sexp(elem_of_sexp, es),
+        Some(ty_of_sexp(ty)),
+      )
+    | _ => (Sexplib.Std.list_of_sexp(elem_of_sexp, sexp), None)
+    };
+};
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
@@ -33,7 +61,12 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
-  | ListLit(list(exp_t('a)))
+  /* The element type of a list built at runtime, so `[]` has one too. A
+     list the user wrote has `None`; elaboration, and every step or builtin
+     that builds a list, sets it. Statics starts the elements' meet from it.
+     Only change detection (Exp.fast_equal) compares it: equal lists reached
+     along different paths carry different types. */
+  | ListLit(ListLitArgs.t(exp_t('a), typ_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
@@ -186,8 +219,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
-        | ListLit(l) =>
-          ListLit(List.map(~f=x => map_exp_annotation(f, x), l))
+        | ListLit((l, t)) =>
+          ListLit((
+            List.map(~f=x => map_exp_annotation(f, x), l),
+            Option.map(~f=map_typ_annotation(f), t),
+          ))
         | Constructor(s, t) =>
           Constructor(
             s,
@@ -624,8 +660,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: DrvQuote(d, s),
       annotation: default_annotation(ann),
     };
-    let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
-      term: ListLit(l),
+    let list_lit = (~ann=?, ~ty=?, l): exp_t(DefaultAnnotation.t) => {
+      term: ListLit((l, ty)),
       annotation: default_annotation(ann),
     };
     let constructor = (~ann=?, s, t): exp_t(DefaultAnnotation.t) => {

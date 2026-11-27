@@ -36,13 +36,16 @@ let get_cached_id = () =>
     Id.mk();
   };
 
+/* The shape of grout that fits beside a nib of shape `s`. */
+let shape_fitting = (s: Nib.Shape.t): shape =>
+  switch (s) {
+  | Convex => Concave
+  | Concave(_) => Convex
+  };
+
 let mk_fits_shape = (s: Nib.Shape.t): t => {
   id: get_cached_id(),
-  shape:
-    switch (s) {
-    | Convex => Concave
-    | Concave(_) => Convex
-    },
+  shape: shape_fitting(s),
 };
 
 let fits_shape = (g: t, s: Nib.Shape.t) =>

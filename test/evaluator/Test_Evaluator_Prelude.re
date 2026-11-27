@@ -17,6 +17,7 @@ let testable_exp =
         ignore_explicit_unlabelling: true,
         ignore_dynamic_errors,
         ignore_constructor_types,
+        ignore_list_types: true,
       })
     ).
       exp,

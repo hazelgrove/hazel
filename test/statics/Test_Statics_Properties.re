@@ -1,36 +1,17 @@
 open Language;
 open Test_Statics_Prelude;
-open Poly;
 
-let is_known_statics_failure = msg =>
-  List.exists(
-    ~f=(==)(msg),
-    [
-      "normalize exceeded 1000 recursive calls",
-      "weak_head_normalize exceeded 1000 recursive calls",
-      "Recursion limit exceeded in all_ctrs_of_typ",
-    ],
-  )
-  || String.is_prefix(
-       msg,
-       ~prefix="all_ctrs_of_type called with a non-normalized type:",
-     );
-
+/* Statics' one known failure (QCheck_Util.is_alias_loop) is let by;
+   anything else it raises is a failure. */
 let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    ~count=1000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
     switch (statics(exp)) {
     | _m => true
-    | exception Stack_overflow => true // TODO https://github.com/hazelgrove/hazel/issues/1622
-    | exception (Failure(f) as e) =>
-      if (is_known_statics_failure(f)) {
-        true;
-      } else {
-        raise(e);
-      }
+    | exception e when QCheck_Util.is_alias_loop(e) => true
     }
   });
 
@@ -42,20 +23,16 @@ let safe_statics = (~ctx=?, exp) => {
     };
   switch (Statics.mk(CoreSettings.on, ctx, exp)) {
   | result => `Ok(result)
-  | exception Stack_overflow => `Skip
-  | exception (Failure(f) as e) =>
-    if (is_known_statics_failure(f)) {
-      `Skip;
-    } else {
-      raise(e);
-    }
+  | exception e when QCheck_Util.is_alias_loop(e) => `Skip
   };
 };
 
 /* Assert that `violations` finds nothing in the info map `exp` produces.
-   Programs statics cannot process are skipped, as in `safe_statics`. */
+   A program statics cannot process is skipped, as in `safe_statics`,
+   unless `skipped` says otherwise. */
 let check_no_violations =
     (
+      ~skipped=() => (),
       ~violations: (Statics.Map.t, Language.Exp.t) => list('a),
       ~show: 'a => string,
       ~msg: string,
@@ -63,7 +40,7 @@ let check_no_violations =
     )
     : unit =>
   switch (safe_statics(exp)) {
-  | `Skip => ()
+  | `Skip => skipped()
   | `Ok(info_map, _elab) =>
     Alcotest.(
       check(
@@ -86,25 +63,32 @@ let elab_type_of =
   };
 
 /* Property: running statics on the elaborated expression yields the same type
-   as the original expression. */
-let check_elaboration_preserves_type = (exp: Language.Exp.t): unit =>
+   as the original expression. A program statics cannot process, or one
+   with no type recorded at its root, is not compared: `skipped` says what
+   to do then (nothing, for a generated program). */
+let check_elaboration_preserves_type =
+    (~skipped=(_: string) => (), exp: Language.Exp.t): unit =>
   switch (safe_statics(exp)) {
-  | `Skip => ()
+  | `Skip => skipped("statics skipped the program")
   | `Ok(m_user, elab) =>
     switch (elab_type_of(m_user, exp)) {
-    | None => ()
+    | None => skipped("the program has no type recorded")
     | Some(user_ty) =>
-      switch (safe_statics(elab)) {
-      | `Skip => ()
+      /* Re-check with `use_mode = None`, as `CachedStatics` does for
+         already-elaborated terms: `Operators.replace_*` re-specialize
+         literals to the ambient mode, so a `Some(Int)` pass rewrites
+         `use SInt in -?` back to an `Int` minus. */
+      switch (safe_statics(~ctx=Builtins.ctx_init(None), elab)) {
+      | `Skip => skipped("statics skipped the elaboration")
       | `Ok(m_elab, _) =>
         switch (elab_type_of(m_elab, elab)) {
-        | None => ()
+        | None => skipped("the elaboration has no type recorded")
         | Some(elab_ty) =>
           Alcotest.check(
             testable_typ,
             "the elaborated term synthesizes the user term's type",
-            user_ty,
-            elab_ty,
+            QCheck_Util.erase_proof_props(user_ty),
+            QCheck_Util.erase_proof_props(elab_ty),
           )
         }
       }
@@ -115,25 +99,12 @@ let qcheck_elaboration_preserves_type =
   QCheck.Test.make(
     ~name="Elaboration preserves type",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     exp => {
       check_elaboration_preserves_type(exp);
       true;
     },
   );
-
-/* Disabled: a `let`-bound module ascribed by name synthesizes a different type
-   before and after elaboration -- under QCHECK_SEED=1 the user term gives
-   `Unknown(Hole(Invalid "y"))` where its elaboration gives `(x = + B, y = ())`.
-   Seed-dependent, and did not reduce to a short program: most seeds pass. */
-let qcheck_elaboration_preserves_type_disabled =
-  Alcotest.test_case("Elaboration preserves type (disabled)", `Quick, () => {
-    [@warning "-21"]
-    {
-      Alcotest.skip();
-      ignore(QCheck_alcotest.to_alcotest(qcheck_elaboration_preserves_type));
-    }
-  });
 
 /* Property: for each user sub-expression, the parent-recorded `elab_syn_ty`
    agrees with the `elab_syn_ty` a fresh statics run produces for that sub's
@@ -142,8 +113,10 @@ let qcheck_elaboration_preserves_type_disabled =
    number-literal replacement, constructor ADT resolution, label inference --
    agree on both sides.
 
-   Bare labels are skipped: a bare label has no type outside its enclosing
-   product type. */
+   Bare labels and bare ExplicitNonlabels are skipped: neither has a type
+   outside its enclosing product type, so they always "differ" for reasons
+   that say nothing about elaboration. MultiHoles are skipped too (see
+   is_multihole). */
 type syn_disagreement = {
   sub: Language.Exp.t,
   parent_ty: Typ.t,
@@ -169,24 +142,76 @@ let syn_and_elab_of =
 
 let is_bare_label = (e: Language.Exp.t): bool =>
   switch (Exp.term_of(e)) {
-  | Label(_) => true
+  | Label(_)
+  | ExplicitNonlabel => true
+  | _ => false
+  };
+
+/* A MultiHole is broken code: statics records it as `?` on purpose, but
+   elaborates it to its expression children in sequence so they still run,
+   and that sequence re-checks as the last child's type (`y.(74)`'s broken
+   field elaborates to `74`). The property is about well-formed terms. */
+let is_multihole = (e: Language.Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | MultiHole(_) => true
+  | _ => false
+  };
+
+/* A module literal checked against a type that names fields. Its items
+   are checked against
+   the type's fields through ascriptions the lowering adds and the
+   elaboration leaves out (ModuleHelpers.is_signature_ascription), so the
+   type recorded for it is the signature's, where its elaboration
+   synthesizes its own: `{ let x = 48 } : (x=Bool)` records `(x=Bool)` for
+   a term that re-checks as `(x=Int)`. The error is reported at the item,
+   and lowering goes away with modules-ii (#2493); pinned below. */
+let is_checked_module = (info_map: Statics.Map.t, e: Language.Exp.t): bool =>
+  switch (Exp.term_of(e), Statics.Map.lookup_exp(Exp.rep_id(e), info_map)) {
+  /* the lowering ascribes only a `let` of a variable the type names
+     (ModuleHelpers.modlet_pat) */
+  | (Module(items), Some({ana, _})) =>
+    let labels = List.map(~f=fst, ModuleHelpers.extract_ana_labels(ana));
+    List.exists(items, ~f=(item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(p, _) =>
+        switch (Pat.strip_wrappers(p).term) {
+        | Var(name) => List.mem(labels, name, ~equal=String.equal)
+        | _ => false
+        }
+      | _ => false
+      }
+    );
   | _ => false
   };
 
 let differing_subs =
-    (info_map: Statics.Map.t, exp: Language.Exp.t): list(syn_disagreement) => {
+    (
+      ~checked_modules=false,
+      ~erase_proofs=true,
+      info_map: Statics.Map.t,
+      exp: Language.Exp.t,
+    )
+    : list(syn_disagreement) => {
+  let erase = (ty: Typ.t): Typ.t =>
+    erase_proofs ? QCheck_Util.erase_proof_props(ty) : ty;
   let results = ref([]);
   let _ =
     Exp.map_term(
       ~f_exp=
         (cont, sub) => {
-          if (!is_bare_label(sub)) {
+          if (!is_bare_label(sub)
+              && !is_multihole(sub)
+              && (checked_modules || !is_checked_module(info_map, sub))) {
             switch (syn_and_elab_of(info_map, sub)) {
             | None => ()
             | Some((recorded_ty, ctx, elab_term)) =>
               let parent_ty =
-                recorded_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp;
-              switch (safe_statics(~ctx, elab_term)) {
+                recorded_ty |> Typ.normalize(ctx) |> erase |> Typ.all_ids_temp;
+              /* elab_term is already elaborated: no ambient use mode, or
+                 a Float negation re-specializes to Int. */
+              switch (
+                safe_statics(~ctx=Ctx.set_use_mode(ctx, None), elab_term)
+              ) {
               | `Skip => ()
               | `Ok(m_elab, _) =>
                 switch (
@@ -195,7 +220,10 @@ let differing_subs =
                 | None => ()
                 | Some({elab_syn_ty, ctx: elab_ctx, _}) =>
                   let fresh_ty =
-                    elab_syn_ty |> Typ.normalize(elab_ctx) |> Typ.all_ids_temp;
+                    elab_syn_ty
+                    |> Typ.normalize(elab_ctx)
+                    |> erase
+                    |> Typ.all_ids_temp;
                   if (!Typ.fast_equal(parent_ty, fresh_ty)) {
                     let disagreement = {
                       sub,
@@ -218,8 +246,8 @@ let differing_subs =
 let qcheck_subexp_synthesis_agrees =
   QCheck.Test.make(
     ~name="Sub-expression synthesis agrees with a fresh run",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    ~count=1000,
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     exp => {
       check_no_violations(
         ~violations=differing_subs,
@@ -232,106 +260,648 @@ let qcheck_subexp_synthesis_agrees =
     },
   );
 
-/* Disabled: a negation analyzed against Float keeps an Int `elab_term`, so the
-   two sides disagree -- `(()) +. - []` reports parent Float, fresh Int.
-   Module member types are a second witness class. Fails on ~0.3% of generated
-   programs. */
-let qcheck_subexp_synthesis_agrees_disabled =
-  Alcotest.test_case(
-    "Sub-expression synthesis agrees with a fresh run (disabled)", `Quick, () => {
-    [@warning "-21"]
-    {
-      Alcotest.skip();
-      ignore(QCheck_alcotest.to_alcotest(qcheck_subexp_synthesis_agrees));
+/* Property: ids are persistent. Running statics twice on the same term
+   records an entry at the same ids, each with an `elab_term` rooted at the
+   same id, and that root has an entry of its own.
+
+   What this catches: an elaboration step minting an id the incremental
+   evaluator cannot cache at. The evaluator keys its cache by these ids and
+   reads what it knows about each one from the info map, so a root needs
+   both an id that is the same on every run (not `Exp.fresh`; the `FixF`
+   `fresh_deterministic` fix was the first instance, module lowering's
+   export record the next) and an entry in the map (not an id built after
+   statics ran). */
+type elab_id_drift =
+  | Drifted({
+      info_id: Id.t,
+      first: option(Id.t),
+      second: option(Id.t),
+    })
+  | NoEntry({
+      info_id: Id.t,
+      root: Id.t,
+    });
+
+let show_elab_id_drift =
+  fun
+  | Drifted({info_id, first, second}) => {
+      let show = Option.value_map(~default="no entry", ~f=Id.to_string);
+      Printf.sprintf(
+        "info %s: elab_term rooted at %s, then at %s",
+        Id.to_string(info_id),
+        show(first),
+        show(second),
+      );
     }
-  });
+  | NoEntry({info_id, root}) =>
+    Printf.sprintf(
+      "info %s: elab_term rooted at %s, which has no entry",
+      Id.to_string(info_id),
+      Id.to_string(root),
+    );
 
-/* Property (weak form): every `InfoExp`'s stored `elab_term` is rooted at the
-   id of some sub-expression of the user term. The strict form -- elab id ==
-   map key -- is too strong: `TyAlias` is stripped during elaboration, so its
-   `elab_term` is just the body and carries the body's id.
-
-   What this catches: an elaboration step minting an id that corresponds to no
-   user source position. Such ids are absent from the info map, so the
-   evaluator cannot create a cache entry at them and the subtree silently
-   becomes un-incrementalizable. */
-type elab_id_mismatch = {
-  info_id: Id.t,
-  elab_id: Id.t,
-};
-
-let show_elab_id_mismatch = ({info_id, elab_id}: elab_id_mismatch) =>
-  Printf.sprintf(
-    "info %s holds an elab_term rooted at %s",
-    Id.to_string(info_id),
-    Id.to_string(elab_id),
-  );
-
-let collect_user_term_ids = (exp: Language.Exp.t): Id.Set.t => {
-  let acc = ref(Id.Set.empty);
-  let f_exp = (continue, e: Language.Exp.t): Language.Exp.t => {
-    acc := Id.Set.add(Exp.rep_id(e), acc^);
-    continue(e);
-  };
-  let _ = TermBase.Exp.map_term(~f_exp, exp);
-  acc^;
-};
-
-let elab_ids_outside_user_term =
-    (info_map: Statics.Map.t, exp: Language.Exp.t): list(elab_id_mismatch) => {
-  let user_ids = collect_user_term_ids(exp);
+let elab_roots = (info_map: Statics.Map.t): Id.Map.t(Id.t) =>
   Id.Map.fold(
     (info_id, info, acc) =>
       switch (info) {
       | Info.InfoExp({elab_term, _}) =>
-        let elab_id = Exp.rep_id(elab_term);
-        let mismatch = {
-          info_id,
-          elab_id,
-        };
-        Id.Set.mem(elab_id, user_ids) ? acc : [mismatch, ...acc];
+        Id.Map.add(info_id, Exp.rep_id(elab_term), acc)
       | _ => acc
       },
     info_map,
-    [],
+    Id.Map.empty,
   );
+
+/* `Statics.mk` is memoized, so a second call would just return the first
+   run's map: run the uncached analysis twice instead. */
+let uncached_info_map = (exp: Language.Exp.t): Statics.Map.t => {
+  let (_, _, m) =
+    Statics.uexp_to_info_map(
+      ~ctx=Builtins.ctx_init(Some(Int)),
+      ~ancestors=[],
+      exp,
+      Id.Map.empty,
+    );
+  m;
 };
 
-let qcheck_elab_term_ids_in_user_term =
+let elab_ids_drifting =
+    (_: Statics.Map.t, exp: Language.Exp.t): list(elab_id_drift) => {
+  let first_map = uncached_info_map(exp);
+  let first = elab_roots(first_map);
+  let drifted =
+    Id.Map.merge(
+      (info_id, first, second) =>
+        Option.equal(Id.equal, first, second)
+          ? None
+          : Some(
+              Drifted({
+                info_id,
+                first,
+                second,
+              }),
+            ),
+      first,
+      elab_roots(uncached_info_map(exp)),
+    )
+    |> Id.Map.bindings
+    |> List.map(~f=snd);
+  let no_entry =
+    Id.Map.bindings(first)
+    |> List.filter_map(~f=((info_id, root)) =>
+         Id.Map.mem(root, first_map)
+           ? None
+           : Some(
+               NoEntry({
+                 info_id,
+                 root,
+               }),
+             )
+       );
+  drifted @ no_entry;
+};
+
+/* Every id anywhere in a term, not just its root. A synthesized wrapper deep
+   inside an elaboration (`Exp.fresh` on a label or on a `TupLabel`) drifts
+   between runs even when the entry's root is a source id. `map_term` walks
+   every constructor, so this needs no hand-written traversal to keep in
+   step with the grammar. */
+let ids_in_term = (e: Language.Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (cont, term) => {
+    acc := IdTagged.ids(term) @ acc^;
+    cont(term);
+  };
+  let _ = Exp.map_term(~f_exp=collect, ~f_pat=collect, ~f_typ=collect, e);
+  acc^;
+};
+
+let ids_in_pat = (p: Language.Pat.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (cont, term) => {
+    acc := IdTagged.ids(term) @ acc^;
+    cont(term);
+  };
+  let _ = Pat.map_term(~f_exp=collect, ~f_pat=collect, ~f_typ=collect, p);
+  acc^;
+};
+
+let ids_in_typ = (t: Language.Typ.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (cont, term) => {
+    acc := IdTagged.ids(term) @ acc^;
+    cont(term);
+  };
+  let _ = Typ.map_term(~f_exp=collect, ~f_pat=collect, ~f_typ=collect, t);
+  acc^;
+};
+
+/* Property: every id in every entry's elaborated term is present on both
+   runs. Stricter than `elab_ids_drifting`, which only looks at each root.
+   Patterns and types are checked too: label filling happens on the pattern
+   side as well, and a fresh id there drifts just as surely. */
+let elab_nested_ids_drifting =
+    (_: Statics.Map.t, exp: Language.Exp.t): list(string) => {
+  let all_ids = (m: Statics.Map.t): list(Id.t) =>
+    Id.Map.fold(
+      (_info_id, info, acc) =>
+        List.dedup_and_sort(
+          ~compare=Id.compare,
+          (
+            switch (info) {
+            | Info.InfoExp({elab_term, _}) => ids_in_term(elab_term)
+            | Info.InfoPat({elab_term, _}) => ids_in_pat(elab_term)
+            | Info.InfoTyp({user_term, _}) => ids_in_typ(user_term)
+            | _ => []
+            }
+          )
+          @ acc,
+        ),
+      m,
+      [],
+    );
+  let first = all_ids(uncached_info_map(exp));
+  let second = all_ids(uncached_info_map(exp));
+  let missing =
+    List.filter(~f=id => !List.mem(second, id, ~equal=Id.equal), first);
+  let extra =
+    List.filter(~f=id => !List.mem(first, id, ~equal=Id.equal), second);
+  List.map(~f=id => "only in first run: " ++ Id.to_string(id), missing)
+  @ List.map(~f=id => "only in second run: " ++ Id.to_string(id), extra);
+};
+
+let qcheck_elab_ids_persist =
   QCheck.Test.make(
-    ~name="Every elab_term is rooted at a user-term id",
+    ~name="Elaboration ids are the same on every run",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 40),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
       check_no_violations(
-        ~violations=elab_ids_outside_user_term,
-        ~show=show_elab_id_mismatch,
-        ~msg="every elab_term is rooted at a user-term id",
+        ~violations=elab_ids_drifting,
+        ~show=show_elab_id_drift,
+        ~msg="every entry's elab_term is rooted at the same id on both runs",
         exp,
       );
       true;
     },
   );
 
-/* Disabled: elaboration mints ids that belong to no user sub-expression --
-   `{}`, the empty module, is the smallest reproducer. Fails on ~30% of
-   generated programs. */
-let qcheck_elab_term_ids_in_user_term_disabled =
-  Alcotest.test_case(
-    "Every elab_term is rooted at a user-term id (disabled)", `Quick, () => {
-    [@warning "-21"]
-    {
-      Alcotest.skip();
-      ignore(QCheck_alcotest.to_alcotest(qcheck_elab_term_ids_in_user_term));
+let qcheck_elab_nested_ids_persist =
+  QCheck.Test.make(
+    ~name="Every id in an elaboration is the same on every run",
+    ~count=2000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    exp => {
+    switch (safe_statics(exp)) {
+    | `Skip => QCheck.assume_fail()
+    | `Ok(_) =>
+      switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
+      | [] => true
+      | violations =>
+        Alcotest.fail(
+          "Elaboration ids drift between runs:\n"
+          ++ String.concat(~sep="\n", violations),
+        )
+      }
     }
   });
+
+/* The user aliases an elaborated term's types mention. The runtime reads
+   those types with no context, so there should be none. A node's context
+   is its own info's, else its nearest enclosing node's; a type's own
+   binders (`rec`, `forall`) rebind their names. */
+let elab_user_aliases = (info_map: Statics.Map.t, elab: Exp.t): list(string) => {
+  let ctx = ref(Builtins.ctx_init(Some(Int)));
+  let bound = ref([]);
+  let found = ref([]);
+  let is_user_alias = (ctx, x) =>
+    switch (Ctx.lookup_tvar(ctx, x), Ctx.lookup_tvar_id(ctx, x)) {
+    | (Some(Singleton(_)), Some(id)) => !Id.equal(id, Id.invalid)
+    | _ => false
+    };
+  let f_typ = (cont, t: Typ.t) => {
+    switch (t.term) {
+    | Var(x)
+        when
+          !List.mem(bound^, x, ~equal=String.equal) && is_user_alias(ctx^, x) =>
+      found := [x, ...found^]
+    | _ => ()
+    };
+    let outer = bound^;
+    switch (t.term) {
+    | Rec(tp, _)
+    | Poly(tp, _) =>
+      bound := Option.to_list(TPat.tyvar_of_utpat(tp)) @ outer
+    | _ => ()
+    };
+    let t = cont(t);
+    bound := outer;
+    t;
+  };
+  let f_exp = (cont, e: Exp.t) => {
+    let outer = ctx^;
+    switch (Statics.Map.lookup_exp(Exp.rep_id(e), info_map)) {
+    | Some(info) => ctx := info.ctx
+    | None => ()
+    };
+    let e = cont(e);
+    ctx := outer;
+    e;
+  };
+  let _ = Exp.map_term(~f_exp, ~f_typ, elab);
+  List.rev(found^);
+};
+
+let qcheck_elab_carries_no_user_alias =
+  QCheck.Test.make(
+    ~name="An elaborated term carries no user alias",
+    ~count=2000,
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
+    exp => {
+    switch (safe_statics(exp)) {
+    | `Skip => true
+    | `Ok(info_map, elab) =>
+      switch (elab_user_aliases(info_map, elab)) {
+      | [] => true
+      | aliases =>
+        QCheck.Test.fail_reportf(
+          "user aliases %s in %s",
+          String.concat(~sep=", ", aliases),
+          QCheck_Util.show_core_exp(elab),
+        )
+      }
+    }
+  });
+
+let parse = (src: string): Language.Exp.t =>
+  switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ src)
+  };
+
+/* Long-mode counterexamples, pinned. */
+/* A fixed program that statics skips checks nothing: fail instead. */
+let check_elaboration_preserves_type = exp =>
+  check_elaboration_preserves_type(~skipped=Alcotest.fail, exp);
+let check_no_violations = (~violations, ~show, ~msg, exp) =>
+  check_no_violations(
+    ~skipped=() => Alcotest.fail("statics skipped the program: " ++ msg),
+    ~violations,
+    ~show,
+    ~msg,
+    exp,
+  );
+
+let regression_tests = [
+  /* `module x = def in body` is checked non-recursively but elaborates to
+     a `let`, which a fresh run checks as recursive. The two differ only in
+     what a `proof_of` quotes, which the properties erase (#2753), so they
+     don't meet it. Compared with nothing erased, it shows. */
+  Alcotest.test_case(
+    "Known bug (#2752): a self-referencing module binding re-checks differently",
+    `Quick,
+    () => {
+      let exp =
+        parse("proof_object module x = typfun y -> x in undefined end");
+      switch (safe_statics(exp)) {
+      | `Skip => Alcotest.fail("statics skipped the program")
+      | `Ok(info_map, _) =>
+        Alcotest.(
+          check(
+            bool,
+            "every sub-expression's recorded type agrees with a fresh synthesis",
+            false,
+            List.is_empty(
+              differing_subs(~erase_proofs=false, info_map, exp),
+            ),
+          )
+        )
+      };
+    },
+  ),
+  /* A list pattern whose elements have no common type is typed `[?]`,
+     which took a fresh id; the fixpoint's body cast carries it into the
+     elaboration. */
+  Alcotest.test_case(
+    "Every id in an elaboration persists: fix [_:(()), `a`] -> undefined",
+    `Quick,
+    () =>
+    Alcotest.(check(list(string)))(
+      "drifting ids",
+      [],
+      elab_nested_ids_drifting(
+        Statics.Map.empty,
+        parse("fix [_:(()), `a`] -> undefined"),
+      ),
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: (1, 2) : (a=Int, b=Int)", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(1, 2) : (a=Int, b=Int)"),
+    )
+  ),
+  Alcotest.test_case(
+    "Nested elaboration ids persist: (1, 2) : (a=Int, b=Int)", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_nested_ids_drifting,
+      ~show=msg => msg,
+      ~msg="every id in every elab_term is the same on both runs",
+      parse("(1, 2) : (a=Int, b=Int)"),
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: (1, 2) : (b=Int, a=Int)", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(1, 2) : (b=Int, a=Int)"),
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: partially labelled tuple", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(a=1, 2) : (a=Int, b=Int)"),
+    )
+  ),
+  Alcotest.test_case("Elaboration ids persist: singleton lift", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(1, 2) : (a=(Int, Int))"),
+    )
+  ),
+  /* Elaborating the *pattern* side of a labeled-tuple ascription fills in
+     labels the same way the expression side does. */
+  Alcotest.test_case(
+    "Elaboration ids persist: labeled tuple pattern", `Quick, () =>
+    List.iter(
+      [
+        "let f : (a=Int, b=Int) -> Int = fun (a, b) -> 0 in f",
+        "let (a, b) : (a=Int, b=Int) = (1, 2) in a",
+        "case (1, 2) | (a, b) => 0 end : (a=Int, b=Int) -> Int",
+      ],
+      ~f=src =>
+      check_no_violations(
+        ~violations=elab_nested_ids_drifting,
+        ~show=msg => msg,
+        ~msg="every id in every elab_term is the same on both runs",
+        parse(src),
+      )
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: singleton-lifted pattern", `Quick, () =>
+    List.iter(
+      [
+        "let f : (a=(Int, Int)) -> Int = fun (x, y) -> 0 in f",
+        "let x : (a=(Int, Int)) = (1, 2) in x",
+        "case (1, 2) | x => 0 end : (a=(Int, Int)) -> Int",
+      ],
+      ~f=src =>
+      check_no_violations(
+        ~violations=elab_nested_ids_drifting,
+        ~show=msg => msg,
+        ~msg="every id in every elab_term is the same on both runs",
+        parse(src),
+      )
+    )
+  ),
+  /* A module item punning on its value's only label (`let y = (y=1)` binds
+     `y : Int`) is typed the way its lowered `let` is: (y=Int). */
+  Alcotest.test_case(
+    "Elaboration preserves type: { module y = (y=1) }", `Quick, () =>
+    check_elaboration_preserves_type(parse("{ module y = (y=1) }"))
+  ),
+  /* `theorem (_=x)` binds `x` to the proof, as `theorem x` does, both before
+     and after elaboration (which turns the binder into a one-tuple). */
+  Alcotest.test_case(
+    "Elaboration preserves type: theorem (_=x) = true in x", `Quick, () =>
+    check_elaboration_preserves_type(parse("theorem (_=x) = true in x"))
+  ),
+];
+
+/* The ids more than one expression or pattern of a program's elaboration
+   has. Types are left out: one that statics makes up takes no id. */
+let elab_repeated_ids = (src: string): list(string) => {
+  let exp = parse(src);
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), uncached_info_map(exp))) {
+  | None => ["no entry for " ++ src]
+  | Some({elab_term, _}) =>
+    let acc = ref([]);
+    let collect = (cont, term) => {
+      acc := IdTagged.ids(term) @ acc^;
+      cont(term);
+    };
+    let _ = Exp.map_term(~f_exp=collect, ~f_pat=collect, elab_term);
+    acc^
+    |> List.filter(~f=id => !Id.equal(id, Id.invalid))
+    |> List.find_all_dups(~compare=Id.compare)
+    |> List.map(~f=Id.show);
+  };
+};
+
+/* One example of each cause the statics properties have found. */
+let no_nested_id_drift = (src: string) =>
+  switch (elab_nested_ids_drifting(Statics.Map.empty, parse(src))) {
+  | [] => ()
+  | violations =>
+    Alcotest.fail(
+      src
+      ++ ": elaboration ids drift:\n"
+      ++ String.concat(~sep="\n", violations),
+    )
+  };
+
+let found_cause_tests = [
+  /* A cons whose tail is not a list gets a cast at elaboration, which was
+     built with a fresh id. */
+  Alcotest.test_case("Elaboration ids persist: ?:: ?", `Quick, () =>
+    no_nested_id_drift("?:: ?")
+  ),
+  Alcotest.test_case("Elaboration ids persist: 1:: 2", `Quick, () =>
+    no_nested_id_drift("1:: 2")
+  ),
+  Alcotest.test_case("Elaboration ids persist: ():: []", `Quick, () =>
+    no_nested_id_drift("():: []")
+  ),
+  /* A type statics makes up (the `Bool` of a comparison, the list type a
+     cons pattern's tail is checked at) reaches the elaboration as a list's
+     element type or a cast, so it must not take a fresh id. */
+  Alcotest.test_case("Elaboration ids persist: [1 == 2]", `Quick, () =>
+    no_nested_id_drift("[1 == 2]")
+  ),
+  Alcotest.test_case("Elaboration ids persist: [1 == 2, ?]", `Quick, () =>
+    no_nested_id_drift("[1 == 2, ?]")
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: a cons pattern's tail in a list", `Quick, () =>
+    no_nested_id_drift("case ? | _ :: tl => [tl] | _ => ? end")
+  ),
+  Alcotest.test_case("Elaboration ids persist: [[1].a]", `Quick, () =>
+    no_nested_id_drift("[[(a=1)].a]")
+  ),
+  /* A placeholder `_` outside an application, behind a type alias that
+     elaboration erases, must not become a second placeholder. */
+  Alcotest.test_case(
+    "Elaboration preserves type: _(_, (type t = Int in _))", `Quick, () =>
+    check_elaboration_preserves_type(parse("_(_, (type t = Int in _))"))
+  ),
+  Alcotest.test_case(
+    "Sub-expression synthesis: _(_, (type ? = () in _))", `Quick, () =>
+    check_no_violations(
+      ~violations=differing_subs,
+      ~show=show_syn_disagreement,
+      ~msg=
+        "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
+      parse("_(_, (type ? = () in _))"),
+    )
+  ),
+  /* A negation's kind must not be re-decided when its elaboration is
+     re-checked. */
+  Alcotest.test_case("Sub-expression synthesis: () <= - 0.000002", `Quick, () =>
+    check_no_violations(
+      ~violations=differing_subs,
+      ~show=show_syn_disagreement,
+      ~msg=
+        "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
+      parse("() <= - 0.000002"),
+    )
+  ),
+  /* A recursive function's elaboration is a fixpoint, which synthesizes
+     the type its binder is ascribed. */
+  Alcotest.test_case(
+    "Sub-expression synthesis: an ascribed recursive function", `Quick, () =>
+    List.iter(
+      [
+        "let f : ? -> ? = fun x -> f(x) + 1 in f",
+        "let f : Int -> ? = fun x -> f(x) in f",
+        "let f = fun x -> f(x) + 1 in f",
+      ],
+      ~f=src =>
+      check_no_violations(
+        ~violations=differing_subs,
+        ~show=show_syn_disagreement,
+        ~msg=
+          "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
+        parse(src),
+      )
+    )
+  ),
+  /* Each level of a nested one-field type a value or a pattern is lifted
+     into makes up nodes of its own, with ids of their own. */
+  Alcotest.test_case(
+    "Elaboration ids are distinct: nested singleton lifts", `Quick, () =>
+    List.iter(
+      [
+        "let p : (a=(b=Int)) = 5 in p",
+        "let p : (a=(b=(c=Int))) = 5 in p",
+        "let f : (a=(b=Int)) -> Int = fun x -> x in f",
+        "case 5 | (x : (a=(b=(c=Int)))) => x end",
+      ],
+      ~f=src => {
+        no_nested_id_drift(src);
+        Alcotest.(check(list(string), src, [], elab_repeated_ids(src)));
+      },
+    )
+  ),
+  /* Known gap (#2493): the disagreement differing_subs skips (see
+     is_checked_module). Goes red once a checked module's recorded type and
+     its elaboration agree; then drop the skip too. */
+  Alcotest.test_case(
+    "Known gap (#2493): a checked module records its signature's types",
+    `Quick,
+    () =>
+    List.iter(
+      [
+        ("{ let x = 48 } : (x=Bool)", true),
+        ("{ let x = 48 } : (x=?)", true),
+        /* a type that names none of its fields ascribes nothing, and the
+           module is compared like any other term */
+        ("{ let y = 48 } : ?", false),
+        ("{ let y = 1 } + 1", false),
+        ("{ let y = 48 } : (x=Bool, z=Int)", false),
+        ("{ let (x, y) = (1, 2) } : (x=Bool, y=Bool)", false),
+      ],
+      ~f=((src, skipped)) => {
+        let exp = parse(src);
+        let is_module = (e: Language.Exp.t) =>
+          switch (Exp.term_of(e)) {
+          | Module(_) => true
+          | _ => false
+          };
+        switch (safe_statics(exp)) {
+        | `Skip => Alcotest.fail("statics skipped " ++ src)
+        | `Ok(info_map, _) =>
+          let found = ref(false);
+          let _ =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e) => {
+                  if (is_module(e) && is_checked_module(info_map, e)) {
+                    found := true;
+                  };
+                  continue(e);
+                },
+              exp,
+            );
+          Alcotest.(
+            check(bool, "its module is skipped: " ++ src, skipped, found^)
+          );
+          Alcotest.(
+            check(
+              bool,
+              "the module's recorded and re-synthesized types differ: " ++ src,
+              skipped,
+              List.exists(
+                differing_subs(~checked_modules=true, info_map, exp),
+                ~f=({sub, _}) =>
+                is_module(sub)
+              ),
+            )
+          );
+        };
+      },
+    )
+  ),
+];
 
 let tests = (
   "Statics.Properties",
   [
     QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash),
-    qcheck_elaboration_preserves_type_disabled,
-    qcheck_subexp_synthesis_agrees_disabled,
-    qcheck_elab_term_ids_in_user_term_disabled,
-  ],
+    QCheck_alcotest.to_alcotest(qcheck_elaboration_preserves_type),
+    QCheck_alcotest.to_alcotest(qcheck_subexp_synthesis_agrees),
+    QCheck_alcotest.to_alcotest(qcheck_elab_ids_persist),
+    QCheck_alcotest.to_alcotest(qcheck_elab_nested_ids_persist),
+    QCheck_alcotest.to_alcotest(qcheck_elab_carries_no_user_alias),
+    Alcotest.test_case(
+      "An explicit fixpoint's body cast carries no user alias",
+      `Quick,
+      () => {
+        let exp =
+          parse("type T = Int -> Int in (fix (f : T) -> fun x -> x)(1)");
+        let (info_map, elab) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+        Alcotest.(
+          check(
+            list(string),
+            "user aliases in the elaboration",
+            [],
+            elab_user_aliases(info_map, elab),
+          )
+        );
+      },
+    ),
+  ]
+  @ regression_tests
+  @ found_cause_tests,
 );

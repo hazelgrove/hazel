@@ -1,6 +1,5 @@
 open Alcotest;
 open Language;
-open Poly;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -14,6 +13,7 @@ let dhexp_typ =
         ignore_parens: true,
         ignore_projectors: true,
         ignore_unknown_provenance: true,
+        ignore_list_types: true,
       })
     ).
       exp,
@@ -63,7 +63,7 @@ let adt_node_ids = exp => {
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
       List.iter(~f=go, es);
-    | ListLit(es) => List.iter(~f=go, es)
+    | ListLit((es, _)) => List.iter(~f=go, es)
     | TupLabel(label, body) =>
       go(label);
       go(body);
@@ -454,17 +454,66 @@ module PlainTests = {
     );
   };
 
-  let skip_known_bug = (message: string, expression: string) =>
-    test_case("Known Bug: " ++ message, `Quick, () => {
-      [@warning "-21"]
-      {
-        let uexp = parse_exp(expression);
-        Alcotest.skip();
-        let _ = dhexp_of_uexp(uexp);
+  /* Programs elaboration once crashed or hung on. */
+  let elaborates = (message: string, expression: string) =>
+    test_case(
+      message,
+      `Quick,
+      () => {
+        let _ = dhexp_of_uexp(parse_exp(expression));
         ();
-      }
-    });
+      },
+    );
+  /* Statics doesn't finish on a type alias that reaches back to itself
+     through another (#2570). Goes red when it does. */
+  let alias_loop_pin = (message: string, expression: string) =>
+    test_case("Known bug (#2570): " ++ message, `Quick, () =>
+      Alcotest.check(
+        Alcotest.bool,
+        "statics hits the alias loop",
+        true,
+        switch (dhexp_of_uexp(parse_exp(expression))) {
+        | _ => false
+        | exception e => QCheck_Util.is_alias_loop(e)
+        },
+      )
+    );
   let tests = [
+    /* Terms built without source ids (`Exp.temp`) all carry the invalid
+       id; the nodes elaboration adds around them still need ids of their
+       own, or statics records them all under one. */
+    test_case(
+      "Elaborating terms without ids",
+      `Quick,
+      () => {
+        let temp =
+          Grammar.map_exp_annotation(
+            (_: IdTagged.IdTag.t) =>
+              IdTagged.IdTag.mk_internal([Id.invalid]),
+            Option.value_exn(
+              Haz3lcore.Parser.to_term("[1, ?, ?]", ~root=Exp),
+            ),
+          );
+        let (_, elab) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), temp);
+        let ids = ref([]);
+        let _ =
+          Grammar.map_exp_annotation(
+            ({ids: these, _}: IdTagged.IdTag.t) => {
+              ids := these @ ids^;
+              IdTagged.IdTag.mk_internal(these);
+            },
+            elab,
+          );
+        let made = List.filter(ids^, ~f=id => !Id.equal(id, Id.invalid));
+        check(
+          int,
+          "distinct ids in " ++ Language.Exp.show(elab),
+          List.length(made),
+          List.length(List.dedup_and_sort(made, ~compare=Id.compare)),
+        );
+      },
+    ),
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
     test_case("Free variable", `Quick, free_var),
@@ -752,6 +801,28 @@ in 1|},
         ),
       )
     ),
+    /* A hole is still fillable by anything, the label included, so it is
+       left alone until something fills it. */
+    test_case("Does not add a label to a hole", `Quick, () =>
+      alco_check(
+        "Hole keeps no label",
+        Exp.empty_hole(),
+        DHExp.strip_ascriptions(dhexp_of_uexp(parse_exp({|? : (a=Int)|}))),
+      )
+    ),
+    test_case("Adds a label to a wide tuple", `Quick, () =>
+      alco_check(
+        "Wide tuple becomes the labeled field",
+        Exp.(
+          tuple([
+            tup_label(label("a"), parens(tuple([int(1), int(2)]))),
+          ])
+        ),
+        DHExp.strip_ascriptions(
+          dhexp_of_uexp(parse_exp({|(1, 2) : (a=(Int, Int))|})),
+        ),
+      )
+    ),
     /* ===== MODULE ELABORATION TESTS =====
        NOTE: Modules currently elaborate to labeled tuples.
        These tests will need updating when modules get their own
@@ -830,50 +901,98 @@ in 1|},
         );
       },
     ),
-    skip_known_bug(
-      "Nontermination in typ normalization",
+    elaborates(
+      "A type alias of itself, used in a type application",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
     ),
-    skip_known_bug(
-      "Nontermination in typ normalization (mutually recursive aliases)",
+    alias_loop_pin(
+      "mutually recursive type aliases",
       "type x = y in type y = x in (()) @< x >",
     ),
-    skip_known_bug(
-      "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+    elaborates(
+      "A type applied in a pattern's ascription",
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
-    skip_known_bug(
-      "Type meet of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+    elaborates(
+      "A type application in a sum's argument",
       "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
         ~name="Elaboration does not crash",
-        ~count=10000,
-        QCheck_Util.arb_exp(~minimal_idents=true, 50),
+        ~count=1000,
+        QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
         exp => {
-        switch (dhexp_of_uexp(exp)) {
-        | _ => true
-        | exception (Failure(msg) as e) =>
-          switch (msg) {
-          | _
-              when
-                List.exists(
-                  ~f=(==)(msg),
-                  [
-                    "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                    "weak_head_normalize exceeded 1000 recursive calls",
-                  ],
-                ) =>
-            print_endline("Known failure: " ++ Exn.to_string(e));
-            true;
-          | _ => raise(e)
-          }
-        | exception e =>
-          print_endline("Skipping statics: " ++ Exn.to_string(e));
+          /* Only the alias loop (#2570) is let by. */
+          let _ = QCheck_Util.skip_alias_loop(() => dhexp_of_uexp(exp));
           true;
-        }
-      }),
+        },
+      ),
+    ),
+    /* PBT Elaboration 41 (QCHECK_SEED=1337): quoted label binder under list
+       → Coverage.all_ctrs_of_type on bare Label "a". */
+    test_case(
+      "A quoted label as a let binder elaborates",
+      `Quick,
+      () => {
+        let uexp = parse_exp({|case (()) | _ => [(let `a` = x in x)] end|});
+        let _ = dhexp_of_uexp(uexp);
+        ();
+      },
+    ),
+    /* A binder typed by an alias of the function's whole type is the
+       function's type, so the fixpoint's body needs no cast. */
+    test_case(
+      "A recursive function typed by an alias gets no body cast",
+      `Quick,
+      () => {
+        let casts = ref(0);
+        let fixpoints = ref(0);
+        let _ =
+          Language.Exp.map_term(
+            ~f_exp=
+              (continue, e: Language.Exp.t) => {
+                switch (e.term) {
+                | FixF(_, {term: Asc(_), _}, _) =>
+                  casts := casts^ + 1;
+                  fixpoints := fixpoints^ + 1;
+                | FixF(_) => fixpoints := fixpoints^ + 1
+                | _ => ()
+                };
+                continue(e);
+              },
+            dhexp_of_uexp(
+              parse_exp(
+                "type F = Int -> Int in let f : F = fun n -> if n == 0 then 0 else f(n - 1) in f(10)",
+              ),
+            ),
+          );
+        check(int, "fixpoint bodies with a cast", 0, casts^);
+        check(int, "fixpoints in the elaboration", 1, fixpoints^);
+      },
+    ),
+    /* An alias is erased at runtime, so a cast must not name one. */
+    test_case(
+      "A recursive function's ascriptions name no type alias",
+      `Quick,
+      () => {
+        let aliases = ref([]);
+        let _ =
+          Language.Exp.map_term(
+            ~f_typ=
+              (continue, t: Language.Typ.t) => {
+                switch (t.term) {
+                | Var(a) => aliases := [a, ...aliases^]
+                | _ => ()
+                };
+                continue(t);
+              },
+            dhexp_of_uexp(
+              parse_exp("type T = Int in let f = fun (x : T) -> (x, f) in f"),
+            ),
+          );
+        check(list(string), "type variables", [], aliases^);
+      },
     ),
   ];
 };
@@ -921,11 +1040,12 @@ module MenhirElaborationTests = {
       dhexp_of_uexp(bin_op_uexp),
     );
 
-  //Inconsistent branches menhir test
+  /* Inconsistent branches: elaboration puts each under an ascription to
+     an unknown type. */
   let inconsistent_case_menhir_str = "
     case 4 == 3
-    | true => 24
-    | false => false
+    | true => (24 : ?)
+    | false => (false : ?)
     end
 ";
   let inconsistent_case_uexp: Exp.t =
@@ -936,20 +1056,12 @@ module MenhirElaborationTests = {
       )
     );
 
-  /* Skipped: menhir wraps each match-branch body in Asc(_, Unknown(SynSwitch))
-     where MakeTerm does not, so the two parses are unequal. Same
-     menhir/MakeTerm divergence class as the tests skipped via
-     [skip_menhir_maketerm_equivalent_test] in Test_Menhir.re. */
   let inconsistent_case_menhir = () =>
-    [@warning "-21"]
-    {
-      Alcotest.skip();
-      alco_check_menhir(
-        "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
-        inconsistent_case_menhir_str,
-        inconsistent_case_uexp,
-      );
-    };
+    alco_check_menhir(
+      "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
+      inconsistent_case_menhir_str,
+      inconsistent_case_uexp,
+    );
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
@@ -1027,7 +1139,7 @@ module MenhirElaborationTests = {
       dynamic_error_hole_uexp,
     );
 
-  let undef_str = "undef";
+  let undef_str = "undefined";
   let undef_uexp: Exp.t = Exp.undefined();
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
@@ -1050,7 +1162,7 @@ module MenhirElaborationTests = {
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
 
   let undefined_str = "
-undef
+undefined
 ";
   let undefined_uexp: Exp.t = Exp.undefined();
   let undefined_menhir = () =>

@@ -40,12 +40,27 @@ let of_slide_text = (text: string): t =>
     |> StringUtil.replace(StringUtil.regexp("\r"), _, "\n"),
   );
 
+/* The note a slow parse logs. It goes to stderr, on one line: the CLI
+   prints programs to stdout, where a note quoting a multi-line program's
+   head would read as part of the output. */
+let slow_parse_note = (~source: string, ~why: string, text: string): string =>
+  "SLOW PARSE ("
+  ++ source
+  ++ ", "
+  ++ string_of_int(String.length(text))
+  ++ " chars): "
+  ++ String.escaped(why)
+  ++ " | head: "
+  ++ String.escaped(
+       String.sub(text, ~pos=0, ~len=min(60, String.length(text))),
+     );
+
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the
    ¿-aware recovering parser. Persisted programs are complete, so the
    linear zip usually takes it — the simulated-typing parser is quadratic
    in program size and can hang startup on big stale-sexp slides. Returns
-   None only when both parsers fail; the failure POLICY lives at the call
+   None only when both parsers fail; the failure policy lives at the call
    sites (the CLI reports an error, persistence loads an empty buffer).
    Only the writer's final newline is stripped (see persist); all other
    edge whitespace is content — leading/trailing blank lines round-trip. */
@@ -60,7 +75,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
     )
   ) {
   | Ok({segment, refractors}) =>
-    /* Caret starts at the TOP: unzip's default direction (Right) leaves
+    /* Caret starts at the top: unzip's default direction (Right) leaves
        the caret after the whole program, and the editor scrolls the caret
        into view on display — a freshly loaded slide would open at the
        bottom.
@@ -77,16 +92,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path
        bails land here). Console-visible: every slow parse names itself. */
-    print_endline(
-      "SLOW PARSE ("
-      ++ source
-      ++ ", "
-      ++ string_of_int(String.length(text))
-      ++ " chars): "
-      ++ why
-      ++ " | head: "
-      ++ String.sub(text, ~pos=0, ~len=min(60, String.length(text))),
-    );
+    prerr_endline(slow_parse_note(~source, ~why, text));
     switch (MarkerParse.of_text(~root, text)) {
     | None => None
     | Some(z) =>

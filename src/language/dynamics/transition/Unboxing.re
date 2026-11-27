@@ -22,13 +22,13 @@ open Util;
     */
 
 type unboxed_tfun =
-  | TypFun(TPat.t, Exp.t, option(string));
+  | TypFun(TPat.t, Exp.t, option(string), option(Environment.t(Exp.t)));
 
 [@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
-  | FunNoEnv(Pat.t, Exp.t)
+  /* With the environment of the closure it came in, if any. */
+  | Fun(Pat.t, Exp.t, [@show.opaque] option(Environment.t(Exp.t)))
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
 
@@ -37,7 +37,7 @@ type unbox_request('a) =
   | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
-  | ListLit: unbox_request(list(DHExp.t)) // Unboxes to a known length list LITERAL. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
+  | ListLit: unbox_request((list(DHExp.t), option(Typ.t))) // Unboxes to a known length list literal, with its element type. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
   | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent matching lists of the wrong length and for matching list lits against cons expressions
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
@@ -141,8 +141,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
 
     /* Lists can be either lists or cons with indet tail */
-    | (ListLit, ListLit(l)) => Matches(l)
-    | (ListLitn(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
+    | (ListLit, ListLit((l, ty))) => Matches((l, ty))
+    | (ListLitn(n), ListLit((l, _))) when ListUtil.is_length(n, l) =>
+      Matches(l)
     | (ListLitn(_), ListLit(_)) => DoesNotMatch
     /* A cons final form is always indet, so either does NOT match or indet matches with a listliteral*/
     | (ListLitn(0), Cons(_)) => DoesNotMatch // Cons is not an empty list
@@ -151,9 +152,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches([x, ...tail]);
     | (ListLit, Cons(_)) => IndetMatch // Without length of ListLit we cannot know
 
-    | (Cons, ListLit([x, ...xs])) =>
-      Matches((x, ListLit(xs) |> DHExp.fresh))
-    | (Cons, ListLit([])) => DoesNotMatch
+    | (Cons, ListLit(([x, ...xs], ty))) =>
+      Matches((x, ListLit((xs, ty)) |> DHExp.fresh))
+    | (Cons, ListLit(([], _))) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
     /* Tuples  */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
@@ -173,16 +174,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
-      Matches(FunEnv(dp, d3, env'))
-    | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
+      Matches(Fun(dp, d3, Some(env')))
+    | (Fun, Fun(dp, d3, _, _)) => Matches(Fun(dp, d3, None))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
     /* TypFun-like things can look like the following when values */
     | (TypFun, Closure(env', {term: TypFun(utpat, tfbody, name), _})) =>
-      Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
+      Matches(TypFun(utpat, tfbody, name, Some(env')))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
-      Matches(TypFun(utpat, tfbody, name))
+      Matches(TypFun(utpat, tfbody, name, None))
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,

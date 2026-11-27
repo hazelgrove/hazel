@@ -75,7 +75,7 @@ let any_to_state = (term: Any.t): option(state) =>
   switch (term) {
   | Exp(term) =>
     switch (strip_wraps_exp(term).term) {
-    | ListLit(terms) =>
+    | ListLit((terms, _)) =>
       let+ cards = terms |> List.map(~f=exp_to_card) |> OptUtil.sequence;
       (Exp, Hand(cards));
     | _ =>

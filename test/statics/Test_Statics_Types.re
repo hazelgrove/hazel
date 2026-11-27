@@ -597,6 +597,24 @@ let tests = (
         ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
       )
     ),
+    /* Properties skip terms that hit this loop
+       (QCheck_Util.skip_alias_loop). When this goes red, delete that. */
+    test_case(
+      "Known Bug: an alias that reaches itself through a module loops",
+      `Quick,
+      () =>
+      Alcotest.match_raises(
+        "statics",
+        fun
+        | Failure(msg) =>
+          String.is_suffix(msg, ~suffix="exceeded 1000 recursive calls")
+        | _ => false,
+        () =>
+        ignore(
+          statics(parse_exp("{ type y = x; module x = y; type z = x }")),
+        )
+      )
+    ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624
 
@@ -687,9 +705,15 @@ let tests = (
           );
         },
       ),
-    skip_known_bug(
-      "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
-      {|fun (?: (Float((+ A(Bool))))) -> ""|},
+    /* Statics once raised here ("all_ctrs_of_type called with a
+       non-normalized type", #1626). */
+    test_case(
+      "a type applied to a sum in a pattern's ascription",
+      `Quick,
+      () => {
+        let _ = statics(parse_exp({|fun (?: (Float((+ A(Bool))))) -> ""|}));
+        ();
+      },
     ),
     // These overflowed Typ.normalize and raised Not_found respectively, so
     // reaching a type at all is the regression being pinned.
@@ -982,6 +1006,77 @@ let tests = (
           "Has parse failure error",
           [Marks([Mark.TypParseFailure])],
           errors,
+        );
+      },
+    ),
+    /* The stepper's context describes the elaborated program; a term typed
+       against it in a rewrite editor still gets its negation decided. */
+    test_case(
+      "A negation typed in a stepper editor is re-kinded",
+      `Quick,
+      () => {
+        let ctx =
+          SemanticCtx.of_ctx_and_env(
+            Builtins.ctx_init(None),
+            Builtins.env_init,
+          )
+          |> SemanticCtx.ctx_for_new_term;
+        let (m, _) =
+          Statics.mk(
+            CoreSettings.on,
+            ctx,
+            parse_exp("let x : Float = 1.0 in -x"),
+          );
+        check(
+          int,
+          "static errors",
+          0,
+          List.length(Statics.Map.error_ids(m)),
+        );
+      },
+    ),
+    /* A context that already has a use mode keeps it: the theorem list
+       builds its context from the program's, which `use Float` sets. */
+    test_case(
+      "A stepper editor keeps the program's use mode",
+      `Quick,
+      () => {
+        let ctx =
+          SemanticCtx.of_ctx_and_env(
+            Ctx.set_use_mode(Builtins.ctx_init(None), Some(Float)),
+            Builtins.env_init,
+          )
+          |> SemanticCtx.ctx_for_new_term;
+        check(
+          bool,
+          "use mode is Float",
+          true,
+          switch (ctx.use_mode) {
+          | Some(Float) => true
+          | _ => false
+          },
+        );
+      },
+    ),
+    /* Boolean negation is never re-kinded, so checking it mustn't peek at
+       its operand: each `!` would double the work. */
+    test_case(
+      "Nested boolean negation checks in linear time",
+      `Quick,
+      () => {
+        let exp =
+          parse_exp(
+            "if "
+            ++ String.concat(~sep="", List.init(24, ~f=_ => "! "))
+            ++ "true then 1 else 2",
+          );
+        let (m, _) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+        check(
+          int,
+          "static errors",
+          0,
+          List.length(Statics.Map.error_ids(m)),
         );
       },
     ),

@@ -102,14 +102,7 @@ let tests = (
         );
       },
     ),
-    test_case(
-      "Negative ints",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip(); // TODO: Fix negative ints
-        equivalent_to_make_term("-1");
-      },
-    ),
+    test_case("Negative ints", `Quick, () => {equivalent_to_make_term("-1")}),
     test_case(
       "Empty Ids on ExpToSegment constructor",
       `Quick,
@@ -455,12 +448,7 @@ let tests = (
             IdTagged.FreshGrammar.Exp.(un_op(Float(Minus), float(3.14))),
           );
         let serialized = print_seg(seg);
-        check(
-          string,
-          "Float negation text",
-          "0.000000 -. 3.140000",
-          serialized,
-        );
+        check(string, "Float negation text", "0.0 -. 3.14", serialized);
         /* Verify round-trip: segment → term → segment preserves float minus */
         switch (MakeTerm.for_projection(seg)) {
         | Some(Exp({term: BinOp(Float(Minus), _, _), _})) => ()
@@ -473,7 +461,7 @@ let tests = (
       check(
         string,
         "",
-        {|1.230000 . 4.560000|},
+        {|1.23 . 4.56|},
         print_seg(
           exp_to_segment(
             IdTagged.FreshGrammar.Exp.(dot(float(1.23), float(4.56))),
@@ -964,6 +952,13 @@ end|}),
     roundtrip_test({|Module: bare exp item|}, {|{ 1 }|}),
     roundtrip_test({|Module: bare exp items|}, {|{ 1; 2 }|}),
     roundtrip_test({|Module: let then bare exp|}, {|{ let x = 1; x }|}),
+    /* The item's expression run ends at the invalid token; the `:` after
+       it still leads into a type. */
+    roundtrip_test(
+      {|Module: ascription after an invalid token|},
+      {|{ let x = ^w^:Void }|},
+    ),
+    roundtrip_test({|Module: ascribed bare exp item|}, {|{ 1; x:Int; 2 }|}),
     roundtrip_test(
       {|Module: with type alias|},
       {|{ type T = Int; let x = 1 }|},
@@ -1032,8 +1027,8 @@ end|}),
 
    === KNOWN LIMITATIONS ===
 
-   - Float literals: normalized to full precision (2.0 becomes 2.000000)
-     This is done upstream in the parser/lexer.
+   - Float literals print as the shortest decimal that reads back as the
+     same float (Atom.to_literal), so `2.0` stays `2.0`.
 
    ============================================================================ */
 
@@ -1053,6 +1048,308 @@ let roundtrip_defensive_paren_tests = (
        The type-level construct is `poly` (type poly tpat -> typ). */
     /* Nested rec/poly types */
     roundtrip_test({|Nested rec types|}, {|1 : rec t -> rec u -> (t, u)|}),
+    /* A bare labeled argument of a partial application is an argument,
+       not a one-field record: `f(a=1, _)` prints back as written. */
+    test_case({|Labeled argument to a partial application|}, `Quick, () =>
+      switch (Parser.to_term({|f(a=1, _)|}, ~root=Exp)) {
+      | Some(term) =>
+        check(
+          string,
+          {|Defensive print|},
+          {|f(a=1, _)|},
+          ExpToSegment.exp_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            term,
+          )
+          |> Printer.of_segment(~holes="?"),
+        )
+      | None => Alcotest.fail({|Failed to parse|})
+      }
+    ),
+    /* A hint that could start with `test` takes parens, a literal one none,
+       and printing must not add a layer to a hint that already has one. */
+    test_case(
+      {|Hint stays put through print-parse cycles|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|hint "x" test true end|});
+        check(string, {|First print|}, {|hint "x" test true end|}, once);
+        check(string, {|Second print|}, once, print(once));
+        let nested = print({|hint (test 1 end) test true end|});
+        check(
+          string,
+          {|Hint starting with test|},
+          {|hint (test 1 end) test true end|},
+          nested,
+        );
+        check(string, {|Its second print|}, nested, print(nested));
+      },
+    ),
+    /* With ascriptions hidden, a labeled field under a cast prints as the
+       field itself: inside a tuple it needs no parens of its own, and alone
+       it is a one-field tuple, not `(_=(a=1))`. */
+    test_case(
+      {|Hidden cast on a labeled field|},
+      `Quick,
+      () => {
+        let print = (any: Any.t) =>
+          ExpToSegment.any_to_segment(
+            ~settings={
+              ...ExpToSegment.Settings.editable(~inline=true),
+              show_ascriptions: false,
+            },
+            any,
+          )
+          |> Printer.of_segment(~holes="?");
+        module F = IdTagged.FreshGrammar;
+        check(
+          string,
+          {|Expression|},
+          {|(x=1, b=2)|},
+          print(
+            Exp(
+              F.Exp.tuple([
+                F.Exp.asc(
+                  F.Exp.tup_label(F.Exp.label("x"), F.Exp.int(1)),
+                  F.Typ.prod([
+                    F.Typ.tup_label(F.Typ.label("y"), F.Typ.int()),
+                  ]),
+                ),
+                F.Exp.tup_label(F.Exp.label("b"), F.Exp.int(2)),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|Pattern|},
+          {|(x=a, b=c)|},
+          print(
+            Pat(
+              F.Pat.tuple([
+                F.Pat.asc(
+                  F.Pat.tup_label(F.Pat.label("x"), F.Pat.var("a")),
+                  F.Typ.int(),
+                ),
+                F.Pat.tup_label(F.Pat.label("b"), F.Pat.var("c")),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|One-field expression|},
+          {|(a=1)|},
+          print(
+            Exp(
+              F.Exp.tuple([
+                F.Exp.asc(
+                  F.Exp.tup_label(F.Exp.label("a"), F.Exp.int(1)),
+                  F.Typ.prod([
+                    F.Typ.tup_label(F.Typ.label("a"), F.Typ.int()),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|One-field pattern|},
+          {|(a=x)|},
+          print(
+            Pat(
+              F.Pat.tuple([
+                F.Pat.asc(
+                  F.Pat.tup_label(F.Pat.label("a"), F.Pat.var("x")),
+                  F.Typ.int(),
+                ),
+              ]),
+            ),
+          ),
+        );
+      },
+    ),
+    /* A module item's pattern goes through the pattern parenthesizer twice
+       (once for the module, once when it is printed), which must not add a
+       layer each time. */
+    test_case(
+      {|Module item ascription stays put through print-parse cycles|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|{ let x : Int = 1 }|});
+        check(string, {|First print|}, {|{ let x:(Int) = 1 }|}, once);
+        check(string, {|Second print|}, once, print(once));
+      },
+    ),
+    /* A module item printed on its own (an error message's term) gets the
+       same parens as inside its module. */
+    test_case(
+      {|A bare module item keeps its expression's parens|},
+      `Quick,
+      () => {
+        module F = IdTagged.FreshGrammar;
+        let item =
+          F.Mod.mod_let(
+            F.Pat.var("x"),
+            F.Exp.bin_op(
+              Int(Times),
+              F.Exp.bin_op(Int(Plus), F.Exp.int(1), F.Exp.int(2)),
+              F.Exp.int(3),
+            ),
+          );
+        let printed =
+          ExpToSegment.any_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            Mod(item),
+          )
+          |> Printer.of_segment(~holes="?");
+        check(string, {|Printed|}, {|let x = (1 + 2) * 3|}, printed);
+        switch (Parser.to_term("{ " ++ printed ++ " }", ~root=Exp)) {
+        | Some(parsed) =>
+          check(
+            bool,
+            {|Parses back to the item|},
+            true,
+            Exp.fast_equal(parsed, F.Exp.module_([item])),
+          )
+        | None => Alcotest.fail("Failed to parse " ++ printed)
+        };
+      },
+    ),
+    /* A constructor's argument is already inside the constructor's parens,
+       so a labeled one isn't wrapped again. */
+    test_case(
+      {|Labeled constructor argument|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|type T = + A(a=Int) + B(a=Int, b=Bool) in 1|});
+        check(
+          bool,
+          {|Arguments printed as written: |} ++ once,
+          true,
+          Str.string_match(
+            Str.regexp(".*A(a=Int) \\+ B(a=Int, b=Bool)"),
+            once,
+            0,
+          ),
+        );
+      },
+    ),
+    /* A sum is parenthesized in a type alias's definition; inside those
+       parens it isn't wrapped again. */
+    test_case(
+      {|Type alias sum stays put through print-parse cycles|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|type T = + A + B(Int) in 1|});
+        check(string, {|Second print|}, once, print(once));
+      },
+    ),
+    /* A field that is itself a one-field tuple keeps its own parens:
+       `((a=Int), Int)` and `(a=Int, Int)` are different types. */
+    test_case(
+      {|Nested one-field tuples keep their parens|},
+      `Quick,
+      () => {
+        let print = (any: Any.t) =>
+          ExpToSegment.any_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            any,
+          )
+          |> Printer.of_segment(~holes="?");
+        module F = IdTagged.FreshGrammar;
+        check(
+          string,
+          {|Expression|},
+          {|((_=1), 2)|},
+          print(
+            Exp(F.Exp.tuple([F.Exp.tuple([F.Exp.int(1)]), F.Exp.int(2)])),
+          ),
+        );
+        check(
+          string,
+          {|Singleton expression|},
+          {|(_=(1, 2))|},
+          print(
+            Exp(F.Exp.tuple([F.Exp.tuple([F.Exp.int(1), F.Exp.int(2)])])),
+          ),
+        );
+        check(
+          string,
+          {|Type|},
+          {|((a=Int), Int)|},
+          print(
+            Typ(
+              F.Typ.prod([
+                F.Typ.prod([
+                  F.Typ.tup_label(F.Typ.label("a"), F.Typ.int()),
+                ]),
+                F.Typ.int(),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|Pattern|},
+          {|((_=x), y)|},
+          print(
+            Pat(
+              F.Pat.tuple([
+                F.Pat.tuple([
+                  F.Pat.tup_label(
+                    F.Pat.explicit_non_label(),
+                    F.Pat.var("x"),
+                  ),
+                ]),
+                F.Pat.var("y"),
+              ]),
+            ),
+          ),
+        );
+      },
+    ),
   ],
 );
 
@@ -1584,7 +1881,7 @@ let arb_segment_fixpoint =
   QCheck.Test.make(
     ~name="ExpToSegment: PreserveExact segment fixpoint on generated exps",
     ~count=50,
-    QCheck_Util.arb_exp(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
       let text =
         exp
@@ -1594,7 +1891,9 @@ let arb_segment_fixpoint =
            )
         |> Printer.of_segment(~holes="?", ~refractors=[], _);
       switch (Parser.to_segment(text, ~root=Exp)) {
-      | None => true /* unparseable render: out of scope for P2 */
+      /* The reader turns an exception into None. */
+      | None =>
+        QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
@@ -1648,7 +1947,7 @@ let arb_perturbed_fixpoint =
       "ExpToSegment: secondary-perturbed segment fixpoint on generated exps",
     ~count=50,
     QCheck.pair(
-      QCheck_Util.arb_exp(~minimal_idents=true, 5),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
       QCheck.small_nat,
     ),
     ((exp, seed)) => {
@@ -1661,18 +1960,2134 @@ let arb_perturbed_fixpoint =
         |> Printer.of_segment(~holes="?", ~refractors=[], _);
       let text = perturb_spaces(seed, text);
       switch (Parser.to_segment(text, ~root=Exp)) {
-      | None => true
+      | None =>
+        QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
-        String.equal(print_seg(seg), print_seg(seg2))
-        && List.equal(String.equal, tile_ids(seg), tile_ids(seg2))
-        && Segment.equiv_mod_grout(seg, seg2)
+        let holds = (what: string, held: bool) =>
+          held
+          || QCheck.Test.fail_reportf(
+               "%s differ.\nRead: %s\nPrinted back: %s",
+               what,
+               print_seg(seg),
+               print_seg(seg2),
+             );
+        holds("The texts", String.equal(print_seg(seg), print_seg(seg2)))
+        && holds(
+             "The tile ids",
+             List.equal(String.equal, tile_ids(seg), tile_ids(seg2)),
+           )
+        && holds("The segments", Segment.equiv_mod_grout(seg, seg2))
         /* P3 closure: reparsing the print gives the same term */
-        && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
+        && holds(
+             "The terms read from the two",
+             Language.Exp.fast_equal_with_lexemes(
+               term,
+               MakeTerm.go(seg2).term,
+             ),
+           );
       };
     },
   );
+
+/* Defensive printing reaches a fixpoint: reparsing what it prints gives a
+   term that prints the same, so the parens it adds don't pile up. */
+let defensive_print = (exp: Exp.t): string =>
+  print_seg(exp_to_segment(exp));
+
+let defensive_reprint = (text: string): option(string) =>
+  Parser.to_term(text, ~root=Exp) |> Option.map(~f=defensive_print);
+
+let defensive_print_stable_test = (name: string, text: string) =>
+  test_case(name, `Quick, () =>
+    switch (defensive_reprint(text)) {
+    | None => Alcotest.fail("Failed to parse " ++ text)
+    | Some(once) =>
+      check(
+        option(string),
+        "Defensive print is stable: " ++ once,
+        Some(once),
+        defensive_reprint(once),
+      )
+    }
+  );
+
+/* Invalid forms as they arise. A user types them: a generated program,
+   printed with line breaks, with the edits a person makes in the middle of
+   typing (a delimiter not typed yet, a stray name or literal, an operator
+   the grammar doesn't know, an extra operand, an unbalanced paren), read
+   back as the editor and the CLI read text. Evaluation makes more from
+   those: values put in for their free variables and holes, stepped a few
+   times. */
+module Typed = {
+  let delimiters = [
+    ")",
+    "]",
+    "}",
+    "in",
+    "then",
+    "else",
+    "=",
+    "->",
+    "=>",
+    "end",
+  ];
+  let strays = ["zz", "7", {|"s"|}, "true"];
+
+  let read = (text: string): option(Exp.t) =>
+    PersistentZipper.parse_text(~source="property", ~root=Exp, text)
+    |> Option.map(~f=z => MakeTerm.from_zip_for_sem(z, ~root=Exp).term);
+
+  /* The program as typed: laid out the way `hazel format` lays it out, or
+     with line breaks at some spaces, then edited one to three times. */
+  let text = (seed: int, exp: Exp.t): string => {
+    let st = Stdlib.Random.State.make([|seed|]);
+    let int = n => Stdlib.Random.State.int(st, max(n, 1));
+    let printed =
+      int(2) == 0
+        ? Printer.of_segment(
+            ~holes="?",
+            PrettySegment.prettify(
+              ~width=20 + int(60),
+              exp_to_segment(exp),
+            ),
+          )
+        : defensive_print(exp);
+    switch (FastParse.lex_with_gaps(printed)) {
+    | None => printed
+    | Some((tokens, trailing)) =>
+      let tokens =
+        List.map(tokens, ~f=(t: FastParse.tok) =>
+          String.equal(t.gap, " ") && int(4) == 0
+            ? {
+              ...t,
+              gap: "\n",
+            }
+            : t
+        );
+      let token = (text): FastParse.tok => {
+        gap: " ",
+        text,
+      };
+      let insert_at = (i, tok, tokens) =>
+        List.take(tokens, i) @ [tok] @ List.drop(tokens, i);
+      let edit = (tokens: list(FastParse.tok)) => {
+        let n = List.length(tokens);
+        switch (int(5)) {
+        | 0 =>
+          let at =
+            List.filter_mapi(tokens, ~f=(i, t) =>
+              List.mem(delimiters, t.text, ~equal=String.equal)
+                ? Some(i) : None
+            );
+          switch (at) {
+          | [] => tokens
+          | _ =>
+            let i = List.nth_exn(at, int(List.length(at)));
+            List.filteri(tokens, ~f=(j, _) => j != i);
+          };
+        | 1 =>
+          insert_at(
+            int(n + 1),
+            token(List.nth_exn(strays, int(List.length(strays)))),
+            tokens,
+          )
+        | 2 => insert_at(int(n + 1), token("!!!"), tokens)
+        | 3 => insert_at(int(n) + 1, token("w"), tokens)
+        | _ =>
+          insert_at(int(n + 1), token(int(2) == 0 ? "(" : ")"), tokens)
+        };
+      };
+      let rec edits = (k, tokens) =>
+        k == 0 ? tokens : edits(k - 1, edit(tokens));
+      String.concat(
+        List.map(edits(1 + int(3), tokens), ~f=(t: FastParse.tok) =>
+          t.gap ++ t.text
+        ),
+      )
+      ++ trailing;
+    };
+  };
+};
+
+/* Values put in for a typed program's free variables and holes, as
+   evaluation would, and a few steps taken from there. */
+module Evaluated = {
+  let values = [
+    "1",
+    {|"s"|},
+    "true",
+    "[1, 2]",
+    "(1, 2)",
+    "fun z -> z",
+    "(a=1)",
+  ];
+
+  /* The elaboration of `typed` with a `value()` in each hole and for each
+     free name, and its first steps. */
+  let terms_with = (value: unit => Exp.t, typed: Exp.t): list(Exp.t) => {
+    let (_, elab) =
+      QCheck_Util.skip_alias_loop(() =>
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), typed)
+      );
+    let filled =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (e.term) {
+            | EmptyHole => value()
+            | _ => continue(e)
+            },
+        /* Evaluation doesn't reach the holes in patterns, types and type
+           patterns. */
+        ~f_pat=(_, p) => p,
+        ~f_typ=(_, t) => t,
+        ~f_tpat=(_, tp) => tp,
+        elab,
+      )
+      |> Substitution.in_exp(
+           Environment.of_list(
+             List.map(["x", "y", "zz", "w"], ~f=x => (x, value())),
+           ),
+         );
+    let step = (e: Exp.t) =>
+      switch (
+        EvaluatorStep.get_status(
+          ~settings=CoreSettings.on,
+          e,
+          Environment.empty,
+        )
+      ) {
+      | AutoStep(step) => EvaluatorStep.take_step(step)
+      | AvailableSteps([step, ..._]) => EvaluatorStep.take_step(step)
+      | AvailableSteps([]) => None
+      };
+    let rec go = (k, e, acc) =>
+      k == 0
+        ? acc
+        : (
+          switch (step(e)) {
+          | Some(e') => go(k - 1, e', [e', ...acc])
+          | None => acc
+          }
+        );
+    go(3, filled, [filled]);
+  };
+
+  let read_value = (text: string): Exp.t =>
+    Option.value_exn(Parser.to_term(text, ~root=Exp));
+
+  /* For a property: the values are drawn by `seed`. */
+  let terms = (seed: int, typed: Exp.t): list(Exp.t) => {
+    let st = Stdlib.Random.State.make([|seed|]);
+    terms_with(
+      () =>
+        read_value(
+          List.nth_exn(
+            values,
+            Stdlib.Random.State.int(st, List.length(values)),
+          ),
+        ),
+      typed,
+    );
+  };
+
+  /* For a fixed input: each value in turn, in every hole and for every
+     free name, so the test doesn't lean on what a seed happens to draw. */
+  let terms_for_each_value = (typed: Exp.t): list(Exp.t) =>
+    List.concat_map(values, ~f=text =>
+      terms_with(() => read_value(text), typed)
+    );
+};
+
+/* A term with each multihole replaced by its tokens, for comparing terms
+   up to how a hole reads back: MakeTerm sorts and groups a hole's pieces
+   by the forms beside them (`^w^:Void x` reads `x` as a type, `"s":Nat w`
+   reads the `:` as an operator in a type hole), so the same tokens can
+   group differently inside a hole without anything outside it changing.
+   The tokens are compared, parens, spacing and the holes between them
+   aside (grout prints as `?`, and where it falls is the grouping too).
+   An item of a module or a signature that is a multihole compares the
+   same way: the items a hole is split into (MakeTerm.flatten_mod,
+   flatten_sig) are holes of one piece, which read back as the piece
+   (`{ let w x }` in a signature is `let w` and a hole holding the pattern
+   `x`; its print `{ let w; x }` reads `x` as an item no form reads, and a
+   hole holding only a `?` as an empty item). An item that is a token no
+   form reads, or empty, is compared as it is. */
+let holes_as_text = (e: Exp.t): Exp.t => {
+  let text = (hole: Any.t) =>
+    print_seg(
+      ExpToSegment.any_to_segment(~settings=exp_to_segment_settings, hole),
+    )
+    |> String.filter(~f=c => !Char.equal(c, '(') && !Char.equal(c, ')'))
+    |> String.split(~on=' ')
+    |> List.filter(~f=w => !String.is_empty(w) && !String.equal(w, "?"))
+    |> String.concat(~sep=" ");
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        switch (e.term) {
+        | MultiHole(_) => Exp.fresh(Invalid(text(Exp(e))))
+        | _ => continue(e)
+        },
+    ~f_pat=
+      (continue, p) =>
+        switch (p.term) {
+        | MultiHole(_) => Pat.fresh(Invalid(text(Pat(p))))
+        | _ => continue(p)
+        },
+    ~f_typ=
+      (continue, t) =>
+        switch (t.term) {
+        | Unknown(Hole(MultiHole(_))) =>
+          Typ.fresh(Unknown(Hole(Invalid(text(Typ(t))))))
+        | _ => continue(t)
+        },
+    ~f_tpat=
+      (continue, tp) =>
+        switch (tp.term) {
+        | MultiHole(_) => TPat.fresh(Invalid(text(TPat(tp))))
+        | _ => continue(tp)
+        },
+    ~f_mpat=
+      (continue, mp) =>
+        switch (mp.term) {
+        | MultiHole(_) => MPat.fresh(Invalid(text(MPat(mp))))
+        | _ => continue(mp)
+        },
+    ~f_mod=
+      (continue, m) =>
+        switch (m.term) {
+        | MultiHole(_)
+        | ModExp({term: MultiHole(_), _}) =>
+          switch (text(Mod(m))) {
+          | "" => Mod.fresh(EmptyHole)
+          | tokens => Mod.fresh(Invalid(tokens))
+          }
+        | _ => continue(m)
+        },
+    ~f_sig=
+      (continue, s) =>
+        switch (s.term) {
+        | MultiHole(_) =>
+          switch (text(Sig(s))) {
+          | "" => Sig.fresh(EmptyHole)
+          | tokens => Sig.fresh(Invalid(tokens))
+          }
+        | _ => continue(s)
+        },
+    e,
+  );
+};
+
+let some_annotation = (~f: IdTagged.IdTag.t => bool, e: Exp.t): bool => {
+  let found = ref(false);
+  let note = (ann: IdTagged.IdTag.t) =>
+    if (f(ann)) {
+      found := true;
+    };
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_pat=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_typ=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_tpat=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_rul=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_mod=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_sig=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_mpat=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      e,
+    );
+  found^;
+};
+
+/* Whether some tile in the term is missing a shard. */
+let is_incomplete = some_annotation(~f=ann => !List.is_empty(ann.incomplete));
+
+/* Whether a hole is joined by a keyword that continues a form (`in`,
+   `then`, `end`). The reader pairs it with an enclosing form that uses
+   it, even across parens (`let _ = (1 in 2) in 3` reads as an unfinished
+   `let`), so no text reads back as the hole (#2856). Only the no-crash
+   half is checked for these until `stray_keywords_read_back` can be
+   switched on. */
+let has_stray_keyword = {
+  let keywords =
+    List.concat_map(Form.forms, ~f=((_, def: Form.def)) =>
+      switch (def.label) {
+      | [_, ...rest] => List.filter(rest, ~f=Token.is_potential_operand)
+      | [] => []
+      }
+    );
+  some_annotation(~f=ann =>
+    switch (ann.lexeme) {
+    | Some(l) => List.mem(keywords, l, ~equal=String.equal)
+    | None => false
+    }
+  );
+};
+let stray_keywords_read_back = false;
+
+/* Reading text and printing what was read, Defensively. */
+let reprint = (text: string): option(string) =>
+  Typed.read(text) |> Option.map(~f=defensive_print);
+
+/* What printing an invalid form guarantees. Nothing crashes. A form with
+   nothing missing (stray tokens, an unknown operator, an extra operand)
+   prints stably, and its text reads back as the same term, holes compared
+   as text: printing doesn't change what the complete parts around a hole
+   mean (`f x + 1` printed as `f(x + 1)` reads back as an application).
+
+   A form missing a delimiter is completed by where its line breaks and
+   indentation put the closer, and Defensive printing doesn't keep layout,
+   so its first print may group it otherwise. That is the completion
+   reading layout as it should, not printing losing anything: from the
+   first print on, reading and printing again should hold still. It
+   doesn't yet (#2856: case rules in an unclosed paren, pinned below), so
+   for these only the no-crash half is checked until
+   `incomplete_reprints_hold` can be switched on. */
+let incomplete_reprints_hold = false;
+
+/* Whether a hole's later piece prints opening with `(`. The reader takes
+   that paren as an argument to the piece before it, on any line, so no
+   text reads back as the hole (#2856). Evaluation makes these: it
+   substitutes `(1, 2)` for `x` in a hole `w x`. Only the no-crash half is
+   checked for these until `paren_pieces_read_back` can be switched on. */
+let rec paren_after_hole_piece = (seg: Segment.t): bool =>
+  switch (seg) {
+  | [] => false
+  | [Grout({shape: Concave, _}), ...rest] =>
+    let opens_paren =
+      switch (List.drop_while(rest, ~f=Piece.is_secondary)) {
+      | [Tile(t), ..._] =>
+        switch (Tile.label(t)) {
+        | [token, ..._] => String.is_prefix(token, ~prefix="(")
+        | [] => false
+        }
+      | _ => false
+      };
+    opens_paren || paren_after_hole_piece(rest);
+  | [Tile(t), ...rest] =>
+    List.exists(t.children, ~f=paren_after_hole_piece)
+    || paren_after_hole_piece(rest)
+  | [_, ...rest] => paren_after_hole_piece(rest)
+  };
+let paren_pieces_read_back = false;
+
+/* Whether a module has an item that is a hole of one piece which is not an
+   expression. The reader splits a hole that holds items into its items, so
+   that they still bind (MakeTerm.flatten_mod), and a piece of another sort
+   left between them (the type `SInt` of `{ let x = 9 : w SInt }`) becomes
+   an item of its own. Alone after a `;` its print reads back as an
+   expression, so no text reads back as that item. Only the no-crash half
+   is checked for these until `split_pieces_read_back` can be switched on
+   (pinned below: "Known gap: a type split out of a module item"). */
+let has_split_piece = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_mod=
+        (continue, item: Mod.t) => {
+          switch (item.term) {
+          | ModExp({term: MultiHole([Exp(_)]), _}) => ()
+          | ModExp({term: MultiHole([_]), _}) => found := true
+          | _ => ()
+          };
+          continue(item);
+        },
+      e,
+    );
+  found^;
+};
+let split_pieces_read_back = false;
+
+/* Whether a labeled field holds a bare `_=` field. Elaboration makes one
+   of `(_=1) : (a=Int)`: the entry's label is filled in around the `_=`
+   field, and its print, `(a=(_=1))`, reads back as `a` holding a
+   one-tuple. Only the no-crash half is checked for these until
+   `filled_labels_read_back` can be switched on (pinned below: "Known gap:
+   a label filled in around a `_=` field"). */
+let has_filled_label = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (e.term) {
+          | TupLabel(
+              {term: Label(_), _},
+              {term: TupLabel({term: ExplicitNonlabel, _}, _), _},
+            ) =>
+            found := true
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  found^;
+};
+let filled_labels_read_back = false;
+
+/* Runs of spaces as one. The Defensive print writes its own spacing, and
+   the grout between a hole's pieces shows as a space of its own (`x  y`),
+   so where a hole's pieces group differently on the second read (see
+   holes_as_text) the same tokens are spaced differently: `rec  ?` as two
+   pieces, `rec ?` as the start of a `rec` type. */
+let single_spaced = (text: string): string => {
+  /* outside string literals and quoted labels, neither of which has
+     escapes; `quote` is the one that is open */
+  let (kept, _, _) =
+    String.fold(
+      text,
+      ~init=([], None, ' '),
+      ~f=((kept, quote, prev), c) => {
+        let quote =
+          switch (quote) {
+          | Some(q) when Char.equal(c, q) => None
+          | Some(_) => quote
+          | None when Char.equal(c, '"') || Char.equal(c, '`') => Some(c)
+          | None => None
+          };
+        Char.equal(c, ' ') && Char.equal(prev, ' ') && Option.is_none(quote)
+          ? (kept, quote, c) : ([c, ...kept], quote, c);
+      },
+    );
+  String.of_char_list(List.rev(kept));
+};
+
+/* Whether what was typed is still there in the print of what was read: the
+   typed text's characters, in order, all occur in it. Spaces, parens and
+   `?` aside: printing adds those. holes_as_text takes a hole's text from
+   the printer, so a token the reader or the printer dropped inside a hole
+   would be missing on both sides of that comparison. */
+let typed_text_survives = (~typed: string, printed: string): bool => {
+  let skeleton = (text: string): list(char) =>
+    String.to_list(text)
+    |> List.filter(~f=c =>
+         !(
+           Char.is_whitespace(c)
+           || List.mem(['(', ')', '?'], c, ~equal=Char.equal)
+         )
+       );
+  let rec occurs_in = (small: list(char), big: list(char)): bool =>
+    switch (small, big) {
+    | ([], _) => true
+    | ([_, ..._], []) => false
+    | ([s, ...rest], [b, ...big]) =>
+      Char.equal(s, b) ? occurs_in(rest, big) : occurs_in(small, big)
+    };
+  occurs_in(skeleton(typed), skeleton(printed));
+};
+
+/* Evaluation drops the marks of missing shards, so a term evaluated from an
+   incomplete parse says `~from_incomplete`. An elaborated term is compared
+   in the shape it is written in (`~as_written=Canonicalize.elaborated`). */
+let print_reads_back =
+    (
+      ~from_incomplete=false,
+      ~as_written=(e: Exp.t) => e,
+      ~typed: option(string)=?,
+      term: Exp.t,
+    )
+    : bool => {
+  let text = defensive_print(term);
+  switch (Typed.read(text)) {
+  | None => QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
+  | Some(reread) =>
+    let text' = defensive_print(reread);
+    if (from_incomplete
+        || is_incomplete(term)
+        || !stray_keywords_read_back
+        && has_stray_keyword(term)
+        || !paren_pieces_read_back
+        && paren_after_hole_piece(exp_to_segment(term))
+        || !split_pieces_read_back
+        && has_split_piece(term)
+        || !filled_labels_read_back
+        && has_filled_label(term)) {
+      switch (reprint(text')) {
+      | Some(text'') when incomplete_reprints_hold =>
+        String.equal(text', text'')
+        || QCheck.Test.fail_reportf("Reprinted %s as %s", text', text'')
+      | Some(_) => true
+      | None =>
+        QCheck.Test.fail_reportf("Reprinted text doesn't read: %s", text')
+      };
+    } else {
+      let same_term =
+        Canonicalize.roundtrip_eq.exp(
+          holes_as_text(as_written(term)),
+          holes_as_text(reread),
+        );
+      (
+        switch (typed) {
+        | Some(typed) =>
+          typed_text_survives(~typed, text)
+          || QCheck.Test.fail_reportf(
+               "Typed %s, and its print has lost some of it: %s",
+               typed,
+               text,
+             )
+        | None => true
+        }
+      )
+      && (
+        String.equal(single_spaced(text), single_spaced(text'))
+        && same_term
+        || QCheck.Test.fail_reportf(
+             "%s%s as %s",
+             same_term ? "Reprinted " : "Read back as another term: ",
+             text,
+             text',
+           )
+      )
+      /* From the reprint on, the text holds still exactly, unless the
+         second read is itself of a kind whose reprints don't yet (above). */
+      && (
+        switch (reprint(text')) {
+        | Some(text'') =>
+          String.equal(text', text'')
+          || is_incomplete(reread)
+          || !stray_keywords_read_back
+          && has_stray_keyword(reread)
+          || !paren_pieces_read_back
+          && paren_after_hole_piece(exp_to_segment(reread))
+          || QCheck.Test.fail_reportf(
+               "Reprinted %s a second time as %s",
+               text',
+               text'',
+             )
+        | None =>
+          QCheck.Test.fail_reportf("Reprinted text doesn't read: %s", text')
+        }
+      );
+    };
+  };
+};
+
+let arb_typed_invalid_forms =
+  QCheck.Test.make(
+    ~name="ExpToSegment: typed invalid forms print stably and read back",
+    ~count=200,
+    QCheck.pair(
+      QCheck_Util.arb_exp_full(~minimal_idents=true, ~size=20, 5),
+      QCheck.small_nat,
+    ),
+    ((exp, seed)) => {
+      let text = Typed.text(seed, exp);
+      switch (Typed.read(text)) {
+      /* The reader turns an exception into None. */
+      | None => QCheck.Test.fail_reportf("Typed text doesn't read: %s", text)
+      | Some(term) =>
+        /* Statics must not crash on it either; its known failure doesn't
+           keep the term from being printed. */
+        switch (
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term)
+        ) {
+        | _ => ()
+        | exception e when QCheck_Util.is_alias_loop(e) => ()
+        };
+        print_reads_back(~typed=text, term);
+      };
+    },
+  );
+
+let arb_evaluated_invalid_forms =
+  QCheck.Test.make(
+    ~name="ExpToSegment: evaluated invalid forms print stably and read back",
+    ~count=100,
+    QCheck.pair(
+      QCheck_Util.arb_exp_full(~minimal_idents=true, ~size=20, 5),
+      QCheck.small_nat,
+    ),
+    ((exp, seed)) =>
+    switch (Typed.read(Typed.text(seed, exp))) {
+    | None =>
+      QCheck.Test.fail_reportf(
+        "Typed text doesn't read: %s",
+        Typed.text(seed, exp),
+      )
+    | Some(typed) =>
+      List.for_all(
+        Evaluated.terms(seed, typed),
+        ~f=
+          print_reads_back(
+            ~from_incomplete=is_incomplete(typed),
+            ~as_written=Canonicalize.elaborated,
+          ),
+      )
+    }
+  );
+
+let defensive_print_stable_tests = (
+  "ExpToSegment: Defensive print stability",
+  [
+    defensive_print_stable_test(
+      "Module literal as a module's definition",
+      "module M = { let x = 1 } in M",
+    ),
+    defensive_print_stable_test(
+      "Parenthesized module literal",
+      "module M = ({ let x = 1 }) in M",
+    ),
+    defensive_print_stable_test(
+      "Module literal as a module item",
+      "module M = { module N = { let y = 1 }; let x = 1 } in M",
+    ),
+    defensive_print_stable_test(
+      "Multihole as a module item's definition",
+      "module M = { let x = 1 2 } in M",
+    ),
+    defensive_print_stable_test("Non-label after a dot", "x. ($_$)"),
+    defensive_print_stable_test(
+      "Parenthesized multihole pattern in a let",
+      "let (x y) = 1 in 2",
+    ),
+    defensive_print_stable_test(
+      "Parenthesized multihole pattern in a fun",
+      "fun (x y) -> 1",
+    ),
+    defensive_print_stable_test(
+      "Parenthesized multihole pattern in a case rule",
+      "case 1 | (x y) => 2 end",
+    ),
+    defensive_print_stable_test(
+      "Multihole pattern in a let",
+      "let x y = 1 in 2",
+    ),
+    defensive_print_stable_test(
+      "Multihole pattern in a module let",
+      "module M = { let x y = 1 } in 2",
+    ),
+    test_case("A module's last item takes no parens", `Quick, () =>
+      check(
+        option(string),
+        "reprinted",
+        Some("module M = { x !!! y } in 2"),
+        defensive_reprint("module M = { x !!! y } in 2"),
+      )
+    ),
+    test_case("An operator item followed by another", `Quick, () =>
+      check(
+        option(string),
+        "reprinted",
+        Some("module M = { x !!! y; 3 } in 2"),
+        defensive_reprint("module M = { x !!! y; 3 } in 2"),
+      )
+    ),
+    test_case("A last item holding a `;` keeps its parens", `Quick, () =>
+      check(
+        option(string),
+        "reprinted",
+        Some("module M = { let x = (1; 2) } in M"),
+        defensive_reprint("module M = { let x = (1; 2) } in M"),
+      )
+    ),
+    /* #2754's form parses with crossed braces; the parens printed for it
+       must still nest with the delimiters around them. */
+    test_case(
+      "Parens nest in a module missing a brace",
+      `Quick,
+      () => {
+        let nests = text => {
+          let closer = c =>
+            switch (c) {
+            | ')' => Some('(')
+            | '}' => Some('{')
+            | ']' => Some('[')
+            | _ => None
+            };
+          let rec go = (stack, chars) =>
+            switch (chars, stack) {
+            | ([], _) => true
+            | ([('(' | '{' | '[') as c, ...rest], _) =>
+              go([c, ...stack], rest)
+            | ([c, ...rest], [top, ...below]) =>
+              switch (closer(c)) {
+              | Some(o) when Char.equal(o, top) => go(below, rest)
+              | Some(_) => false
+              | None => go(stack, rest)
+              }
+            | ([_, ...rest], []) => go(stack, rest)
+            };
+          go([], String.to_list(text));
+        };
+        check(
+          option(bool),
+          "delimiters nest",
+          Some(true),
+          defensive_reprint("module M = { let x = 1 in x; 2 } in 2")
+          |> Option.map(~f=nests),
+        );
+      },
+    ),
+    /* Typed text missing delimiters prints back as typed, up to spacing,
+       and stays that way: the holes that stand in for a missing
+       delimiter's operands aren't printed, or they read back as part of
+       the operand before them (`let y` became `let (y ? ?) ? ?`). */
+    test_case("Incomplete forms reprint as typed", `Quick, () =>
+      List.iter(
+        ~f=
+          text => {
+            let unspaced = String.filter(~f=c => !Char.equal(c, ' '));
+            let once = defensive_reprint(text);
+            check(
+              option(string),
+              "reprinted: " ++ text,
+              Some(unspaced(text)),
+              Option.map(~f=unspaced, once),
+            );
+            check(
+              option(string),
+              "reprinted again: " ++ text,
+              once,
+              Option.bind(~f=defensive_reprint, once),
+            );
+          },
+        [
+          "let y",
+          "let y = 1",
+          "let y in 2",
+          "fun x",
+          "if 1",
+          "if 1 then 2",
+          "type t",
+          "type t = Int",
+          "module M",
+          "case 1 | x",
+          "module M = { let y } in M",
+          "module M = { let _; let y } in M",
+          "case 1",
+        ],
+      )
+    ),
+    /* While its `)` is still to be typed, a sum's constructor application
+       is still a variant, and printing doesn't supply the `)`. */
+    test_case(
+      "A constructor with an unclosed argument stays a variant", `Quick, () =>
+      List.iter(
+        ~f=
+          text => {
+            let has_variant_a = (ts: list(ConstructorMap.variant(Typ.t))) =>
+              List.exists(ts, ~f=v =>
+                switch (v) {
+                | Variant("A", _, Some(_)) => true
+                | Variant(_)
+                | BadEntry(_) => false
+                }
+              );
+            switch (Parser.to_term(text, ~root=Exp)) {
+            | Some({term: TyAlias(_, {term: Sum(ts), _}, _), _})
+                when has_variant_a(ts) =>
+              ()
+            | Some(e) => Alcotest.fail("A isn't a variant: " ++ Exp.show(e))
+            | None => Alcotest.fail("didn't parse: " ++ text)
+            };
+            /* Parens printing adds come in pairs; an invented `)` would
+               change the balance. */
+            let unclosed = t =>
+              String.count(t, ~f=Char.equal('('))
+              - String.count(t, ~f=Char.equal(')'));
+            check(
+              option(int),
+              "unclosed parens: " ++ text,
+              Some(unclosed(text)),
+              defensive_reprint(text) |> Option.map(~f=unclosed),
+            );
+          },
+        ["type T = + A(Int + B in 1", "type T = B + A(Int in 1"],
+      )
+    ),
+    /* A program is one long run of top-level pieces; stripping a missing
+       delimiter's shards walks it without a stack frame per piece. */
+    test_case(
+      "Stripping shards from a long program",
+      `Quick,
+      () => {
+        let n = 1_000_000;
+        let seg =
+          List.init(n, ~f=_ =>
+            Piece.Secondary(Haz3lcore.Secondary.mk_space(Id.mk()))
+          );
+        let masks =
+          Id.Map.singleton(
+            Id.mk(),
+            {
+              present: [0],
+              prefixes: [],
+            }: IdTagged.IdTag.incomplete_mask,
+          );
+        check(
+          int,
+          "pieces",
+          n,
+          List.length(ExpToSegment.strip_synthesized_shards(masks, seg)),
+        );
+      },
+    ),
+    /* A stranded prefix operator keeps its operand as a one-piece
+       multihole; with the operator it isn't atomic, so `.a` after it
+       doesn't move under the operator. */
+    test_case(
+      "A stranded prefix operator before a dot",
+      `Quick,
+      () => {
+        let one = Exp.fresh(Parens(Exp.fresh(Var("x"))));
+        let stranded = {
+          let hole = Exp.fresh(MultiHole([Exp(one)]));
+          {
+            ...hole,
+            annotation: {
+              ...hole.annotation,
+              lexeme: Some("-"),
+            },
+          };
+        };
+        check(
+          string,
+          "printed",
+          "(-(x)).a",
+          defensive_print(
+            Exp.fresh(Dot(stranded, Exp.fresh(Label("a")))),
+          ),
+        );
+      },
+    ),
+    /* Parens after another piece read back as a postfix `(…)`, so they
+       print next to it: `(A x)(x x)`, not `(A x) (x x)`. */
+    test_case(
+      "Juxtaposed parenthesized pieces",
+      `Quick,
+      () => {
+        let var = (x): Any.t => Typ(Typ.fresh(Var(x)));
+        let hole = pieces => Typ.fresh(Unknown(Hole(MultiHole(pieces))));
+        let ty =
+          hole([
+            Typ(hole([var("A"), var("x")])),
+            Typ(hole([var("x"), var("x")])),
+          ]);
+        let text =
+          defensive_print(Exp.fresh(Asc(Exp.fresh(EmptyHole), ty)));
+        check(
+          option(string),
+          "reprinted",
+          Some(text),
+          defensive_reprint(text),
+        );
+      },
+    ),
+    defensive_print_stable_test(
+      "A sum with a constructor application first",
+      "type T = + A(Int) + B in 1",
+    ),
+    /* Grout binds loosest, so a piece after another needs no parens, and
+       parens there would read back as an application of the piece before
+       it (`f(x + 1)`). */
+    test_case("Juxtaposed pieces read back as the same term", `Quick, () =>
+      List.iter(
+        ~f=
+          text => {
+            let term = Option.value_exn(Parser.to_term(text, ~root=Exp));
+            let printed = defensive_print(term);
+            check(
+              bool,
+              text ++ " reprinted as " ++ printed,
+              true,
+              Canonicalize.roundtrip_eq.exp(
+                term,
+                Option.value_exn(Parser.to_term(printed, ~root=Exp)),
+              ),
+            );
+          },
+        ["f x + 1", "let x y :: z = 1 in 2", "f fun x -> x", "f x y"],
+      )
+    ),
+    /* Typed text the parser completes into a paren around a case rule. */
+    test_case("An unclosed paren before a case rule reads", `Quick, () =>
+      List.iter(["case x ( | a => 1 end", "case x (\n| a => 1 end"], ~f=text =>
+        check(bool, "read " ++ text, true, Option.is_some(Typed.read(text)))
+      )
+    ),
+    /* Completing a rule's `=>` turns the gap after its pattern from a
+       juxtaposition into the rule's body: the grout there changes shape, or
+       the rules have no operand between them (Skel.push_output raised). */
+    test_case("Unfinished case rules after an unclosed paren read", `Quick, () =>
+      List.iter(
+        ["case (\n| _\n| end", "case ( => 1\n| _\n| end"],
+        ~f=text => {
+          let term = Typed.read(text);
+          check(bool, "read " ++ text, true, Option.is_some(term));
+          let term = Option.value_exn(term);
+          /* something is missing from each, so of printing only that it
+             doesn't crash and that a reprint reads is checked */
+          check(bool, "incomplete " ++ text, true, is_incomplete(term));
+          check(bool, "prints " ++ text, true, print_reads_back(term));
+        },
+      )
+    ),
+    /* A hole as a module binder prints its pieces, not a bare `?`. */
+    test_case("A hole as a module binder reads back", `Quick, () =>
+      List.iter(
+        ["module B x = 1 in 2"],
+        ~f=text => {
+          let term = Option.value_exn(Typed.read(text));
+          check(bool, text, true, print_reads_back(term));
+        },
+      )
+    ),
+    test_case(
+      "A function in parens shows its argument type",
+      `Quick,
+      () => {
+        let f =
+          Exp.fresh(
+            Fun(
+              Pat.fresh(Wild),
+              Exp.fresh(Atom(String("s"))),
+              Some(Typ.fresh(Unknown(SynSwitch))),
+              None,
+            ),
+          );
+        check(
+          string,
+          "printed",
+          {|(fun _:(?) -> "s")|},
+          defensive_print(Exp.fresh(Parens(f))),
+        );
+      },
+    ),
+    test_case(
+      "An ascription in a hole keeps the next piece out of its type",
+      `Quick,
+      () => {
+        let piece = (text): Any.t =>
+          Exp(Option.value_exn(Typed.read(text)));
+        let hole =
+          Exp.fresh(
+            MultiHole([piece("x:[Bool]"), piece("[1, 2]")]): Exp.term,
+          );
+        check(bool, defensive_print(hole), true, print_reads_back(hole));
+        /* A piece whose last operand is the ascription ends in the type
+           too. */
+        List.iter(
+          ["():: x:[Bool]", "fun y -> x:[Bool]", "- x:[Bool]"],
+          ~f=first => {
+            let hole =
+              Exp.fresh(
+                MultiHole([piece(first), piece("[1, 2]")]): Exp.term,
+              );
+            check(
+              bool,
+              defensive_print(hole),
+              true,
+              print_reads_back(hole),
+            );
+          },
+        );
+      },
+    ),
+    /* A hole of one piece inside parens is already enclosed: parens of its
+       own would grow by a pair on each reprint. */
+    defensive_print_stable_test(
+      "An expression form in parens where a type goes",
+      "1 : (if a then b else c)",
+    ),
+    defensive_print_stable_test(
+      "An expression form in parens where a pattern goes",
+      "fun (if a then b else c) -> 1",
+    ),
+    /* An operator whose operand is still to be typed, or a token no sort
+       has a form for, doesn't change the sort of what follows it: the text
+       reads the same with the missing operand written as `?`. */
+    test_case(
+      "What follows a missing operand or an unknown token keeps its sort",
+      `Quick,
+      () => {
+        List.iter(
+          [
+            "fun (a !!! = _) -> 1",
+            "fun (a + = _) -> 1",
+            "fun (x :: = y) -> 1",
+            "theorem (_ !!! = _, _) = x in x",
+            "1 : !!! (poly\ny -> Int)",
+            "fun x : Int !!! Bool -> x",
+            "case x | A !!! B => 1 end",
+          ],
+          ~f=text =>
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          )
+        );
+        List.iter(
+          [
+            ("fun (a !!! = _) -> 1", "fun (a !!! ? = _) -> 1"),
+            ("fun (a + = _) -> 1", "fun (a + ? = _) -> 1"),
+            ("1 : !!! (poly y -> Int)", "1 : ? !!! (poly y -> Int)"),
+          ],
+          ~f=((implicit, written)) =>
+          check(
+            bool,
+            implicit ++ " reads as " ++ written,
+            true,
+            Canonicalize.roundtrip_eq.exp(
+              holes_as_text(Option.value_exn(Typed.read(implicit))),
+              holes_as_text(Option.value_exn(Typed.read(written))),
+            ),
+          )
+        );
+      },
+    ),
+    /* A `-` after an ascription's type subtracts, whatever follows it and
+       whether or not parens enclose it: read as the start of an `->` it
+       took a token no sort has a form for into the type, and a variable
+       only outside parens. */
+    test_case("A minus after an ascription's type subtracts", `Quick, () =>
+      List.iter(
+        [
+          "(1 : Int - o^o)",
+          "1 : Int - o^o",
+          "x\n... (_ :\nString - o^o)",
+          "(1 : Int - y)",
+          "1 : Int -",
+        ],
+        ~f=text => {
+          let term = Option.value_exn(Typed.read(text));
+          check(
+            bool,
+            "a subtraction from an ascription in " ++ text,
+            true,
+            {
+              let found = ref(false);
+              let _ =
+                Exp.map_term(
+                  ~f_exp=
+                    (continue, e) => {
+                      switch (e.term) {
+                      | BinOp(Int(Minus), {term: Asc(_), _}, _) =>
+                        found := true
+                      | _ => ()
+                      };
+                      continue(e);
+                    },
+                  term,
+                );
+              found^;
+            },
+          );
+          check(bool, text, true, print_reads_back(term));
+        },
+      )
+    ),
+    /* A word that starts a keyword (`th` of `then`) is no operator of an
+       expression: after an ascription's type it joins what is around it
+       at the type's sort, as before, so what follows it is read as a
+       type. */
+    test_case("A keyword's prefix after an ascription's type", `Quick, () =>
+      check(
+        bool,
+        "what follows `th` in 1 : Int th x is a type",
+        true,
+        switch (Option.value_exn(Typed.read("1 : Int th x")).term) {
+        | MultiHole([_, Typ(_)]) => true
+        | _ => false
+        },
+      )
+    ),
+    /* What is left of `t.(x)` once a step has taken the parens off `x`: a
+       name that is no label. Bare, it would read as the label `x`, and
+       project. */
+    test_case(
+      "A name after a dot that is not a label keeps its parens",
+      `Quick,
+      () => {
+        let names: list((Exp.term, string)) = [
+          (Var("x"), "t. (x)"),
+          (Constructor("A", None), "t. (A)"),
+          (BuiltinFun("int_of_float"), "t. (int_of_float)"),
+        ];
+        List.iter(
+          names,
+          ~f=((name, expected)) => {
+            let term =
+              Exp.fresh(Dot(Exp.fresh(Var("t")), Exp.fresh(name)));
+            check(string, "printed", expected, defensive_print(term));
+            check(
+              bool,
+              "reads back",
+              true,
+              print_reads_back(~as_written=Canonicalize.elaborated, term),
+            );
+          },
+        );
+      },
+    ),
+    /* The carve-out has_split_piece makes. The stray `w` leaves `SInt`
+       outside the ascription's type; the hole joining the item and `SInt`
+       is split so that `x` still binds, and `SInt`, a type, is an item of
+       its own, which the print writes after a `;`, where it reads as the
+       constructor. */
+    test_case(
+      "Known gap: a type split out of a module item",
+      `Quick,
+      () => {
+        let items = (text: string): list(Mod.term) =>
+          switch (Option.value_exn(Typed.read(text)).term) {
+          | Module(items) => List.map(items, ~f=(item: Mod.t) => item.term)
+          | _ => []
+          };
+        let typed = "{ let x = 9 : w SInt }";
+        check(
+          bool,
+          "the type is an item of its own",
+          true,
+          switch (items(typed)) {
+          | [ModLet(_), ModExp({term: MultiHole([Typ(_)]), _})] => true
+          | _ => false
+          },
+        );
+        let printed = Option.value_exn(reprint(typed));
+        check(string, "its print", "{ let x = 9:w; SInt }", printed);
+        check(
+          bool,
+          "the print reads back with the type as an expression",
+          true,
+          switch (items(printed)) {
+          | [ModLet(_), ModExp({term: Constructor("SInt", _), _})] => true
+          | _ => false
+          },
+        );
+      },
+    ),
+    /* An operator the grammar doesn't know stays in the text whatever the
+       sorts of its operands (an expression hole before it and a type after
+       it, in `use !!! rec …`). */
+    test_case("An unknown operator keeps its token", `Quick, () =>
+      List.iter(
+        [
+          "use !!! rec y -> 7 Nat in ()",
+          "use !!! Int in ()",
+          "1 : !!! Int",
+          "1 : Int !!! Bool",
+          "x : y !!! 1",
+          "type a !!! b = Int in 1",
+          "1 : (poly ? !!! -> ())",
+        ],
+        ~f=text => {
+          check(
+            bool,
+            "the !!! survives in " ++ text,
+            true,
+            Option.value_map(
+              reprint(text),
+              ~default=false,
+              ~f=String.is_substring(~substring="!!!"),
+            ),
+          );
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          );
+        },
+      )
+    ),
+    /* Among a module's or a signature's items too, and in a module's name:
+       a hole made of an operator is one item, where one of juxtaposed
+       pieces is split into items (`{ let w x }` in a signature), which
+       read back as the pieces. */
+    test_case("An unknown operator among items keeps its token", `Quick, () => {
+      List.iter(
+        [
+          ("1 : { a !!! b; let x }", "a !!! b; let x"),
+          ("1 : { let a; !!! b }", "!!! b"),
+          ("1 : { a; b !!! c; d }", "a; b !!! c; d"),
+          ("1 : { truetype\n? =\nFloat; let x }", "? = Float"),
+          ("{ module M !!! N = 1 }", "M !!! N"),
+          ("{ module !!! N = 1 }", "!!! N"),
+          ("{ type t = Int !!! let b = 2 }", "Int !!! "),
+          ("1 : { let w x }", "let w; x"),
+          ("{ module B = w ? }", "module B = w; ?"),
+          ("{ let x = 1 ^w^ }", "let x = 1; ^w^"),
+          ("{ type !!! ^_^ = SInt\n? }", "!!! ^_^ = SInt; ?"),
+        ],
+        ~f=((text, kept)) => {
+          check(
+            bool,
+            kept ++ " survives in " ++ text,
+            true,
+            Option.value_map(
+              reprint(text),
+              ~default=false,
+              ~f=String.is_substring(~substring=kept),
+            ),
+          );
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          );
+        },
+      )
+    }),
+    /* An expression's form among a signature's items stays whole, with its
+       keyword, instead of leaving its operands behind as items. */
+    test_case(
+      "An expression's let among signature items keeps its keyword", `Quick, () =>
+      List.iter(
+        [
+          "type T = {\n let _; w\n let\ny;\n type x = Float\n} in 1",
+          "type T = { let ?; w type\nx = ?; let _ } in 1",
+        ],
+        ~f=text => {
+          let keywords = t =>
+            List.length(
+              String.substr_index_all(t, ~may_overlap=false, ~pattern="let "),
+            )
+            + List.length(
+                String.substr_index_all(
+                  t,
+                  ~may_overlap=false,
+                  ~pattern="type ",
+                ),
+              );
+          check(
+            option(int),
+            "keywords in the reprint of " ++ text,
+            Some(keywords(String.tr(text, ~target='\n', ~replacement=' '))),
+            Option.map(reprint(text), ~f=keywords),
+          );
+        },
+      )
+    ),
+    /* A one-tuple without its `_=` (elaboration takes it off a pattern's
+       field, a cast off an expression's) prints with it. */
+    test_case("An elaborated one-tuple reads back", `Quick, () =>
+      List.iter(
+        [
+          "forall (_=w _) -> ?",
+          "let (_=x) = (_=1) in x",
+          "let f : (_=Int) -> (_=Int) = fun (_=x) -> (_=x) in f",
+        ],
+        ~f=text =>
+        List.iter(
+          Evaluated.terms_for_each_value(
+            Option.value_exn(Typed.read(text)),
+          ),
+          ~f=term =>
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
+        )
+      )
+    ),
+    /* Statics makes a literal or an operator a Nat's or an SInt's by the
+       type it is used at, and both print as an Int's. */
+    test_case(
+      "A literal or an operator of another kind reads back", `Quick, () =>
+      List.iter(
+        [
+          "use SInt in 1",
+          "debug use SInt in 1 in 2",
+          "use SInt in -1",
+          "use Nat in (fun 1 -> 2, [1], -1)",
+          "fun (x: Nat) -> (x + 1, x - 1 < 2, -x)",
+          "use SInt in fun x -> x * 2 + 1",
+        ],
+        ~f=text =>
+        List.iter(
+          Evaluated.terms_for_each_value(
+            Option.value_exn(Typed.read(text)),
+          ),
+          ~f=term =>
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
+        )
+      )
+    ),
+    /* A cast on a tuple goes to its fields, and from a labeled field to
+       what it holds: no step shows a cast on the field itself, which has
+       no text (`(_=(a=()):(a=T))`). A negated literal is written without
+       a space, as it is read. */
+    test_case(
+      "A cast on a labeled field, a negated literal",
+      `Quick,
+      () => {
+        List.iter(
+          [
+            "():(a=Void)",
+            "x:(a=(^w^))",
+            "- 1129.5",
+            "0 - 5",
+            "- 5 + - x - -3",
+          ],
+          ~f=text =>
+          List.iter(
+            Evaluated.terms_for_each_value(
+              Option.value_exn(Typed.read(text)),
+            ),
+            ~f=term => {
+              check(
+                bool,
+                defensive_print(term),
+                true,
+                print_reads_back(~as_written=Canonicalize.elaborated, term),
+              );
+              check(
+                bool,
+                "no step is a one-tuple of a field under a cast",
+                false,
+                String.is_substring(
+                  defensive_print(term),
+                  ~substring="(_=(a=",
+                ),
+              );
+            },
+          )
+        );
+        check(
+          option(string),
+          "reprint",
+          Some("-5 + - x"),
+          reprint("- 5 + - x"),
+        );
+        /* The negation of a literal that is itself negative keeps its
+           space: `--5` is one unknown operator before a `5`. */
+        let negated = (n: int): Exp.t =>
+          Exp.fresh(
+            UnOp(Int(Minus), Exp.fresh(Atom(Int(Bigint.of_int(n))))),
+          );
+        check(
+          string,
+          "a negative literal negated",
+          "- (-5)",
+          defensive_print(negated(-5)),
+        );
+        let negative = Exp.fresh(Atom(Int(Bigint.of_int(-5))));
+        check(
+          string,
+          "a negative literal applied",
+          "(-5)(x)",
+          defensive_print(
+            Exp.fresh(Ap(Forward, negative, Exp.fresh(Var("x")))),
+          ),
+        );
+        check(
+          string,
+          "a negative literal as an operand",
+          "x + -5",
+          defensive_print(
+            Exp.fresh(BinOp(Int(Plus), Exp.fresh(Var("x")), negative)),
+          ),
+        );
+        check(
+          string,
+          "a literal negated",
+          "-5",
+          defensive_print(negated(5)),
+        );
+        /* in a pattern too, and for a float's negative zero */
+        List.iter(["fun -5 -> 1", "case 1 | -5 => 1 | _ => 2 end"], ~f=text =>
+          List.iter(
+            Evaluated.terms_for_each_value(
+              Option.value_exn(Typed.read(text)),
+            ),
+            ~f=term =>
+            check(
+              bool,
+              defensive_print(term),
+              true,
+              print_reads_back(~as_written=Canonicalize.elaborated, term),
+            )
+          )
+        );
+        check(
+          string,
+          "negative zero negated",
+          "- (-0.0)",
+          defensive_print(
+            Exp.fresh(
+              UnOp(Int(Minus), Exp.fresh(Atom(Float(Float.neg(0.0))))),
+            ),
+          ),
+        );
+        check(
+          bool,
+          "- -5 reads back",
+          true,
+          print_reads_back(~as_written=Canonicalize.elaborated, negated(-5)),
+        );
+      },
+    ),
+    /* An unknown operator after a declaration's name joins the name to
+       what follows it, so the declaration is of a hole and `a` is not
+       declared, where a space leaves `let a` an item of its own. */
+    test_case(
+      "An unknown operator after a declaration's name",
+      `Quick,
+      () => {
+        let items = (text: string): list(Sig.term) =>
+          switch (Option.value_exn(Typed.read(text)).term) {
+          | Asc(_, {term: Sig(items), _}) =>
+            List.map(items, ~f=(item: Sig.t) => item.term)
+          | _ => []
+          };
+        check(
+          bool,
+          "joined by an operator",
+          true,
+          switch (items("1 : { let a !!! let b }")) {
+          | [SigLet({term: MultiHole(_), _})] => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "joined by a space",
+          true,
+          switch (items("1 : { let a let b }")) {
+          | [SigLet({term: Var("a"), _}), MultiHole(_)] => true
+          | _ => false
+          },
+        );
+      },
+    ),
+    /* A signature that is one hole (an operator's, or an expression's form
+       stranded there) keeps that hole's ids for the hole: the ids a
+       signature takes from its body are its `;`s. */
+    test_case("A one-hole signature shares no id with its hole", `Quick, () =>
+      List.iter(
+        [
+          "1 : { x !!! y }",
+          "1 : { if a then b else c }",
+          "1 : { let a !!! let b }",
+        ],
+        ~f=text => {
+          let term = Option.value_exn(Typed.read(text));
+          let of_sigs = ref([]);
+          let of_others = ref([]);
+          let other = (continue, x) => {
+            of_others := IdTagged.ids(x) @ of_others^;
+            continue(x);
+          };
+          let _ =
+            Exp.map_term(
+              ~f_typ=
+                (continue, t) => {
+                  switch (t.term) {
+                  | Sig(_) => of_sigs := IdTagged.ids(t) @ of_sigs^
+                  | _ => of_others := IdTagged.ids(t) @ of_others^
+                  };
+                  continue(t);
+                },
+              ~f_exp=other,
+              ~f_pat=other,
+              ~f_sig=other,
+              term,
+            );
+          check(
+            bool,
+            "a signature in " ++ text,
+            false,
+            List.is_empty(of_sigs^),
+          );
+          check(
+            bool,
+            text,
+            false,
+            List.exists(of_sigs^, ~f=id =>
+              List.mem(of_others^, id, ~equal=Id.equal)
+            ),
+          );
+        },
+      )
+    ),
+    /* A field marked `_=` cast to an entry whose label is a hole keeps its
+       `_=` and casts its value: stripped, the value was left under the
+       entry itself, which printed as a type that reads back as another. */
+    test_case("A `_=` field at an entry with a hole for a label", `Quick, () =>
+      List.iter(
+        Evaluated.terms_for_each_value(
+          Option.value_exn(Typed.read("(_ = x)\n: ( \"s\"a =\n(^w^))")),
+        ),
+        ~f=term =>
+        check(
+          bool,
+          defensive_print(term),
+          true,
+          print_reads_back(~as_written=Canonicalize.elaborated, term),
+        )
+      )
+    ),
+    /* Known gap: a `_=` one-tuple at a labeled one-field type elaborates
+       to that field holding the bare `_=` field, whose print reads back as
+       the field holding a one-tuple. Goes red once the two agree. */
+    test_case(
+      "Known gap: a label filled in around a `_=` field",
+      `Quick,
+      () => {
+        let elaborated =
+          List.hd_exn(
+            List.rev(
+              Evaluated.terms_for_each_value(
+                Option.value_exn(Typed.read("(_=1) : (a=Int)")),
+              ),
+            ),
+          );
+        let printed = defensive_print(elaborated);
+        check(string, "printed", "(a=(_=1)):(a=Int)", printed);
+        check(
+          bool,
+          "the carve-out sees it",
+          true,
+          has_filled_label(elaborated),
+        );
+        check(
+          bool,
+          "reads back as the same term",
+          false,
+          Canonicalize.roundtrip_eq.exp(
+            holes_as_text(Canonicalize.elaborated(elaborated)),
+            holes_as_text(Option.value_exn(Typed.read(printed))),
+          ),
+        );
+      },
+    ),
+    /* The pieces of a hole can group otherwise on a second read, spaced
+       otherwise: `rec  ?` as two pieces after `true`, which no type starts
+       with, and `rec ?` as a type's once the hole is in parens. */
+    test_case(
+      "A hole regrouped on its second read is spaced otherwise",
+      `Quick,
+      () => {
+        let term = Option.value_exn(Typed.read("1 : true(rec ? -> Int)"));
+        check(bool, "reads back", true, print_reads_back(term));
+        /* The difference print_reads_back lets by (single_spaced). Goes red
+           once the first print is the fixed point, and the allowance with
+           it. */
+        let first = defensive_print(term);
+        check(
+          bool,
+          "the first print has the grout's space: " ++ first,
+          true,
+          String.is_substring(first, ~substring="rec  ?"),
+        );
+        check(
+          option(bool),
+          "the reprint has one",
+          Some(false),
+          Option.map(
+            reprint(first),
+            ~f=String.is_substring(~substring="rec  ?"),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "A type pattern hole spaces its pieces evenly",
+      `Quick,
+      () => {
+        check(
+          option(string),
+          "reprint",
+          Some("type x  y  z = Int in 2"),
+          reprint("type x y z = Int in 2"),
+        );
+        let once = reprint("{ type ?    ^o^  Nat w ?:Bool");
+        check(bool, "a module item reads", true, Option.is_some(once));
+        check(
+          option(string),
+          "a module item reprints as itself",
+          once,
+          Option.bind(~f=reprint, once),
+        );
+      },
+    ),
+    test_case("A list in a type hole reprints as itself", `Quick, () =>
+      check(
+        option(string),
+        "reprint",
+        Some("x:(b || [1, 2])"),
+        reprint("x:(b || [1, 2])"),
+      )
+    ),
+    test_case(
+      "An unknown operator before a label's = stays between its operands",
+      `Quick,
+      () => {
+        let once = reprint("let (a w ? = _, b=1) = y in 2");
+        check(
+          bool,
+          Option.value(once, ~default="none"),
+          true,
+          Option.value_map(
+            once,
+            ~default=false,
+            ~f=String.is_substring(~substring="a w ?"),
+          ),
+        );
+        check(
+          option(string),
+          "a reprint holds still",
+          once,
+          Option.bind(~f=reprint, once),
+        );
+      },
+    ),
+    test_case("A step inside a hole keeps its operator", `Quick, () =>
+      List.iter(
+        Evaluated.terms_for_each_value(
+          Option.value_exn(Typed.read("((0 w (? >=. zz _))(use _ in y))")),
+        ),
+        ~f=term => {
+          let text = defensive_print(term);
+          check(
+            bool,
+            text,
+            true,
+            String.is_substring(text, ~substring=" w"),
+          );
+        },
+      )
+    ),
+    test_case(
+      "A labeled field in a closure prints as a field",
+      `Quick,
+      () => {
+        let field = (l, n) =>
+          Exp.fresh(
+            TupLabel(
+              Exp.fresh(Label(l)),
+              Exp.fresh(Atom(Int(Bigint.of_int(n)))),
+            ),
+          );
+        let tuple =
+          Exp.fresh(
+            Tuple([
+              Exp.fresh(Closure(Environment.empty, field("x", 1))),
+              field("b", 2),
+            ]),
+          );
+        check(string, "printed", "(x=1, b=2)", defensive_print(tuple));
+      },
+    ),
+    test_case(
+      "An elaborated module binding reads back",
+      `Quick,
+      () => {
+        List.iter(
+          [
+            "module Z = `a` in ()",
+            "module Z = (x=1) in Z.x",
+            "module M : (x=Int) = (x=1) in M.x",
+            "module M : { let x : Int } = { let x = 1 } in M.x",
+          ],
+          ~f=text =>
+          List.iter(
+            Evaluated.terms_for_each_value(
+              Option.value_exn(Typed.read(text)),
+            ),
+            ~f=term =>
+            check(
+              bool,
+              defensive_print(term),
+              true,
+              print_reads_back(~as_written=Canonicalize.elaborated, term),
+            )
+          )
+        );
+        /* the binding is still a module's, with the type it is ascribed,
+           and an ordinary variable's is still a `let` */
+        let first = text =>
+          defensive_print(
+            List.hd_exn(
+              List.rev(
+                Evaluated.terms_for_each_value(
+                  Option.value_exn(Typed.read(text)),
+                ),
+              ),
+            ),
+          );
+        check(
+          string,
+          "an ascribed module binding",
+          "module M:(x=Int) = (x=1) in M.x",
+          first("module M : (x=Int) = (x=1) in M.x"),
+        );
+        check(
+          string,
+          "an ascribed variable's binding",
+          "let m:(x=Int) = (x=1) in m.x",
+          first("let m : (x=Int) = (x=1) in m.x"),
+        );
+      },
+    ),
+    test_case("An elaborated constructor pattern reads back", `Quick, () =>
+      List.iter(["case () | A => () end", "forall B -> 1"], ~f=text =>
+        List.iter(
+          Evaluated.terms_for_each_value(
+            Option.value_exn(Typed.read(text)),
+          ),
+          ~f=term =>
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
+        )
+      )
+    ),
+    /* An operator no form has binds tightest when read, so an operand
+       that isn't one token takes parens. */
+    test_case(
+      "An unknown operator's operands",
+      `Quick,
+      () => {
+        let unparenthesized = (e: Exp.t): Exp.t =>
+          Exp.map_term(
+            ~f_exp=
+              (continue, e) =>
+                switch (e.term) {
+                | Parens(inner) => continue(inner)
+                | _ => continue(e)
+                },
+            ~f_pat=
+              (continue, p) =>
+                switch (p.term) {
+                | Parens(inner) => continue(inner)
+                | _ => continue(p)
+                },
+            ~f_typ=
+              (continue, t) =>
+                switch (t.term) {
+                | Parens(inner) => continue(inner)
+                | _ => continue(t)
+                },
+            e,
+          );
+        List.iter(
+          [
+            "(1 + x) !!! 2",
+            "1 !!! (x + 2)",
+            "(f(x)) !!! (y.a)",
+            "(- x) !!! 1",
+            /* a type's and a pattern's operands likewise */
+            "1 : (Int -> Bool) !!! Int",
+            "1 : Int !!! (Bool -> Int)",
+            "1 : ([Int] -> Bool) !!! (+ A + B)",
+            "let (x :: y) !!! z = 1 in 2",
+            "let z !!! (x :: y) = 1 in 2",
+            "fun (C(x) !!! (y : Int)) -> 1",
+          ],
+          ~f=text => {
+            let term = unparenthesized(Option.value_exn(Typed.read(text)));
+            check(bool, text, true, print_reads_back(term));
+          },
+        );
+        List.iter(
+          [
+            "1 + (x !!! 2)",
+            "x !!! y",
+            "(x !!! y)(z)",
+            "1 !!! - x",
+            "1 !!! ! y",
+          ],
+          ~f=text =>
+          check(option(string), text, Some(text), reprint(text))
+        );
+        /* A prefix operator on the right ends a type as it stands, and
+           wouldn't inside parens. */
+        check(
+          bool,
+          "(^_^:Int !!!; ! ^y)",
+          true,
+          print_reads_back(
+            Option.value_exn(Typed.read("(^_^:Int !!!; ! ^y)")),
+          ),
+        );
+      },
+    ),
+    /* A type hole joined by an operator is no constructor application. */
+    test_case("An unknown operator in a sum keeps its token", `Quick, () =>
+      List.iter(
+        ["type T = + A !!! (Int) + B in 1"],
+        ~f=text => {
+          check(
+            bool,
+            "the !!! survives in " ++ text,
+            true,
+            Option.value_map(
+              reprint(text),
+              ~default=false,
+              ~f=String.is_substring(~substring="!!!"),
+            ),
+          );
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          );
+        },
+      )
+    ),
+    /* `->` joins the hole at its own precedence, tighter than `+`. */
+    test_case("A hole joined by a known operator reads back", `Quick, () =>
+      List.iter(["w ? -> 1 + 2"], ~f=text =>
+        check(
+          bool,
+          text,
+          true,
+          print_reads_back(Option.value_exn(Typed.read(text))),
+        )
+      )
+    ),
+    /* An atomic value after `.` parses as a one-piece hole; it needs no
+       parens, or each reprint adds a pair. A projection stays as it is. */
+    test_case("An atomic value after a dot", `Quick, () =>
+      List.iter(["(). ()", {|"s" . "s"|}, "$_$ .A", "x. ($_$)"], ~f=text =>
+        check(option(string), text, Some(text), reprint(text))
+      )
+    ),
+    /* Known bugs in reading text (#2856): each test holds the current
+       behaviour and goes red once the bug is fixed. */
+    test_case(
+      "Known bug (#2856): a keyword joining a hole pairs with an enclosing form",
+      `Quick,
+      () =>
+      check(
+        bool,
+        "the hole reads back whole",
+        false,
+        !
+          is_incomplete(
+            Option.value_exn(Typed.read("let _ = (1 in 2) in 3")),
+          ),
+      )
+    ),
+    test_case(
+      "Known bug (#2856): a hole's piece opening with a paren reads as an argument",
+      `Quick,
+      () => {
+        let piece = (text): Any.t =>
+          Exp(Option.value_exn(Typed.read(text)));
+        let hole =
+          Exp.fresh(MultiHole([piece("w"), piece("(1, 2)")]): Exp.term);
+        check(
+          bool,
+          "the hole reads back",
+          false,
+          {
+            let text = defensive_print(hole);
+            Option.equal(String.equal, Some(text), reprint(text));
+          },
+        );
+      },
+    ),
+    /* A word after a type pattern's piece joins it as an operator the
+       grammar doesn't know, and prints back as one. */
+    test_case("A word joining a type pattern's pieces survives", `Quick, () =>
+      check(
+        bool,
+        "the w survives",
+        true,
+        Option.value_map(
+          reprint("{ type ? x Nat w }"),
+          ~default=false,
+          ~f=String.is_substring(~substring=" w "),
+        ),
+      )
+    ),
+    test_case(
+      "Known bug (#2856): a case rule in an unclosed paren", `Quick, () =>
+      check(
+        bool,
+        "the rule keeps its =>",
+        false,
+        Option.value_map(
+          reprint("case x ( | a => 1 end"),
+          ~default=false,
+          ~f=String.is_substring(~substring="=>"),
+        ),
+      )
+    ),
+    test_case(
+      "Parens don't grow around an unclosed paren in a type",
+      `Quick,
+      () => {
+        let once = reprint("fun o^o:(?)  (Bool)(debug(x in ^x) w ?");
+        check(
+          bool,
+          "a reprint holds still",
+          true,
+          Option.is_some(once)
+          && Option.equal(String.equal, once, Option.bind(~f=reprint, once)),
+        );
+      },
+    ),
+    test_case(
+      "Multihole pattern in a signature item",
+      `Quick,
+      () => {
+        let var = (x): Any.t => Pat(Pat.fresh(Var(x)));
+        let sig_let =
+          Sig.fresh(SigLet(Pat.fresh(MultiHole([var("x"), var("y")]))));
+        let text =
+          defensive_print(
+            Exp.fresh(
+              Asc(Exp.fresh(EmptyHole), Typ.fresh(Sig([sig_let]))),
+            ),
+          );
+        check(
+          option(string),
+          "reprinted",
+          Some(text),
+          defensive_reprint(text),
+        );
+      },
+    ),
+    /* The parser splits long text into pieces parsed separately; `...`
+       after the 100th character still extends the ascribed type. */
+    test_case("Long ascribed type with an extension", `Quick, () =>
+      check(
+        bool,
+        "parses as an ascription",
+        true,
+        switch (
+          Parser.to_term(
+            "x:("
+            ++ String.concat(~sep=" + ", List.init(14, ~f=_ => "Bool"))
+            ++ ") ... B",
+            ~root=Exp,
+          )
+        ) {
+        | Some({term: Asc(_), _}) => true
+        | _ => false
+        },
+      )
+    ),
+    test_case("Long type extension reprints as it reads", `Quick, () =>
+      check(
+        bool,
+        "the poly keeps its spacing",
+        true,
+        switch (
+          defensive_reprint(
+            "x:("
+            ++ String.concat(~sep=" + ", List.init(14, ~f=_ => "Bool"))
+            ++ ") ... (poly ? -> ())",
+          )
+        ) {
+        | Some(text) =>
+          String.is_substring(text, ~substring="(poly ? -> ())")
+        | None => false
+        },
+      )
+    ),
+    test_case(
+      "Constructor application outside a sum keeps its parens", `Quick, () =>
+      check(
+        option(string),
+        "printed",
+        Some("1:(A(y))"),
+        defensive_reprint("1:A(y)"),
+      )
+    ),
+    QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_typed_invalid_forms),
+    QCheck_alcotest.to_alcotest(
+      ~speed_level=`Slow,
+      arb_evaluated_invalid_forms,
+    ),
+  ],
+);
+
+/* A recursive `let` elaborates to a fixpoint, which printing hides when
+   asked, whether or not ascriptions show. */
+let hidden_fixpoint_tests = (
+  "ExpToSegment: Hidden fixpoints",
+  List.map(
+    [true, false],
+    ~f=show_ascriptions => {
+      let name =
+        "Recursive let hides its fixpoint, ascriptions "
+        ++ (show_ascriptions ? "shown" : "hidden");
+      test_case(
+        name,
+        `Quick,
+        () => {
+          let src = "let f = fun x -> if x == 0 then 0 else f(x - 1) in f(3)";
+          let (_, elab) =
+            Statics.mk(
+              CoreSettings.on,
+              Builtins.ctx_init(Some(Int)),
+              Option.value_exn(Parser.to_term(src, ~root=Exp)),
+            );
+          let printed =
+            ExpToSegment.exp_to_segment(
+              ~settings={
+                ...exp_to_segment_settings,
+                show_ascriptions,
+                hide_fixpoints: true,
+              },
+              elab,
+            )
+            |> print_seg;
+          check(
+            bool,
+            "no fix in " ++ printed,
+            false,
+            String.is_substring(printed, ~substring="fix"),
+          );
+        },
+      );
+    },
+  ),
+);
 
 let property_tests = (
   "Round-Trip: Property",
@@ -1780,5 +4195,7 @@ let all = [
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,
+  defensive_print_stable_tests,
+  hidden_fixpoint_tests,
   property_tests,
 ];

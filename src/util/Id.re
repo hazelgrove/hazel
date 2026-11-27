@@ -125,6 +125,12 @@ let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 let derive = (~salt: string, x: t): t =>
   Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
 
+/* Whether an id was derived from another (`derive`, `next`, `mk_str`: a
+   version-5 UUID) rather than minted by `mk` (version 4). Reads one byte,
+   where finding out which id it was derived from costs a hash. */
+let is_derived = (x: t): bool =>
+  Char.to_int(Uuidm.unsafe_to_bytes(x).[6]) lsr 4 == 5;
+
 /* An id is a 16-byte string (Uuidm.unsafe_to_bytes is the identity), so
    compare it as one, in the same order as Uuidm.compare. (Uuidm.compare
    already compiles to a string compare, so this is for clarity, not

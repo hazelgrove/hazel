@@ -255,6 +255,32 @@ module ExplicitlyUnlabeledTuples = {
 let tests = (
   "Statics.Tuples",
   [
+    /* Each lift analyzes the value once, so nesting is linear. */
+    test_case(
+      "Nested lifts take time linear in their depth",
+      `Quick,
+      () => {
+        let depth = 20;
+        let typ =
+          List.fold(List.range(1, depth + 1), ~init="[Int]", ~f=(t, i) =>
+            "(l" ++ Int.to_string(i) ++ "=" ++ t ++ ")"
+          );
+        let values =
+          String.concat(~sep=", ", List.init(30, ~f=Int.to_string));
+        let start = Stdlib.Sys.time();
+        ignore(
+          statics(
+            parse_exp("let p : " ++ typ ++ " = [" ++ values ++ "] in 0"),
+          ),
+        );
+        check(
+          Alcotest.bool,
+          "under 10 s",
+          true,
+          Float.(Stdlib.Sys.time() - start < 10.0),
+        );
+      },
+    ),
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
       `Quick,
@@ -429,6 +455,18 @@ let tests = (
           ),
         ]),
       ),
+    ),
+    fully_consistent_typecheck(
+      "Wide tuple lifted into a singleton label",
+      {|let x : (a=(Int, Int)) = (1, 2) in x|},
+      Some(prod([tup_label(label("a"), parens(prod([int(), int()])))])),
+    ),
+    /* A hole can still be filled by a labeled value, so it keeps the whole
+       singleton as its type instead of being labeled now. */
+    fully_consistent_typecheck(
+      "Hole at a singleton labeled type",
+      {|? : (a=Int)|},
+      Some(prod([tup_label(label("a"), int())])),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument function application with unknown type",

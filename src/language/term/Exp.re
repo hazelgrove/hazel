@@ -62,6 +62,20 @@ let fast_equal =
     exp;
 let equal = fast_equal;
 
+/* Whether two terms are the same term, one of them perhaps reached at
+   runtime: a list built along another path carries a different element
+   type, which is not part of the term. */
+let fast_equal_ignoring_list_types =
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_parens: true,
+      ignore_projectors: true,
+      ignore_list_types: true,
+    })
+  ).
+    exp;
+
 /* In-order trace of annotation lexemes. Paired with fast_equal (which
    guarantees aligned structure), comparing traces detects lexeme-only
    differences — e.g. editing an unknown operator @@ -> @@@ changes
@@ -113,6 +127,17 @@ let hole = (tms: list(TermBase.Any.t)): term =>
   };
 
 let rep_id: t => Id.t = IdTagged.rep_id;
+
+/* A labeled field `label=value` that elaboration makes up. */
+let labeled_field = (~salt, ~source: Id.t, label: string, value: t): t =>
+  IdTagged.derived(
+    ~salt,
+    source,
+    TupLabel(
+      IdTagged.derived(~salt=salt ++ ":label", source, Label(label): term),
+      value,
+    ): term,
+  );
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
@@ -617,10 +642,33 @@ let (replace_all_ids, replace_all_ids_typ) = {
   );
 };
 
+/* The fixpoint a recursive `let` elaborates to, as its definition. Its
+   binder is the `let`'s, ascribed with the type it is bound at when the
+   `let`'s isn't. */
 let unfix = (e: t, p: Pat.t) => {
+  let rec unascribed = (p: Pat.t) =>
+    switch (p.term) {
+    | Asc(p, _) => unascribed(p)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Ap(_) => p
+    };
   switch (e.term) {
   | FixF(p1, e1, _) =>
-    if (Pat.fast_equal(p, p1)) {
+    if (Pat.fast_equal(unascribed(p), unascribed(p1))) {
       e1;
     } else {
       e;

@@ -3,6 +3,15 @@ open Test_Evaluator_Prelude;
 
 /* Module dynamics tests - Phase 1 implementation */
 
+let test_nested_signature_module =
+  test_case(
+    "A signature-ascribed nested module isn't wrapped twice", `Quick, () =>
+    parse_and_evaluate_test(
+      "(y=2)",
+      {|module M = { module N : { let y : Int } = { let y = 2 } } in M.N|},
+    )
+  );
+
 /* Test empty module evaluates to empty tuple */
 let test_empty_module =
   test_case("Empty module evaluates to unit", `Quick, () => {
@@ -132,6 +141,7 @@ let tests = (
   "Evaluator.Modules",
   [
     test_empty_module,
+    test_nested_signature_module,
     test_single_binding,
     test_multiple_bindings,
     test_shadowing,
@@ -151,5 +161,49 @@ let tests = (
     test_nested_module_keyword,
     test_module_keyword_annotated,
     test_module_keyword_sig_annotated,
+    /* A hole holding a module item is a run of items with junk in it: the
+       items still bind. One holding only expressions is one item. */
+    test_case("Junk after a module item", `Quick, () => {
+      parse_and_evaluate_test("(x=?)", {|{ module x = ? x + x }|})
+    }),
+    test_case("Junk between two bindings", `Quick, () => {
+      parse_and_evaluate_test("(a=1)", {|{ let a = 1 x let b = 2 }|})
+    }),
+    test_case("An ascription inside an item's definition stays", `Quick, () => {
+      parse_and_evaluate_test(
+        "?:Int",
+        {|let m = { let y = (let z : Int = ? in z) } in m.y|},
+      )
+    }),
+    /* `M : S` casts the module to `S`, as a `let`'s annotation casts its
+       definition: `f` returns an Int or fails its cast, here leaving
+       `"s" : Int`. Without the cast, the call returned the string. */
+    test_case(
+      "A module binder's signature casts the module",
+      `Quick,
+      () => {
+        let fails_its_cast = src =>
+          switch (parse_and_evaluate(src).term) {
+          | Asc({term: Atom(String("s")), _}, {term: Atom(Int), _}) => true
+          | _ => false
+          };
+        check(
+          bool,
+          "module item",
+          true,
+          fails_its_cast(
+            {|let m : ? = { let f = fun x -> "s" } in module N = { module M : { let f : Int -> Int } = m } in N.M.f(1)|},
+          ),
+        );
+        check(
+          bool,
+          "module ... in",
+          true,
+          fails_its_cast(
+            {|let m : ? = { let f = fun x -> "s" } in module M : { let f : Int -> Int } = m in M.f(1)|},
+          ),
+        );
+      },
+    ),
   ],
 );

@@ -440,6 +440,12 @@ let is_infix_delimiter_op_prefix: Token.t => bool = {
   t => Hashtbl.mem(tbl, t);
 };
 
+/* A lexeme the printer writes back as an operator tile: a hole that
+   records one (MakeTerm.lone_op) prints it between or before its
+   operands (ExpToSegment), where any other lexeme is dropped. */
+let is_op_lexeme = (t: Token.t): bool =>
+  Token.is_potential_operator(t) || is_infix_delimiter_op_prefix(t);
+
 /* Backup molds handed to delimiter prefixes in operator position. Mold
    identity, not token, is what tells a backup-molded `-` (pending `->`)
    from real infix minus or a labeled-tuple `=`. */
@@ -622,12 +628,19 @@ module Expansion = {
     };
   };
 
-  /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
-  let is_leading = (t: Token.t): bool =>
-    switch (List.Assoc.find(expansions, t, ~equal=Poly.equal)) {
-    | Some((_, Left)) => true
-    | _ => false
-    };
+  /* Check if token is a leading delimiter in ANY sort (sort-agnostic).
+     Asked on every shard insertion, so the answers are in a table built
+     once (see is_infix_delimiter_op_prefix). */
+  let is_leading: Token.t => bool = {
+    let tbl: Stdlib.Hashtbl.t(Token.t, unit) = Stdlib.Hashtbl.create(64);
+    List.iter(expansions, ~f=((t, (_, d): (Label.t, Direction.t))) =>
+      switch (d) {
+      | Left => Stdlib.Hashtbl.replace(tbl, t, ())
+      | Right => ()
+      }
+    );
+    t => Stdlib.Hashtbl.mem(tbl, t);
+  };
 };
 
 /* FormId lookup/classification layer (property-tested in
@@ -766,12 +779,16 @@ let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
   tbl;
 };
 
+/* A form with no mold at a sort still has a kid between each pair of its
+   delimiters (a paren completed around a case rule, `case x (↵| a => 1
+   end`), read at any sort. */
 let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
   switch (label) {
   | [t]
       when Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
     Mold.mk_bin(Precedence.max, sort, [])
-  | _ => Mold.mk_op(sort, [])
+  | _ =>
+    Mold.mk_op(sort, List.init(List.length(label) - 1, ~f=_ => Sort.Any))
   };
 
 /* The mold of a form at the tile's stored sort. Compound: the family

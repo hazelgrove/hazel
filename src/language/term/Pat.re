@@ -34,6 +34,17 @@ let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
 let fresh: term => t = IdTagged.fresh;
 
+/* A labeled field `label=value` that elaboration makes up. */
+let labeled_field = (~salt, ~source: Id.t, label: string, value: t): t =>
+  IdTagged.derived(
+    ~salt,
+    source,
+    TupLabel(
+      IdTagged.derived(~salt=salt ++ ":label", source, Label(label): term),
+      value,
+    ): term,
+  );
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
   switch (tms) {
   | [] => EmptyHole
@@ -153,6 +164,32 @@ let rec is_var = (pat: t): option(Var.t) => {
   | Ap(_) => None
   };
 };
+
+/* The name a `theorem` binds. Parens and an explicit-nonlabel singleton
+   (`(_=x)`, which elaborates to the unlabeled one-tuple `Tuple([x])`) don't
+   change what is bound, so they bind the name too. */
+let rec theorem_binder = (pat: t): option(Var.t) =>
+  switch (pat.term) {
+  | Var(v) => Some(v)
+  | Parens(pat)
+  | TupLabel({term: ExplicitNonlabel, _}, pat)
+  | Tuple([pat]) => theorem_binder(pat)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Projector(_)
+  | Ap(_)
+  | Asc(_) => None
+  };
 
 let rec is_tuple_of_vars = (pat: t) =>
   Option.is_some(is_var(pat))

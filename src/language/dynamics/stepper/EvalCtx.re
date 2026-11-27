@@ -2,7 +2,6 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
-  | Closure([@show.opaque] Environment.t(Exp.t), t)
   | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
@@ -31,7 +30,7 @@ type term =
   | Test(t)
   | HintedTest(t, DHExp.t)
   | Parens(t)
-  | ListLit(t, (list(DHExp.t), list(DHExp.t)))
+  | ListLit(t, (list(DHExp.t), list(DHExp.t)), option(Typ.t))
   | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DHExp.t)
   | Cons2(DHExp.t, t)
@@ -59,9 +58,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
   | Term({term, ids}) =>
     let wrap = DHExp.mk(ids);
     switch (term) {
-    | Closure(env, ctx) =>
-      let d = compose(ctx, d);
-      Closure(env, d) |> wrap;
     | Filter(flt, ctx) =>
       let d = compose(ctx, d);
       Filter(flt, d) |> wrap;
@@ -140,9 +136,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
-    | ListLit(ctx, (ld, rd)) =>
+    | ListLit(ctx, (ld, rd), ty) =>
       let d = compose(ctx, d);
-      ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+      ListLit((ListUtil.rev_concat(ld, [d, ...rd]), ty)) |> wrap;
     | MultiHole(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       MultiHole(ListUtil.rev_concat(ld, [Exp(d), ...rd])) |> wrap;

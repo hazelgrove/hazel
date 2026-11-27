@@ -57,7 +57,11 @@ type effect =
       samples: PatternMatch.sample_closures,
     })
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
-  | RecordPrint(DHExp.t); /* Println for probes study */
+  | RecordPrint(DHExp.t) /* Println for probes study */
+  /* Environment for the stepped-to expression: evaluation control, not a
+     log. `Evaluator.eval_1_effects` evaluates the next expression under it;
+     the state and the reuse map have nothing to record for it. */
+  | SetEnv(Environment.t(Exp.t));
 
 let empty: t = {
   initial_step_count: 0,
@@ -299,6 +303,7 @@ let update =
             call_stack,
             add_theorem(state, id, name, env, goal),
           )
+        | SetEnv(_) => (call_stack, state)
         },
     ~init=(call_stack, state),
     side_effects,

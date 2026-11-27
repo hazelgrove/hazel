@@ -372,6 +372,9 @@ and Exp: {
         ~f_typ,
         ~f_tpat,
         ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
         ~f_any,
       );
     let rec_call = ({term, _} as exp: t) => {
@@ -391,7 +394,11 @@ and Exp: {
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
-        | ListLit(ts) => ListLit(List.map(~f=exp_map_term, ts))
+        | ListLit((ts, t)) =>
+          ListLit((
+            List.map(~f=exp_map_term, ts),
+            Option.map(~f=typ_map_term, t),
+          ))
         | Fun(p, e, t, f) =>
           Fun(
             pat_map_term(p),

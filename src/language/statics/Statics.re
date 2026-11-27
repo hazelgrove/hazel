@@ -309,59 +309,57 @@ and uexp_to_info_map =
   let go_pat =
     upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
-  /* Analyze an expression in label position. Adds info for the label
-     directly (like TupLabel does for its children) and returns
-     the label name if valid. Used by CustomStatics for builtin label args. */
-  // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map.
+  /* Lifts a value into a one-field labeled tuple: `1` at `(a=Int)` is
+     `(a=1)`. The value is analyzed once, against the field's type, at its
+     own ids; its entry then records the tuple's type and elaboration, so
+     the inspector prints the type as "lifted to", while the marks and the
+     message stay the value's. The field and label nodes exist only in the
+     elaboration, with ids derived from the value's. */
   let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
-    let (term, rewrap) = Exp.unwrap(uexp);
-    let original_expression = Exp.fresh(term);
-    let (inner_info, _, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana=inner_ty,
-        ~is_in_filter,
-        ~ancestors=ancestors_inclusive,
-        original_expression,
-        m,
-      );
-    /* SynSwitch pre-pass on uexp misses expectation errors; inner_ty analysis
-       is on a fresh copy — mirror it onto source ids for cursor/tests. */
-    let inner_for_source = {
-      ...inner_info,
-      user_term: uexp,
-    };
-
-    let elaborated_exp =
+    let (value, value_elab, m) = go(~ana=inner_ty, uexp, m);
+    let labeled = (ty: Typ.t): Typ.t =>
+      Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
+    let (_, rewrap) = Exp.unwrap(uexp);
+    /* A value lifted at each level of a nested one-field type (`5` at
+       `(a=(b=Int))`) is the same node at every level, so an outer level
+       derives its ids from the field the level below made: no two levels
+       share one. */
+    let source =
+      switch (value.label_inference, value_elab.term) {
+      | (Some(SingletonLabelInference(_)), Tuple([field])) =>
+        Exp.rep_id(field)
+      | _ => Exp.rep_id(uexp)
+      };
+    let elab_term =
       rewrap(
         Tuple([
-          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+          Exp.labeled_field(
+            ~salt="autolabel:field",
+            ~source,
+            l,
+            IdTagged.derived(
+              ~salt="autolabel:value",
+              source,
+              value_elab.term,
+            ),
+          ),
         ]),
       );
-
-    let (info, _, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana,
-        ~ancestors=ancestors_inclusive,
-        elaborated_exp,
-        m,
-      );
-    let info = {
-      ...info,
-      message: inner_info.message,
+    let info: Info.exp = {
+      ...value,
+      ty: labeled(value.ty),
+      elab_term,
+      elab_syn_ty: labeled(value.elab_syn_ty),
       label_inference:
         Some(
-          SingletonLabelInference({
+          Info.SingletonLabelInference({
             label: l,
-            pre_labeled_info: inner_for_source,
+            pre_labeled_info: value,
           }),
         ),
     };
-
-    let m = add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m);
-    let m = add_info(IdTagged.ids(uexp), InfoExp(inner_for_source), m);
-    (info, elaborated_exp, m);
+    let m = add_info(IdTagged.ids(uexp), InfoExp(info), m);
+    (info, elab_term, m);
   };
 
   // HACK: we use the co-context to check for unused variables in surrounding
@@ -451,6 +449,8 @@ and uexp_to_info_map =
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
+        /* Not elab_typ: the cast reads the type at runtime, in no context,
+           where a compact builtin alias would act as `?`. */
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
         ~elab_syn_ty=t_ty,
         ~marks=[],
@@ -475,13 +475,19 @@ and uexp_to_info_map =
         m,
       )
     | Deferral(position) =>
-      let (marks: list(Mark.t), message: option(Message.t)) =
+      let (elab_term, marks: list(Mark.t), message: option(Message.t)) =
         switch (position) {
-        | InAp => ([], Some(Exp(AnaDeferralConsistent(ana))))
-        | OutsideAp => ([IsDeferral(position)], None)
+        | InAp => (
+            Deferral(position) |> rewrap,
+            [],
+            Some(Exp(AnaDeferralConsistent(ana))),
+          )
+        /* A deferral anywhere else would survive elaboration and could be
+           moved around by later rewrites, so it elaborates to a hole. */
+        | OutsideAp => (EmptyHole |> rewrap, [IsDeferral(position)], None)
         };
       add(
-        ~elab_term=Deferral(position) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks,
         ~message?,
@@ -543,7 +549,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
       );
-    | ListLit(es) =>
+    | ListLit((es, elab_ty)) =>
       let ids = List.map(~f=Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), ~f=_ => inner_ana_ty);
@@ -554,7 +560,23 @@ and uexp_to_info_map =
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map(~f=(e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
-        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
+        Typ.meet_all(
+          ~empty=
+            Option.value(elab_ty, ~default=Unknown(Internal) |> Typ.temp),
+          ctx,
+          syn_tys,
+        );
+      /* Checked against `[t]`, a literal is a list of `t` where it is
+         written: its elements are cast to `t` and it carries `t`. Elements
+         inconsistent with `t` keep their own meet, so the marks stay on
+         them. */
+      let meet_ty =
+        switch (meet_ty, Typ.term_of(inner_ana_ty)) {
+        | (None, _)
+        | (Some(_), Unknown(_)) => meet_ty
+        | (Some(ty), _) =>
+          Some(Typ.meet(ctx, ty, inner_ana_ty) |> Option.value(~default=ty))
+        };
       let ds =
         List.map2_exn(es_elabs, syn_tys, ~f=(d, t) =>
           fresh_ascription(ctx, d, t, meet_ty)
@@ -563,7 +585,7 @@ and uexp_to_info_map =
       | None =>
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
-          ~elab_term=ListLit(ds) |> rewrap,
+          ~elab_term=ListLit((ds, None)) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
@@ -577,7 +599,7 @@ and uexp_to_info_map =
         );
       | Some(ty) =>
         add(
-          ~elab_term=ListLit(ds) |> rewrap,
+          ~elab_term=ListLit((ds, Some(elab_typ(ctx, ty)))) |> rewrap,
           ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union(List.map(~f=Info.exp_co_ctx, es)),
@@ -745,20 +767,28 @@ and uexp_to_info_map =
       );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
-      /* Re-kind numeric negation by the analyzed class, else by the
-         operand's own class (peeked with a discarded pass) — mirrors
-         replace_literal, so `-1.5` and `let x: Float = -5` type as float
-         negation instead of locking the operand to Int. */
+      /* Re-kind numeric negation by the ana class, else by the operand's
+         class, so `-1.5` is float negation. Only under an ambient mode:
+         use_mode None means the term is already elaborated, and re-deciding
+         the op there would read a class it was not elaborated with. Boolean
+         negation is never re-kinded, so it doesn't peek at its operand. */
       let op =
-        switch (Typ.is_ana_atom(ana)) {
-        | Some(_) as ana_cls => Operators.replace_un_op_cls(op, ana_cls, None)
-        | None =>
-          let (peek, _, _) = go(~ana=syn, e, m);
-          Operators.replace_un_op_cls(
-            op,
-            None,
-            Typ.is_ana_atom(peek.elab_syn_ty),
-          );
+        switch (ctx.use_mode, op) {
+        | (None, _)
+        | (_, Bool(_)) => op
+        | (Some(_), Int(_) | Nat(_) | Float(_) | SInt(_)) =>
+          switch (Typ.is_ana_atom(ana)) {
+          | Some(Int | Nat | Float | SInt) as ana_cls =>
+            Operators.replace_un_op_cls(op, ana_cls, None)
+          | Some(Bool | String)
+          | None =>
+            let (peek, _, _) = go(~ana=syn, e, m);
+            Operators.replace_un_op_cls(
+              op,
+              None,
+              Typ.is_ana_atom(peek.elab_syn_ty),
+            );
+          }
         };
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
@@ -825,7 +855,7 @@ and uexp_to_info_map =
         | None =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.temp,
             ~marks=[NoMeet(PolyEq, Typ.add_source(ids, tys))],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
@@ -834,7 +864,7 @@ and uexp_to_info_map =
         | Some(ty) when Typ.has_fun_up_to_aliases(ctx, ty) =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.temp,
             ~marks=[CompareFun(ty)],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
@@ -843,7 +873,7 @@ and uexp_to_info_map =
         | Some(_) =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.temp,
             ~marks=[],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
@@ -895,30 +925,7 @@ and uexp_to_info_map =
         Typ.weak_head_normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
-        );
-        let e1_entries = List.map(~f=extract_entry, ts1);
-        let e2_entries = List.map(~f=extract_entry, ts2);
-
-        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
-          IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ~f=
-                  ((lab, d)) =>
-                    switch (lab) {
-                    | Some(l) => tup_label(label(l), d)
-                    | None => d
-                    },
-                LabeledTuple.extension(e1_entries, e2_entries),
-              ),
-            )
-          );
+        let ty = Typ.product_extension(ts1, ts2) |> Typ.temp;
 
         add(
           ~elab_term,
@@ -931,7 +938,7 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term,
-          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[],
           ~co_ctx,
           ~probe_targets,
@@ -960,7 +967,12 @@ and uexp_to_info_map =
           (name, (_, e)) =>
             (
               Some(name),
-              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
+              Exp.labeled_field(
+                ~salt="inferred-label:field",
+                ~source=Exp.rep_id(e),
+                name,
+                e,
+              ),
             ),
         );
       let es = List.map(~f=snd, inferred_es);
@@ -1141,8 +1153,14 @@ and uexp_to_info_map =
               Exp.match_tup_label,
               ts,
               es_elab,
+              /* Reordering fills in labels the expectation supplied. */
               (label, body) =>
-              TupLabel(Label(label) |> Exp.fresh, body) |> Exp.fresh
+              Exp.labeled_field(
+                ~salt="inferred-label:rearrange",
+                ~source=Exp.rep_id(body),
+                label,
+                body,
+              )
             ),
           )
           |> rewrap
@@ -1280,18 +1298,29 @@ and uexp_to_info_map =
         m,
       )
     | BuiltinFun(string) =>
-      let (syn_b, marks_b) =
-        switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
-        | None => (SynTy.unknown_internal(), [Mark.Free(string)])
-        | Some(var) => (var.typ, [])
-        };
-      add(
-        ~elab_term=BuiltinFun(string) |> rewrap,
-        ~elab_syn_ty=syn_b,
-        ~marks=marks_b,
-        ~co_ctx=CoCtx.empty,
-        m,
-      );
+      switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
+      | Some(var) =>
+        add(
+          ~elab_term=BuiltinFun(string) |> rewrap,
+          ~elab_syn_ty=var.typ,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      | None =>
+        /* Dynamics raises InvalidBuiltin for any name outside
+           Builtins.forms_init, so an unknown one must not stay a BuiltinFun.
+           Invalid is Indet under Transition and synthesizes the same
+           Unknown(Internal). Not Var, which would resolve against an
+           enclosing binding of the same name. */
+        add(
+          ~elab_term=Invalid(string) |> rewrap,
+          ~elab_syn_ty=SynTy.unknown_internal(),
+          ~marks=[Mark.Free(string)],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      }
 
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
@@ -1449,7 +1478,7 @@ and uexp_to_info_map =
           | Some(typ) =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=List(typ) |> Typ.fresh,
+              ~elab_syn_ty=List(typ) |> Typ.temp,
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1624,7 +1653,7 @@ and uexp_to_info_map =
           );
         }
       | _ =>
-        let ctor_ty = fixed_typ(ctx, ana, syn_res) |> Typ.normalize(ctx);
+        let ctor_ty = elab_typ(ctx, fixed_typ(ctx, ana, syn_res));
         let elab_term = Constructor(ctr, Some(Some(ctor_ty))) |> rewrap;
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
@@ -1783,11 +1812,11 @@ and uexp_to_info_map =
         };
       }
     | TypAp(fn, utyp) =>
-      let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
+      let typfn_ana = Poly(EmptyHole |> TPat.temp, syn) |> Typ.temp;
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
-      let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
+      let elab_term = TypAp(fn_elab, elab_typ(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
@@ -1949,7 +1978,11 @@ and uexp_to_info_map =
             ]
           };
         };
-      let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
+      /* `p.ty` is a meet with the analyzed type, so it can still carry
+         surface-only sugar: `Parens`, aliases, or a `Sig` whose `SigLet`
+         items hold patterns. */
+      let elab_term =
+        Fun(p_elab, e_elab, Some(elab_typ(ctx, p.ty)), n) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_fun,
@@ -2074,22 +2107,6 @@ and uexp_to_info_map =
         };
       let (p_syn, _, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (def_term, def_rewrap) = Exp.unwrap(def);
-      let def =
-        switch (
-          def_term,
-          Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty)),
-        ) {
-        | (Tuple(ds), Prod(tys)) =>
-          Tuple(
-            LabeledTuple.rearrange(
-              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
-              TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
-            ),
-          )
-          |> def_rewrap
-        | (_, _) => def
-        };
       let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
       let rec_check_ty =
         switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
@@ -2208,15 +2225,13 @@ and uexp_to_info_map =
            );
       let (elab_term, m) =
         if (!requires_fixf) {
-          let def_elab =
-            LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
-            |> Exp.add_name(Pat.get_var(p));
+          let def_elab = def_elab |> Exp.add_name(Pat.get_var(p));
           (Let(p_elab, def_elab, body_elab) |> rewrap, m);
         } else {
           let def_elab =
-            LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
+            def_elab
             |> Exp.add_name(Option.map(~f=s => s ++ "+", Pat.get_var(p)));
-          /* Give the fixpoint the function's surface id (which IS in
+          /* Give the fixpoint the function's surface id (which is in
            * info_map, so it gets a cache entry), and give the inner Fun a
            * derived id (which isn't in info_map, but that's fine — the
            * FixF's cache entry subsumes it). This makes the function->closure
@@ -2226,10 +2241,43 @@ and uexp_to_info_map =
            * introduced into the cached closure value. */
           let fun_id = Exp.rep_id(def_elab);
           let def_elab = IdTagged.fresh_deterministic(fun_id, def_elab.term);
+          /* `fix` types itself from its binder, so an unannotated
+             `let f = fun _ -> f` would elaborate to a fixpoint that
+             re-checks as `?`. Annotate the binder with the type the name is
+             bound at, as `let f : ? -> ? = …` already gets, and cast the
+             body as the FixF case does, so re-checking the fixpoint gives it
+             back unchanged. */
+          let p_fix =
+            switch (Pat.term_of(p_elab)) {
+            | Asc(_) => p_elab
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_)
+            | Wild
+            | ExplicitNonlabel
+            | Atom(_)
+            | ListLit(_)
+            | Constructor(_)
+            | Cons(_)
+            | Var(_)
+            | Tuple(_)
+            | Label(_)
+            | TupLabel(_)
+            | Parens(_)
+            | Projector(_)
+            | Ap(_) =>
+              IdTagged.derived(
+                ~salt="fixf-binder-ascription",
+                Pat.rep_id(p_elab),
+                Asc(p_elab, elab_typ(ctx, ty_p_ana)): Pat.term,
+              )
+            };
+          let def_elab =
+            fresh_ascription(ctx, def_elab, def.elab_syn_ty, Some(ty_p_ana));
           let fixf =
             IdTagged.mk_internal(
               [fun_id],
-              FixF(p_elab, def_elab, None): Exp.term,
+              FixF(p_fix, def_elab, None): Exp.term,
             );
           /* The InfoExp at fun_id was written when `go` traversed the
            * surface Fun above; its co_ctx contains the Fun's free vars,
@@ -2245,9 +2293,19 @@ and uexp_to_info_map =
             | Some(Info.InfoExp(info)) =>
               add_info(
                 [fun_id],
+                /* The program has the FixF at this id, so record it (and the
+                   type it synthesizes, its binder's: the one the binder is
+                   ascribed, or the one written in for it above) as the
+                   elab_term too: evaluation and the cache see the FixF. */
                 Info.InfoExp({
                   ...info,
                   co_ctx: CoCtx.mk(ctx, p_ana.ctx, info.co_ctx),
+                  elab_term: fixf,
+                  elab_syn_ty:
+                    switch (Pat.term_of(p_elab)) {
+                    | Asc(_) => p_ana.elab_syn_ty
+                    | _ => ty_p_ana
+                    },
                 }),
                 m,
               )
@@ -2273,14 +2331,45 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem({term: Var(_), _} as p, e1, e2) =>
+    | Theorem(p, e1, e2) =>
+      let binds = Option.is_some(Pat.theorem_binder(p));
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      /* The binder may sit in parens or an explicit-nonlabel singleton
+         (`theorem (_=x)`); analyze it against the proof type in the same
+         shape, so the name it binds gets the proof type. */
+      let rec binder_ana = (p: Pat.t, ty: Typ.t): Typ.t =>
+        switch (p.term) {
+        | Parens(p)
+        | TupLabel(_, p) => binder_ana(p, ty)
+        | Tuple([{term: TupLabel(_, p), _}]) =>
+          Prod([
+            TupLabel(Typ.temp(ExplicitNonlabel), binder_ana(p, ty))
+            |> Typ.temp,
+          ])
+          |> Typ.temp
+        | Tuple([p]) => Prod([binder_ana(p, ty)]) |> Typ.temp
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | Wild
+        | ExplicitNonlabel
+        | Atom(_)
+        | ListLit(_)
+        | Constructor(_)
+        | Cons(_)
+        | Var(_)
+        | Tuple(_)
+        | Label(_)
+        | Projector(_)
+        | Ap(_)
+        | Asc(_) => ty
+        };
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
-          ~ana=Typ.fresh(ProofOf(e1)),
+          ~ana=binds ? binder_ana(p, Typ.temp(ProofOf(e1))) : syn,
           p,
           m,
         );
@@ -2290,48 +2379,15 @@ and uexp_to_info_map =
           ~is_synswitch=false,
           ~warn_unused=false,
           ~co_ctx=e2.co_ctx,
-          ~ana=p'.ty,
+          ~ana=binds ? p'.ty : syn,
           p,
           m,
         );
+      /* Without a binder, the theorem itself is the error. */
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
-        ~marks=[],
-        ~co_ctx=
-          CoCtx.union([
-            p'.co_ctx,
-            e1'.co_ctx,
-            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
-            pat_typ_refs,
-          ]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([
-            p.probe_targets,
-            e1'.probe_targets,
-            e2.probe_targets,
-          ]),
-        m,
-      );
-    | Theorem(p, e1, e2) =>
-      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
-      let (p', _, _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      let (p, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~warn_unused=false,
-          ~co_ctx=e2.co_ctx,
-          ~ana=syn,
-          p,
-          m,
-        );
-      add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=e2.elab_syn_ty,
-        ~marks=[BadTheorem(e2.ty)],
+        ~marks=binds ? [] : [BadTheorem(e2.ty)],
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
@@ -2363,8 +2419,9 @@ and uexp_to_info_map =
       let (p'', p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let elab_term =
-        FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
+      let body_elab =
+        fresh_ascription(ctx, e_elab, e'.elab_syn_ty, Some(p'.ty));
+      let elab_term = FixF(p_elab, body_elab, env) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=p'.elab_syn_ty,
@@ -2719,13 +2776,14 @@ and uexp_to_info_map =
       };
     | Module(items) =>
       /* Expand module to nested let/type + labeled tuple, then type-check expansion.
-         The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions.
+         Each item's wrapper Let/TyAlias is keyed by ModuleHelpers.wrapper_id.
          Pass ~ana to expand so it can add sig type annotations to patterns.
          Process expansion in syn mode: definition errors are caught via pattern
          annotations, and the Module's own add() checks the overall type against
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
-      let lowered = ModuleHelpers.lower(~ctx, ~ana, items);
+      let lowered =
+        ModuleHelpers.lower(~ctx, ~ana, ~module_id=Exp.rep_id(uexp), items);
       let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       /* Build actual Prod type from module's exported bindings, rather than
@@ -2736,13 +2794,12 @@ and uexp_to_info_map =
           lowered.value_exports,
           m,
         );
-      let module_elab =
-        ModuleHelpers.module_elab(
-          ~module_exp_id=Exp.rep_id(uexp),
-          expanded_elab,
-        );
       add(
-        ~elab_term=module_elab,
+        ~elab_term=
+          ModuleHelpers.module_body_with_id(
+            ~id=Exp.rep_id(uexp),
+            expanded_elab,
+          ),
         ~elab_syn_ty=actual_ty,
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,
@@ -2800,19 +2857,133 @@ and uexp_to_info_map =
     };
   };
 
-  // This is for lifting single values into a singleton labeled tuple when the label is not present
+  /* The tuple case fills and reorders labels. A one-field tuple whose label
+     is a different name is a value to lift (`b=""` at `(a=...)` becomes
+     `(a=(b=""))`), not a tuple to relabel. Anything else expected at a
+     one-field labeled type is lifted, including a wide tuple, which stacks:
+     `(1, 2)` at `(a=(Int, Int))` becomes `(a=(1, 2))`. A value that
+     already has that label is left alone: the label is in the type. */
+  let rec tuple_case_owns = (e: Exp.t, label) =>
+    switch (e.term) {
+    | Parens(inner) => tuple_case_owns(inner, label)
+    | Tuple(es) =>
+      LabeledTuple.is_singleton_of(Exp.match_tup_label, es, label)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | DynamicErrorHole(_)
+    | Deferral(_)
+    | Undefined
+    | Atom(_)
+    | DrvQuote(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Fun(_)
+    | TypFun(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | TupLabel(_)
+    | Dot(_)
+    | LivelitName(_)
+    | Var(_)
+    | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
+    | FixF(_)
+    | TyAlias(_)
+    | Use(_)
+    | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | HintedTest(_)
+    | Filter(_)
+    | Closure(_)
+    | Projector(_)
+    | Cons(_)
+    | ListConcat(_)
+    | UnOp(_)
+    | BinOp(_)
+    | BuiltinFun(_)
+    | Match(_)
+    | TupleExtension(_)
+    | Asc(_)
+    | Module(_)
+    | ModuleExp(_) => false
+    };
+
+  /* A hole can still be filled by anything, including the label itself, so
+     wrapping it now would decide that for the user. It keeps the whole
+     singleton as its expected type and is lifted once it is filled. */
+  let rec is_raw_hole = (e: Exp.t) =>
+    switch (e.term) {
+    | Parens(inner) => is_raw_hole(inner)
+    | EmptyHole => true
+    | Invalid(_)
+    | MultiHole(_)
+    | DynamicErrorHole(_)
+    | Deferral(_)
+    | Undefined
+    | Atom(_)
+    | DrvQuote(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Fun(_)
+    | TypFun(_)
+    | Tuple(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | TupLabel(_)
+    | Dot(_)
+    | LivelitName(_)
+    | Var(_)
+    | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
+    | FixF(_)
+    | TyAlias(_)
+    | Use(_)
+    | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | HintedTest(_)
+    | Filter(_)
+    | Closure(_)
+    | Projector(_)
+    | Cons(_)
+    | ListConcat(_)
+    | UnOp(_)
+    | BinOp(_)
+    | BuiltinFun(_)
+    | Match(_)
+    | TupleExtension(_)
+    | Asc(_)
+    | Module(_)
+    | ModuleExp(_) => false
+    };
 
   switch (Typ.weak_head_normalize(ctx, ana).term) {
-  | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
-    // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
-    // So for performance reasons we'll just do it here.
+  | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}])
+      when !tuple_case_owns(uexp, l1) && !is_raw_hole(uexp) =>
     let (e, _, m) = go(~ana=syn, uexp, m);
-
-    switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+    /* The value's own type, a recursive one unrolled: `rec t -> ?` is as
+       unknown as `?`, and `rec t -> (a=Int)` already has the label. */
+    switch (MatchedTyp.head(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
         when String.equal(l1, l2) =>
       default_case()
-    | Unknown(_) => default_case() // TODO I don't know if this is correct
+    /* A value of unknown type may already be the record at runtime
+       (`let r : ? = (a=1) in r : (a=Int)`); lifting it would wrap it twice.
+       The cast, or the pattern, lifts it at runtime by the same rule once
+       its form shows it isn't the record (Ascriptions.lifts_into). */
+    | Unknown(_) => default_case()
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
     };
   | _ => default_case()
@@ -2947,43 +3118,51 @@ and upat_to_info_map =
   };
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 
-  let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
-    LabeledTupleHelpers.autolabel_singleton_pat(
-      ~analyze_original=
-        (~ana, pat, m) =>
-          upat_to_info_map(
-            ~ctx,
-            ~co_ctx,
-            ~is_synswitch,
-            ~ancestors=ancestors_inclusive,
-            ~ana,
-            ~probe_ids,
-            ~warn_unused,
-            pat,
-            m,
+  /* As for an expression (autolabel_singleton_tuple): the pattern is
+     analyzed once, against the field's type, and its entry records the
+     tuple's type, elaboration and coverage constraint. */
+  let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
+    let (value, value_elab, m) = go(~ana=inner_ty, upat, m);
+    let labeled = (ty: Typ.t): Typ.t =>
+      Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
+    let (_, rewrap) = Pat.unwrap(upat);
+    let source =
+      switch (value.label_inference, value_elab.term) {
+      | (Some(SingletonLabelInference(_)), Tuple([field])) =>
+        Pat.rep_id(field)
+      | _ => Pat.rep_id(upat)
+      };
+    let elab_term =
+      rewrap(
+        Tuple([
+          Pat.labeled_field(
+            ~salt="autolabel:field",
+            ~source,
+            l,
+            IdTagged.derived(
+              ~salt="autolabel:value",
+              source,
+              value_elab.term,
+            ),
           ),
-      ~analyze_elaborated=
-        (~ana, pat, m) =>
-          upat_to_info_map(
-            ~ctx,
-            ~co_ctx,
-            ~is_synswitch,
-            ~ancestors=ancestors_inclusive,
-            ~ana,
-            ~probe_ids,
-            ~warn_unused,
-            pat,
-            m,
-          ),
-      ~store_info=
-        (elaborated_pat, info, m) =>
-          add_info(IdTagged.ids(elaborated_pat), InfoPat(info), m),
-      upat,
-      ~inner_ty,
-      ~ana,
-      ~label=l,
-      m,
-    );
+        ]),
+      );
+    let info: Info.pat = {
+      ...value,
+      ty: labeled(value.ty),
+      elab_term,
+      elab_syn_ty: labeled(value.elab_syn_ty),
+      constraint_: Coverage.Constraint.Tuple([value.constraint_]),
+      label_inference:
+        Some(
+          Info.SingletonLabelInference({
+            label: l,
+            pre_labeled_info: value,
+          }),
+        ),
+    };
+    (info, elab_term, add_info(IdTagged.ids(upat), InfoPat(info), m));
+  };
 
   let default_case = () =>
     switch (term) {
@@ -3174,7 +3353,7 @@ and upat_to_info_map =
          performed for `Let` patterns once the def's type is known. */
       let (hd, hd_elab, m) = go(~ctx, ~ana=refined_inner, hd, m);
       let (tl, tl_elab, m) =
-        go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
+        go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.temp, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
         ~elab_syn_ty=List(hd.elab_syn_ty) |> Typ.temp,
@@ -3246,7 +3425,10 @@ and upat_to_info_map =
         );
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
+      /* Bare `_` in pat sort is ExplicitNonlabel at the MakeTerm tip, but
+         PatternMatch expects Wild. Elaborate like Wild; keep the mark. */
       add(
+        ~elab_term=Wild |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~ctx,
@@ -3353,7 +3535,12 @@ and upat_to_info_map =
           (name, (_, p)) =>
             (
               Some(name),
-              TupLabel(Label(name) |> Pat.fresh, p) |> Pat.fresh,
+              Pat.labeled_field(
+                ~salt="inferred-label:field",
+                ~source=Pat.rep_id(p),
+                name,
+                p,
+              ),
             ),
         );
       let ps = List.map(~f=snd, inferred_ps);
@@ -3640,15 +3827,24 @@ and upat_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_ctr, cms_ctr) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
+      /* A resolved annotation wins, mirroring syn_marks_ctr's precedence, so
+         the type we record and the one we bake into elab_term agree.
+         Some(None) falls through: it is an unresolved slot that `ana` may
+         still fill, not a resolution to nothing. */
       let elab_ty =
-        switch (
-          ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
-          Ctx.lookup_ctr(ctx, ctr),
-        ) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(Typ.normalize(ctx, elab_syn_ty))
-        | _ => None
+        switch (ty) {
+        | Some(Some(ann_ty)) => Some(elab_typ(ctx, ann_ty))
+        | Some(None)
+        | None =>
+          switch (
+            ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
+            Ctx.lookup_ctr(ctx, ctr),
+          ) {
+          | (Some(ana_ty), _) => Some(elab_typ(ctx, ana_ty))
+          | (_, Some({typ: elab_syn_ty, _})) =>
+            Some(elab_typ(ctx, elab_syn_ty))
+          | _ => None
+          }
         };
       add(
         ~elab_term=Constructor(ctr, Some(elab_ty)) |> rewrap,
@@ -3698,7 +3894,11 @@ and upat_to_info_map =
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
-        ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
+        /* Not elab_typ, as for an expression's ascription. */
+        ~elab_term=
+          ModuleHelpers.is_signature_ascription(~inner=p.user_term, upat)
+            ? p_elab
+            : Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~elab_syn_ty=ann_ty,
         ~marks=[],
         ~ctx=p.ctx,
@@ -3708,17 +3908,39 @@ and upat_to_info_map =
       );
     };
 
-  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
+  /* Same split as expressions. A variable whose name is the label is a
+     destructure; any other unknown pattern binds the whole record. */
+  let rec tuple_case_owns = (p: Pat.t, label) =>
+    switch (p.term) {
+    | Parens(inner) => tuple_case_owns(inner, label)
+    | Tuple(ps) =>
+      LabeledTuple.is_singleton_of(Pat.match_tup_label, ps, label)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Label(_)
+    | TupLabel(_)
+    | Projector(_)
+    | Ap(_)
+    | Asc(_) => false
+    };
   if (under_ascription) {
     default_case();
   } else {
     switch (Typ.weak_head_normalize(ctx, ana).term) {
-    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
-      // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
-      // So for performance reasons we'll just do it here.
+    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}])
+        when !tuple_case_owns(upat, l1) =>
       let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
-      switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+      /* As for an expression: a recursive type is seen through. */
+      switch (MatchedTyp.head(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
           when String.equal(l1, l2) =>
         default_case()
@@ -3818,7 +4040,7 @@ and utyp_to_info_map =
         ok(
           Message.WHNormalizedTo({
             unnormalized: utyp,
-            whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
+            whnormalized: Typ.product_extension(t1s, t2s) |> Typ.temp,
           }),
         )
       | (Prod(_), _) =>

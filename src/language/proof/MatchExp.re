@@ -119,7 +119,8 @@ let rec match_exp =
   | (Atom(SInt(_)), _) => None
   | (Atom(Nat(i1)), Atom(Nat(i2))) when i1 == i2 => Some(ctx)
   | (Atom(Nat(_)), _) => None
-  | (ListLit(xs), ListLit(ys)) when List.length(xs) == List.length(ys) =>
+  | (ListLit((xs, _)), ListLit((ys, _)))
+      when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
       ctx,

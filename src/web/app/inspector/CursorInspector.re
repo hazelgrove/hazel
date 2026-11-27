@@ -336,6 +336,29 @@ let common_ok_view =
       ok: Message.ok_common,
     ) => {
   let view_type = view_type(~globals);
+  let inserted_label_note =
+    (
+      switch (lifted_ty) {
+      | None => []
+      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+      }
+    )
+    @ (
+      switch (introduced_labels) {
+      | [] => []
+      | [a] => [text("by automatically adding label "), label_view(a)]
+      | labels => [
+          text("by automatically adding labels "),
+          ...ListUtil.join(text(","), List.map(~f=label_view, labels)),
+        ]
+      }
+    )
+    @ (
+      switch (reordered) {
+      | false => []
+      | true => [text(" after reordering by labels ")]
+      }
+    );
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -377,31 +400,7 @@ let common_ok_view =
         colon_prefix(show_type_colon)
         @ [view_type(syn)]
         @ [text("equals expected type")]
-        @ (
-          switch (lifted_ty) {
-          | None => []
-          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-          }
-        )
-        @ (
-          switch (introduced_labels) {
-          | [] => []
-          | [a] => [text("by automatically adding label "), label_view(a)]
-          | _ => [
-              text("by automatically adding labels "),
-              ...ListUtil.join(
-                   text(","),
-                   List.map(~f=label_view, introduced_labels),
-                 ),
-            ]
-          }
-        )
-        @ (
-          switch (reordered) {
-          | false => []
-          | true => [text(" after reordering by labels ")]
-          }
-        )
+        @ inserted_label_note
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
       (
@@ -413,31 +412,7 @@ let common_ok_view =
         }
       )
       @ [view_type(ana)]
-      @ (
-        switch (lifted_ty) {
-        | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-        }
-      )
-      @ (
-        switch (introduced_labels) {
-        | [] => []
-        | [a] => [text("by automatically adding label "), label_view(a)]
-        | _ => [
-            text("by automatically adding labels "),
-            ...ListUtil.join(
-                 text(","),
-                 List.map(~f=label_view, introduced_labels),
-               ),
-          ]
-        }
-      )
-      @ (
-        switch (reordered) {
-        | false => []
-        | true => [text(" after reordering by labels ")]
-        }
-      )
+      @ inserted_label_note
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),

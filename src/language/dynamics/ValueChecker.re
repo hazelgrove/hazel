@@ -49,9 +49,15 @@ module ValueCheckerEVMode: {
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = (~in_closure=?, env, d) =>
-  CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
+let rec check_value = (env, d) =>
+  CV.transition(check_value, ~mode=`Environment, env, d);
 
-/* Check if an expression is a fully-evaluated value */
-let is_value = (exp: Exp.t): bool =>
-  Poly.equal(check_value(Environment.empty, exp), Value);
+/* Whether an expression is a fully-evaluated value. It asks in substitution
+   mode, which answers for the form itself rather than re-wrapping it: a
+   bare `Fun`, as Evaluator.finish leaves it, answers `Value`, and a closure
+   answers by the form it holds. */
+let is_value = (exp: Exp.t): bool => {
+  let rec classify = (env, d) =>
+    CV.transition(classify, ~mode=`Substitution, env, d);
+  Poly.equal(classify(Environment.empty, exp), Value);
+};

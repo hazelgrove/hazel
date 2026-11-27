@@ -573,14 +573,15 @@ let to_lvs_statics =
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
         ~elab_syn_ty=
-          IdTagged.FreshGrammar.Typ.(
-            list(
-              prod([
-                tup_label(label("label"), string()),
-                tup_label(label("value"), joined_typ),
-              ]),
-            )
-          ),
+          List(
+            Prod([
+              TupLabel(Label("label") |> Typ.temp, Atom(String) |> Typ.temp)
+              |> Typ.temp,
+              TupLabel(Label("value") |> Typ.temp, joined_typ) |> Typ.temp,
+            ])
+            |> Typ.temp,
+          )
+          |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,

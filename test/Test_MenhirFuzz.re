@@ -87,25 +87,18 @@ let menhir_parse = (s: string): option(Exp.t) =>
   | exception _ => None
   };
 
-let equal_terms =
-  Equality.(
-    equality({
-      ...syntactic_settings,
-      ignore_parens: true,
-      ignore_projectors: true,
-    }).
-      exp
-  );
+let equal_terms = (e1: Exp.t, e2: Exp.t): bool =>
+  Canonicalize.roundtrip_eq.exp(e1, e2);
 
 let arb_fuzzed = {
   open QCheck;
   let gen = {
     open Gen;
-    let* core_exp = QCheck_Util.arb_exp(~minimal_idents=false, 6).gen;
+    let* core_exp = QCheck_Util.arb_exp_full(~minimal_idents=false, 5).gen;
     let+ choices = array_size(int_bound(24), int_bound(4));
     (print_core(core_exp), choices);
   };
-  make(~print=((txt, _)) => txt, gen);
+  make(~print=((txt, choices)) => fuzz_whitespace(choices, txt), gen);
 };
 
 let qcheck_fuzz_test =
@@ -116,11 +109,39 @@ let qcheck_fuzz_test =
     ((txt, choices)) => {
       let fuzzed = fuzz_whitespace(choices, txt);
       switch (make_term_parse(fuzzed), menhir_parse(fuzzed)) {
-      | (Some(mk), Some(mh)) => equal_terms(mk, mh)
-      | (Some(_), None) => false /* menhir must accept what the editor accepts here */
-      | (None, _) => QCheck.assume_fail() /* printer artifact; not this test's business */
+      | (Some(mk), Some(mh)) =>
+        equal_terms(mk, mh)
+        || QCheck.Test.fail_reportf(
+             "The parsers read it differently: %s",
+             fuzzed,
+           )
+      /* Menhir must accept what the editor accepts here. */
+      | (Some(_), None) =>
+        QCheck.Test.fail_reportf("Menhir doesn't read: %s", fuzzed)
+      /* The editor's reader turns an exception into None. */
+      | (None, _) =>
+        QCheck.Test.fail_reportf("The editor doesn't read: %s", fuzzed)
       };
     },
   );
 
-let tests = ("MenhirFuzz", [QCheck_alcotest.to_alcotest(qcheck_fuzz_test)]);
+let tests = (
+  "MenhirFuzz",
+  [
+    /* An expression ascription ends before `+`, even when a no-lead sum could
+       start there; in a pattern ascription or type alias the sum wins. */
+    Test_Menhir.menhir_maketerm_equivalent_test(
+      "Expression ascription followed by plus",
+      {|_:SInt + 1|},
+    ),
+    Test_Menhir.menhir_maketerm_equivalent_test(
+      "Expression ascription followed by a constructor sum",
+      {|x : A + B|},
+    ),
+    Test_Menhir.menhir_maketerm_equivalent_test(
+      "Pattern ascription with a no-lead sum",
+      {|let x : SInt + A = 1 in x|},
+    ),
+    QCheck_alcotest.to_alcotest(qcheck_fuzz_test),
+  ],
+);

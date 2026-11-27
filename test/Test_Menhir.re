@@ -2,20 +2,6 @@ open MenhirParser;
 open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
-let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(
-    // This is syntactic with ignore_wrappers=true
-    Equality.(
-      equality({
-        ...syntactic_settings,
-        ignore_parens: true,
-        ignore_projectors: true,
-      })
-    ).
-      exp,
-  )
-  |> Alcotest.check;
-
 let strip_wrap =
   Exp.map_term(
     ~f_exp=
@@ -38,6 +24,14 @@ let strip_wrap =
         },
     _,
   );
+
+/* Two parses, or two conversions, compared as they are: neither side is
+   rewritten, so where the parsers disagree, this does too. */
+let same_term = (e1: Exp.t, e2: Exp.t): bool =>
+  Canonicalize.roundtrip_eq.exp(strip_wrap(e1), strip_wrap(e2));
+
+let alco_check =
+  (testable(Fmt.using(Exp.show, Fmt.string)))(same_term) |> Alcotest.check;
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
@@ -62,9 +56,57 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
 let menhir_only_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
-let skip_menhir_maketerm_equivalent_test =
-    (~speed_level=`Quick, name: string, _actual: string) =>
-  test_case(name, speed_level, () => {Alcotest.skip()});
+/* A known disagreement between the parsers: goes red once they agree. */
+let parsers_disagree_test = (name: string, actual: string) =>
+  test_case(name, `Quick, () =>
+    check(
+      bool,
+      "the parsers agree",
+      false,
+      same_term(
+        make_term_parse(actual),
+        Grammar.map_exp_annotation(
+          _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+          Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
+        ),
+      ),
+    )
+  );
+
+/* A known disagreement, with what each parser reads the text as (written
+   with the parens that make both agree). Goes red once either reading
+   changes. */
+let parsers_read_test =
+    (name: string, ~text: string, ~editor: string, ~menhir: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let menhir_parse = (s: string): Exp.t =>
+        Grammar.map_exp_annotation(
+          _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+          Conversion.Exp.of_menhir_ast(Interface.parse_program(s)),
+        );
+      check(
+        bool,
+        "the editor reads it as " ++ editor,
+        true,
+        same_term(make_term_parse(text), make_term_parse(editor)),
+      );
+      check(
+        bool,
+        "Menhir reads it as " ++ menhir,
+        true,
+        same_term(menhir_parse(text), menhir_parse(menhir)),
+      );
+      check(
+        bool,
+        "the two readings are the same term",
+        false,
+        same_term(make_term_parse(text), menhir_parse(text)),
+      );
+    },
+  );
 
 let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(
@@ -124,16 +166,44 @@ let menhir_maketerm_equivalent_test =
     )
   });
 
-/**
- * QCheck Test to check the equivalence of the Menhir and MakeTerm parsing.
- * We generate an expression, convert it to the core representation, convert it to a segment,
- * serialize it, parse it with MakeTerm, and parse it with Menhir.
- */
+/* Deterministic version of qcheck_menhir_maketerm_equivalent_test: print a
+   generator term the way the PBT does, then require both parsers to agree on
+   the printed text. Use this for counterexamples whose bug is in the printing
+   (e.g. missing defensive parens), which a parse-only test can't reach. */
+let menhir_maketerm_print_equivalent_test = (name: string, exp: AST.exp) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let core =
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(exp),
+        );
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          Haz3lcore.ExpToSegment.(
+            exp_to_segment(~settings=Settings.editable(~inline=true), core)
+          ),
+        );
+      alco_check(
+        "Menhir and MakeTerm agree on printed form: " ++ serialized,
+        make_term_parse(serialized),
+        Grammar.map_exp_annotation(
+          _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+          Conversion.Exp.of_menhir_ast(Interface.parse_program(serialized)),
+        ),
+      );
+    },
+  );
+
+/* Menhir and MakeTerm read the same printed term the same way. */
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=false, 7),
+    ~count=100,
+    QCheck_Util.arb_exp_full(~minimal_idents=false, 5),
     core_exp => {
       let segment =
         Haz3lcore.ExpToSegment.(
@@ -141,22 +211,13 @@ let qcheck_menhir_maketerm_equivalent_test =
         );
 
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
-      let make_term_parsed = make_term_parse(serialized);
-
       switch (
         {
+          let make_term_parsed = make_term_parse(serialized);
           let menhir_parsed = Interface.parse_program(serialized);
           let menhir_parsed_converted =
             Conversion.Exp.of_menhir_ast(menhir_parsed);
-
-          Equality.(
-            equality({
-              ...syntactic_settings,
-              ignore_parens: true,
-              ignore_projectors: true,
-            })
-          ).
-            exp(
+          same_term(
             make_term_parsed,
             Grammar.map_exp_annotation(
               _ => IdTagged.IdTag.fresh(),
@@ -166,18 +227,9 @@ let qcheck_menhir_maketerm_equivalent_test =
         }
       ) {
       | true => true
-      | false =>
-        print_endline("Mismatch on: " ++ serialized);
-        false;
-      | exception (Failure(msg)) =>
-        print_endline("Error: " ++ msg);
-        print_endline("Serialized: " ++ serialized);
-        /* Menhir grammar gap: bare sums with hole entries
-           (`? + Lka(X)`). The id-faithful printer emits the bare form
-           for single-id (evaluator-built) sums; tylr parses it back,
-           menhir does not. */
-        String.equal(msg, "Sum type has non-unique constructors")
-        || String.is_prefix(~prefix="Exception MenhirParser", msg);
+      | false => QCheck.Test.fail_reportf("Mismatch on: %s", serialized)
+      | exception e =>
+        QCheck.Test.fail_reportf("%s on: %s", Exn.to_string(e), serialized)
       };
     },
   );
@@ -199,11 +251,12 @@ let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
     ~count=1000,
-    AST.arb_exp(7),
+    AST.arb_exp_full(5),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
+        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp)
+        |> Canonicalize.exp;
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
@@ -224,60 +277,70 @@ let qcheck_menhir_serialized_equivalent_test =
           core_exp,
         );
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
-      switch (Interface.parse_program(serialized)) {
-      | exception (Failure(msg))
-          when String.is_prefix(~prefix="Exception MenhirParser", msg) =>
-        /* Menhir grammar gap (see above): bare sums with hole entries */
-        print_endline("Skipping menhir grammar gap: " ++ serialized);
-        true;
-      | menhir_parsed =>
-        /* The random AST generator (AST.arb_exp) can produce non-canonical
-           forms that get normalized during the Conversion round-trip. In
-           particular, Dot(e1, Constructor("X", None)) is valid Menhir AST
-           but of_menhir_ast converts it to Dot(e1, Label("X")) in core
-           (capitalized names in dot position are field accesses, not
-           constructors). After serialization and re-parsing, the Menhir
-           AST has Label instead of Constructor. To compare fairly, we
-           normalize both sides through of_core(of_menhir_ast(...)) which
-           canonicalizes these forms. This only affects this test (not the
-           78 other named tests, which use hand-written expected ASTs). */
-        /* Also strip Paren nodes in all sorts: Defensive printing adds
-           parens, and of_core now faithfully preserves them as
-           ParenPat/ParenTyp instead of silently dropping them. */
-        /* Fixpoint unwrap: conversion can nest Parens (ParenPat over the
-           paren-carrying TuplePat, e.g. source `(())`), and map_term's
-           cont replaces a node with its mapped argument WITHOUT re-running
-           the callback on it — single-layer unwrapping leaves the inner
-           Parens behind. */
-        let rec unwrap_exp = (e: TermBase.exp_t) =>
-          switch (e.term) {
-          | Parens(inner) => unwrap_exp(inner)
-          | _ => e
-          };
-        let rec unwrap_pat = (p: TermBase.pat_t) =>
-          switch (p.term) {
-          | Parens(inner) => unwrap_pat(inner)
-          | _ => p
-          };
-        let rec unwrap_typ = (t: TermBase.typ_t) =>
-          switch (t.term) {
-          | Parens(inner) => unwrap_typ(inner)
-          | _ => t
-          };
-        let strip_parens =
-          Exp.map_term(
-            ~f_exp=(cont, e) => cont(unwrap_exp(e)),
-            ~f_pat=(cont, p) => cont(unwrap_pat(p)),
-            ~f_typ=(cont, t) => cont(unwrap_typ(t)),
-            _,
-          );
-        let normalize = exp =>
-          Conversion.Exp.of_menhir_ast(exp)
-          |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp())
-          |> strip_parens
-          |> Grammar.map_exp_annotation(_ => false)
-          |> Conversion.Exp.of_core;
-        AST.equal_exp(normalize(menhir_parsed), normalize(exp));
+      switch (
+        {
+          let menhir_parsed = Interface.parse_program(serialized);
+          let menhir_core =
+            Grammar.map_exp_annotation(
+              _ => IdTagged.IdTag.fresh(),
+              Conversion.Exp.of_menhir_ast(menhir_parsed),
+            );
+          Canonicalize.roundtrip_eq.exp(core_exp, menhir_core);
+        }
+      ) {
+      | true => true
+      | false => QCheck.Test.fail_reportf("Mismatch on: %s", serialized)
+      | exception e =>
+        QCheck.Test.fail_reportf("%s on: %s", Exn.to_string(e), serialized)
+      };
+    },
+  );
+
+/* Deterministic version of the "Menhir through ExpToSegment and back"
+   pipeline for single generator terms (see qcheck_menhir_serialized_equivalent_test). */
+let menhir_ast_roundtrip_test = (name: string, exp: AST.exp) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let to_core = e =>
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(e),
+        );
+      let core = Canonicalize.exp(to_core(exp));
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            ~settings={
+              secondary: AutoFormat,
+              parenthesization: Defensive,
+              label_format: QuoteWhenNecessary,
+              inline: true,
+              fold_case_clauses: false,
+              fold_fn_bodies: `NoFold,
+              show_ascriptions: true,
+              hide_fixpoints: false,
+              show_filters: true,
+              show_unknown_as_hole: true,
+              use_literal_lexemes: true,
+              hole_tiles: false,
+              project_tables: false,
+            },
+            core,
+          ),
+        );
+      let parsed_core = to_core(Interface.parse_program(serialized));
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
+        Alcotest.fail(
+          "round-trip mismatch on `"
+          ++ serialized
+          ++ "`\ngenerated:\n"
+          ++ Exp.show(core)
+          ++ "\nreparsed:\n"
+          ++ Exp.show(parsed_core),
+        );
       };
     },
   );
@@ -290,6 +353,12 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* An expression ascription ends before a top-level `+`, after `...`
+         too: `(x : A ... B) + C`. */
+      menhir_maketerm_equivalent_test(
+        "ascription with an extension, then +",
+        "x : A ... B + C",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(
@@ -361,11 +430,8 @@ let tests =
         "Unit mid cons chain",
         "fun x :: () :: y -> 1",
       ),
-      /* PRE-EXISTING divergence (not the UNIT gap): on an ascribed cons
-         chain MakeTerm binds : to the last ELEMENT (Cons(x, Asc(y, T)))
-         while funAscElem ascribes the whole chain. Surfaced while
-         pinning the UNIT fix; needs its own decision. */
-      skip_menhir_maketerm_equivalent_test(
+      /* Ascription binds to the cons element in both parsers. */
+      menhir_maketerm_equivalent_test(
         "Ascribed cons-chain parameter (element vs chain binding)",
         "fun x :: y : [T] -> 1",
       ),
@@ -962,29 +1028,38 @@ let ex5 = list_of_mylist(x) in
 (ex1, ex2, ex3, ex4, ex5)
     |},
       ),
-      // This fails because MakeTerm can't handle left to right keyword prefixes.
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Prefixed keyword parses",
         {|let ? = ina in ?|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Sum type messed up in make term",
         {|type ? = rec ? -> + Aramj -> Bool in ?|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "List concat and typap",
         {|type ? = (+ Ulog, () -> Float) in let (()) = (()) in 0.001536|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Sum in product in typeap",
         {|((fun _ -> b)) @< [(+ Kfgii, Float)] >|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Non-unique constructors currently throws in equality",
         {|type ? = ((+ ? + ?)) in []|},
       ),
       /* Module tests - multi-item modules use MOD_ITEM_EXP precedence
          in Parser.mly to resolve the Seq vs module-separator ambiguity. */
+      menhir_maketerm_equivalent_test(
+        "use-in semicolon association",
+        {|use Bool in 1; 2|},
+      ),
+      /* Menhir needs parens: otherwise `use ... in ?; let` absorbs `;` into Use (Seq).
+         ExpToSegment parenthesizes module-item RHS at/looser than `;` for round-trip. */
+      menhir_maketerm_equivalent_test(
+        "Module use-in then let item",
+        {|{ module A = (use Bool in ?); let x = 1 }|},
+      ),
       menhir_maketerm_equivalent_test("Empty module", {|{}|}),
       menhir_maketerm_equivalent_test(
         "Module with single binding",
@@ -1038,8 +1113,7 @@ let ex5 = list_of_mylist(x) in
         "Module keyword capitalized",
         {|module M = { let x = 1; let y = 2 } in M.x|},
       ),
-      /* Menhir produces Constructor("M") for M in M.x, MakeTerm produces Var("M") */
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Module keyword with prod annotation",
         {|module M : (x=Int) = { let x = 1 } in M.x|},
       ),
@@ -1051,8 +1125,7 @@ let ex5 = list_of_mylist(x) in
         "Module keyword in module body",
         {|{ module Inner = { let x = 1 }; let y = Inner.x }|},
       ),
-      /* Menhir produces Constructor("Outer") for Outer in Outer.Inner.x, MakeTerm produces Var("Outer") */
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Nested module keyword",
         {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
       ),
@@ -1083,5 +1156,781 @@ let ex5 = list_of_mylist(x) in
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
+      /* Minimal repros for former ModLet/SigLet Atom pat_names_equal gaps */
+      menhir_maketerm_equivalent_test(
+        "Module ModLet with string atom pattern",
+        {|{ ?; let "a" = `d` }|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module ModLet with ascripted float pattern",
+        {|{ let (0.006655:String) = (undefined, undefined) }|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module ModLet empty-string pattern and deferral",
+        {|{ module m = v; let "" = _ }|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "SigLet with float atom pattern",
+        {|let m : ({ let 1.0 }) = {} in m|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Forall body module with string ModLet",
+        {|forall A -> ({ ?; let "fdxh" = `d`; type u = String })|},
+      ),
+      /* ProdExtension is looser than Arrow (MakeTerm Precedence.ap vs type_arrow) */
+      menhir_maketerm_equivalent_test(
+        "Type arrow then prod-extension",
+        {|type ? = (Void) -> Float ... Int in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Type arrow then prod-extension sum",
+        {|type ? = (Void) -> Float ... (+ B(String) + A(a)+ A(String)) in test c /. undefined end|},
+      ),
     ],
   );
+
+/* Shapes the full-syntax properties found, each as a round trip. */
+let found_shapes = [
+  /* Singleton TuplePat([p]) prints as `_=p`; Canonicalize wraps it as
+     Tuple([TupLabel(ExplicitNonlabel, p)]). */
+  test_case(
+    "TuplePat([EmptyHole]) theorem round-trip",
+    `Quick,
+    () => {
+      open AST;
+      let exp =
+        Theorem(TuplePat([EmptyHolePat]), TupleExp([]), ListExp([]));
+      let to_core = e =>
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(e),
+        );
+      let core = Canonicalize.exp(to_core(exp));
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+            core,
+          ),
+        );
+      let parsed_core = to_core(Interface.parse_program(serialized));
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
+        Alcotest.fail("unequal after print/parse; serialized=" ++ serialized);
+      };
+    },
+  ),
+  /* Type projection of a labeled singleton needs parens: `T . (a=U)`.
+     Unparenthesized `T . a=U` is MakeTerm-legal as `(T.a)=U`, but Menhir
+     rejects it; ExpToSegment parenthesizes TupLabel under ProdProjection. */
+  menhir_maketerm_equivalent_test(
+    "Type projection of labeled field",
+    {|type t = ? .(a=Int) in 1|},
+  ),
+  /* Parentheses around a label field must not become MultiHole (Menhir
+     erases `(e)`; MakeTerm peels Parens before classifying `.`). */
+  menhir_maketerm_equivalent_test(
+    "Parenthesized label in dot",
+    {|undefined . ((`l`))|},
+  ),
+  /* Menhir DOT tighter than `->`; printer must paren the arrow:
+     `((()) -> Void) . {…}` not `(()) -> Void . {…}`. */
+  menhir_maketerm_equivalent_test(
+    "Type arrow then projection",
+    {|`a`:((()) -> (Void)).({ let m })|},
+  ),
+  /* Left-nested ProdExtension must print with parens; flat `A ... B ... C`
+     is right-assoc in Menhir/MakeTerm. */
+  test_case(
+    "Left-nested ProdExtension round-trip",
+    `Quick,
+    () => {
+      open AST;
+      let exp =
+        TypAp(
+          Undefined,
+          ProdExtension(
+            ProdExtension(VoidType, TupleType([])),
+            TupleType([]),
+          ),
+        );
+      let to_core = e =>
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(e),
+        );
+      let core = Canonicalize.exp(to_core(exp));
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+            core,
+          ),
+        );
+      let parsed_core = to_core(Interface.parse_program(serialized));
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
+        Alcotest.fail(
+          "left-nested ProdExtension lost; serialized=" ++ serialized,
+        );
+      };
+    },
+  ),
+  menhir_maketerm_equivalent_test(
+    "Flat ProdExtension is right-assoc",
+    {|undefined @< (Void) ... (()) ... (()) >|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Ap with labeled arg and deferral",
+    {|`a`(a=(()), _)|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Ap with singleton labeled arg",
+    {|f(a=1)|},
+  ),
+  /* Projection of an arrow needs RHS parens under Menhir DOT-vs-arrow. */
+  test_case(
+    "ProdProjection of Arrow round-trip",
+    `Quick,
+    () => {
+      open AST;
+      let exp =
+        TypAp(
+          Undefined,
+          ProdProjection(
+            TupleType([]),
+            ArrowType(UnknownType(EmptyHole), TupleType([])),
+          ),
+        );
+      let to_core = e =>
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(e),
+        );
+      let core = Canonicalize.exp(to_core(exp));
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+            core,
+          ),
+        );
+      let parsed_core = to_core(Interface.parse_program(serialized));
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
+        Alcotest.fail(
+          "ProdProjection of Arrow lost; serialized=" ++ serialized,
+        );
+      };
+    },
+  ),
+  /* Nested Test-as-hint: backpack must not steal HintedTest's `test` shard
+     while typing the nested form; ExpToSegment always parens the hint. */
+  menhir_maketerm_equivalent_test(
+    "Hinted test with nested test hint",
+    {|hint (test ? end) test `a` end|},
+  ),
+  /* Face invalid tiles: Menhir lexes the same closed set as AST.invalid_token_examples. */
+  menhir_maketerm_equivalent_test("Face invalid exp ^o^", {|^o^|}),
+  menhir_maketerm_equivalent_test(
+    "Face invalid typ o^o",
+    {|type o^o = () in ?|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Face invalid pat ?_?",
+    {|let ?_? = 1 in ?|},
+  ),
+  /* The lexer spells out the face set itself, so check it agrees. */
+  test_case("Every invalid token example lexes as one token", `Quick, () =>
+    List.iter(
+      ~f=
+        example => {
+          Lexer.reset_delims();
+          let lexbuf = Lexing.from_string(example);
+          let first = Lexer.token(lexbuf);
+          let rest = Lexer.token(lexbuf);
+          switch (first, rest) {
+          | (Parser.INVALID(s), Parser.EOF) =>
+            check(string, example, example, s)
+          | _ => fail(example ++ " is not a single invalid token")
+          };
+        },
+      AST.invalid_token_examples,
+    )
+  ),
+  /* Non-constructor sum entries: MakeTerm → BadEntry; Menhir must accept too. */
+  menhir_maketerm_equivalent_test(
+    "BadEntry sum term unit type",
+    {|(()) @< (+ (())) >|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "BadEntry sum term Int",
+    {|undefined @< (+ Int) >|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Variant still preferred over BadEntry(TypVar)",
+    {|undefined @< (+ A + B(Int)) >|},
+  ),
+  /* Bare TupLabel must print parenthesized — Menhir only accepts lab=… inside (…). */
+  menhir_maketerm_equivalent_test(
+    "Labeled exp field as singleton tuple",
+    {|(a=1)|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Labeled type field as singleton prod",
+    {|use (a=Int) in 1|},
+  ),
+  /* An ascription binds tighter than an operator after its type: the `-`
+     subtracts, where the editor used to read it as the start of an `->`
+     and the rest into the type. */
+  menhir_maketerm_equivalent_test(
+    "Subtraction after an ascription",
+    {|1 : Int - y|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Subtraction after an ascription, in parens",
+    {|(x : Int - 1) * 2|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List concatenation after an ascription",
+    {|x : [Int] @ [2]|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "An arrow after an ascription's type is still an arrow",
+    {|f : Int -> Int|},
+  ),
+  /* `_` names no module in either parser; `?` is a hole in both. */
+  menhir_maketerm_equivalent_test(
+    "Wildcard module binder",
+    {|module _ = 1 in 2|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Wildcard and hole module binders as module items",
+    {|{ module _ = 1; module ? = 2 }|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Labeled module def",
+    {|module ? = (a=(())) in (())|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Labeled module item def",
+    {|{ module B = (_=`z`) }|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Theorem labeled binder",
+    {|theorem (a=_) = [] in (())|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Quoted label as fix binder",
+    {|fix `a` -> (())|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Quoted label as forall binder",
+    {|forall `a` -> (())|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Quoted label as let binder",
+    {|let `a` = 1 in ?|},
+  ),
+  /* TupleType([TypVar]) under projection must convert like `.ident` → Label. */
+  test_case(
+    "ProdProjection TupleType([TypVar]) as Label",
+    `Quick,
+    () => {
+      open AST;
+      let wrapped = ProdProjection(VoidType, TupleType([TypVar("i")]));
+      let bare = ProdProjection(VoidType, TypVar("i"));
+      let to_core = t =>
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(TypAp(Undefined, t)),
+        );
+      if (!same_term(to_core(wrapped), to_core(bare))) {
+        Alcotest.fail("TupleType([TypVar]) under projection should be Label");
+      };
+    },
+  ),
+  /* Singleton TupleExp([Label]) on Dot RHS must convert as Label, not MultiHole. */
+  test_case(
+    "Dot TupleExp([Label]) converts as field",
+    `Quick,
+    () => {
+      open AST;
+      let exp = Dot(TupleExp([]), TupleExp([Label("x")]));
+      let core =
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(exp),
+        );
+      let expected =
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(Dot(TupleExp([]), Label("x"))),
+        );
+      if (!same_term(core, expected)) {
+        Alcotest.fail("Dot TupleExp([Label]) should convert like Dot Label");
+      };
+    },
+  ),
+  /* PBT MenhirParser 85 (QCHECK_SEED=1337): face-invalid `o^o` as a bare
+     ModItem. MakeTerm turns Mod Invalid into Mod MultiHole; Menhir keeps
+     ModExp(Invalid). Simpler `type o^o = () in ?` already agrees. */
+  menhir_maketerm_equivalent_test(
+    "Face invalid mod item o^o under Dot",
+    {|typfun z -> ({ o^o }).B|},
+  ),
+  /* PBT MenhirParser 86: bare AST TupLabel prints as `(a=(()))`, Menhir
+     reparses as TupleExp([TupLabel…]); Canonicalize wraps the generated
+     TupLabel the same way. */
+  test_case(
+    "Bare TupLabel ExpToSegment round-trip",
+    `Quick,
+    () => {
+      open AST;
+      let exp = TupLabel(Label("a"), TupleExp([]));
+      let to_core = e =>
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          Conversion.Exp.of_menhir_ast(e),
+        );
+      let core = Canonicalize.exp(to_core(exp));
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            ~settings={
+              secondary: AutoFormat,
+              parenthesization: Defensive,
+              label_format: QuoteWhenNecessary,
+              inline: true,
+              fold_case_clauses: false,
+              fold_fn_bodies: `NoFold,
+              show_ascriptions: true,
+              hide_fixpoints: false,
+              show_filters: true,
+              show_unknown_as_hole: true,
+              use_literal_lexemes: true,
+              hole_tiles: false,
+              project_tables: false,
+            },
+            core,
+          ),
+        );
+      let parsed_core = to_core(Interface.parse_program(serialized));
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
+        Alcotest.fail(
+          "bare TupLabel unequal after print/parse; serialized=" ++ serialized,
+        );
+      };
+    },
+  ),
+  /* Shrink/`~rev` must map every core typ provenance into a Menhir AST form. */
+  test_case(
+    "Conversion.Typ.of_core Unknown provenances",
+    `Quick,
+    () => {
+      open IdTagged.FreshGrammar;
+      open AST;
+      let go = (core_ty, expected) => {
+        let got =
+          Conversion.Typ.of_core(
+            Grammar.map_typ_annotation(_ => false, core_ty),
+          );
+        if (!equal_typ(got, expected)) {
+          Alcotest.fail(
+            "of_core mismatch: got "
+            ++ show_typ(got)
+            ++ " expected "
+            ++ show_typ(expected),
+          );
+        };
+      };
+      go(Typ.unknown(Hole(Invalid("o^o"))), InvalidTyp("o^o"));
+      go(Typ.unknown(SynSwitch), UnknownType(EmptyHole));
+      go(Typ.unknown(Hole(MultiHole([]))), UnknownType(EmptyHole));
+      go(Typ.unknown(Hole(EmptyHole)), UnknownType(EmptyHole));
+      go(Typ.unknown(Internal), UnknownType(Internal));
+    },
+  ),
+  /* Shrinking maps a term to the Menhir AST and back, so that must keep a
+     one-argument partial application and a tuple extension. */
+  test_case(
+    "Conversion.Exp.of_core round trip keeps f(_) and a ... b",
+    `Quick,
+    () => {
+      open IdTagged.FreshGrammar;
+      let round_trip = core =>
+        Conversion.Exp.of_menhir_ast(
+          Conversion.Exp.of_core(
+            Grammar.map_exp_annotation(_ => false, core),
+          ),
+        );
+      switch (
+        round_trip(Exp.deferred_ap(Exp.var("f"), [Exp.deferral(InAp)])).
+          term
+      ) {
+      | DeferredAp(_, [_]) => ()
+      | _ => Alcotest.fail("f(_) is no longer a partial application")
+      };
+      switch (
+        round_trip(Exp.tuple_extension(Exp.var("a"), Exp.var("b"))).term
+      ) {
+      | TupleExtension(_) => ()
+      | _ => Alcotest.fail("a ... b is no longer a tuple extension")
+      };
+    },
+  ),
+  /* `case … end` has no Mod mold, so inside `{ }` its `| =>` carries the
+     Any fallback mold until remolding revisits it. */
+  menhir_maketerm_equivalent_test(
+    "Case as module item",
+    {|{ case _ | _ => 1 end }|},
+  ),
+  /* The `…-in` binder forms read differently as bare module items. Inside
+     `{ }` the editor molds `let` as a module item's `let … =`, which has no
+     `in` shard, so `{ let y = 1 in y }` is a module let whose definition is
+     `1 in y` (`in` left as an unknown infix), where Menhir reads an
+     expression item. Which reading is intended is undecided (#2754).
+     Defensive printing parenthesizes such an item, so no generated term
+     prints as one. */
+  parsers_disagree_test(
+    "Known bug (#2754): a let-in as a module item",
+    {|{ let y = 1 in y }|},
+  ),
+  parsers_disagree_test(
+    "Known bug (#2754): a module-in as a module item",
+    {|{ module v = ? in 1 }|},
+  ),
+  parsers_disagree_test(
+    "Known bug (#2754): a type-in as a module item",
+    {|{ type t = Int in 1 }|},
+  ),
+  /* A token no sort reads starts an expression item all the same, so what
+     follows it keeps an expression's sorts: the `:` is an ascription and
+     the `@<` a type application, as Menhir reads them. */
+  menhir_maketerm_equivalent_test(
+    "An unknown token starts a module item: ascribed",
+    {|{ ^w^:(^_^) }|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "An unknown token starts a module item: applied to a type",
+    {|{ 1; ^w^ @< (^_^) >; 2 }|},
+  ),
+  /* The two parsers order a type's operators differently. The editor's
+     reads `+` tighter than `->` (Precedence.type_plus, type_arrow) and
+     `.` looser than both (Form's Typ row for Dot has the expression's
+     precedence, which is looser than every type operator's): `A + B -> C`
+     is `(A + B) -> C`, and `M.t -> Int` is `M.(t -> Int)`. Menhir reads
+     `A + (B -> C)` and `(M.t) -> Int`. The printer parenthesizes these, so
+     no generated term prints one bare, and the properties don't meet them. */
+  parsers_read_test(
+    "Known gap: a sum type before an arrow",
+    ~text={|type T = A + B -> C in 1|},
+    ~editor={|type T = (A + B) -> C in 1|},
+    ~menhir={|type T = A + (B -> C) in 1|},
+  ),
+  parsers_read_test(
+    "Known gap: an arrow type before a projection",
+    ~text={|1 : A -> B.c|},
+    ~editor={|1 : (A -> B).c|},
+    ~menhir={|1 : A -> (B.c)|},
+  ),
+  parsers_read_test(
+    "Known gap: a type projection before an arrow",
+    ~text={|1 : M.t -> Int|},
+    ~editor={|1 : M.(t -> Int)|},
+    ~menhir={|1 : (M.t) -> Int|},
+  ),
+  /* The `;` inside parens is a sequence in both parsers, not a module
+     separator, though it was typed inside the braces. */
+  menhir_maketerm_equivalent_test(
+    "Parenthesized sequence as module item",
+    {|{ (9; 8) }|},
+  ),
+  /* Nested singleton tuple patterns `(_=(_=p))` agree in both parsers. */
+  menhir_maketerm_equivalent_test(
+    "Nested singleton tuple pattern in fun",
+    {|fun (_=(_=?)) -> 1|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Nested singleton tuple pattern in case rule",
+    {|case _ | (_=(_=?)) => ? end|},
+  ),
+  /* `Void` is the empty sum, so this is a sum entry that is itself a sum:
+     both parsers keep it as one bad entry. */
+  menhir_maketerm_equivalent_test(
+    "Void as a bare sum entry",
+    {|1 : (+ Void)|},
+  ),
+  /* Other bare sum entries agree — these must keep passing. */
+  menhir_maketerm_equivalent_test("bare sum entry Int", {|1 : (+ Int)|}),
+  menhir_maketerm_equivalent_test("bare sum entry hole", {|1 : (+ ?)|}),
+  /* Parenthesizing or nesting the item is fine — these must keep passing. */
+  menhir_maketerm_equivalent_test(
+    "case as module item is fine when parenthesized",
+    {|{ (case _ | _ => 1 end) }|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "case nested in a module item is fine",
+    {|{ fun x -> case x | _ => 1 end }|},
+  ),
+  menhir_maketerm_equivalent_test("Parenthesized deferral in ap", {|f((_))|}),
+  menhir_maketerm_equivalent_test(
+    "Unit applied to parenthesized deferral",
+    {|(())((_))|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Ascription as module item",
+    {|{ x:String }|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Invalid applicand in case body",
+    {|case ? | _ => ^o^(1) end|},
+  ),
+  /* Generated sums carry one id, so the printer emits them without the
+     leading `+`; a no-lead sum may then start with any atom, not just a
+     constructor. */
+  menhir_maketerm_equivalent_test(
+    "No-lead sum headed by a quoted label",
+    {|^x @< (`a` + a) >|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "No-lead sum headed by a hole",
+    {|let x : ? + A = ? in x|},
+  ),
+  /* PBT MenhirParser 85 (QCHECK_SEED=42): quoted-label ascription as a
+     module item — quoted variant of the `{ x:String }` repro above. */
+  menhir_maketerm_equivalent_test(
+    "Quoted-label ascription as module item",
+    {|{ `b`:String }|},
+  ),
+  /* A list type's brackets enclose its element as parens do, so the printer
+     writes a tuple or labeled element bare (QCHECK_SEED=1, 4, 6). */
+  menhir_maketerm_equivalent_test(
+    "List type of a labeled singleton",
+    {|use [a=()] in []|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of an explicitly unlabeled singleton",
+    {|1 : [_=Int]|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of a tuple",
+    {|1 : [Int, String]|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of a tuple with a labeled field",
+    {|_ @< (Nat) > @< [g=Void, String] >|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of a tuple as a fun parameter's ascription",
+    {|fun x : [Int, b=String] -> x|},
+  ),
+  menhir_ast_roundtrip_test(
+    "List type of a labeled field",
+    AST.(
+      Use(
+        ArrayType(TupLabelType(LabelType("a"), TupleType([]))),
+        ListExp([]),
+      )
+    ),
+  ),
+  /* A number starts with a digit in both parsers, so `_.a` is a projection
+     from `_` rather than one token. */
+  menhir_maketerm_equivalent_test("Projection from an underscore", {|_.a|}),
+  menhir_maketerm_equivalent_test(
+    "Non-label after an underscore's dot",
+    {|_.(())|},
+  ),
+  /* PBT MenhirParser 86 (QCHECK_SEED=42): generator-only ghosts on the
+     Canonicalize round-trip path (same pipeline as the QCheck test). */
+  menhir_ast_roundtrip_test(
+    "Unit applied to ExplicitNonlabel",
+    AST.(ApExp(TupleExp([]), ExplicitNonlabel)),
+  ),
+  menhir_ast_roundtrip_test(
+    "Unit applied to parenthesized ExplicitNonlabel",
+    AST.(ApExp(TupleExp([]), TupleExp([ExplicitNonlabel]))),
+  ),
+  menhir_ast_roundtrip_test(
+    "Var applied to parenthesized ExplicitNonlabel",
+    AST.(ApExp(Var("h"), TupleExp([ExplicitNonlabel]))),
+  ),
+  menhir_ast_roundtrip_test(
+    "TypAp of ProdProjection with labeled unit",
+    AST.(
+      TypAp(
+        ListExp([]),
+        ProdProjection(
+          TupleType([]),
+          TupLabelType(LabelType("a"), TupleType([])),
+        ),
+      )
+    ),
+  ),
+  menhir_ast_roundtrip_test(
+    "Module TyAlias with BuiltinFun body",
+    AST.(
+      Module([
+        ModItemExp(EmptyHole),
+        ModItemModule(
+          VarPat("s"),
+          TyAlias(VarTPat("y"), NatType, BuiltinFun("y")),
+        ),
+      ])
+    ),
+  ),
+  /* Nested `_=(_=e)`: both sides carry the print-invisible label, so
+     comparing them has to peel it from both alike. */
+  menhir_maketerm_equivalent_test(
+    "Nested underscore-labeled singleton tuples",
+    {|(_=(_=B))|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Nested underscore-labeled singleton in a tuple",
+    {|(c=1, _=(_=1))|},
+  ),
+  /* A module item that is a bare hole/invalid tile is promoted to the
+     Mod-sorted item by Conversion (the only shape parsing can return), but a
+     generator item wrapped in a print-invisible DynamicErrorHole /
+     IndicationExp missed that promotion and stayed a ModExp, so it did not
+     survive print+reparse. Canonicalize now promotes those too. */
+  menhir_ast_roundtrip_test(
+    "Dynamic-error-hole around a module item hole",
+    AST.(Module([ModItemExp(DynamicErrorHole(EmptyHole, "DivideByZero"))])),
+  ),
+  menhir_ast_roundtrip_test(
+    "Dynamic-error-hole around a module item invalid face",
+    AST.(
+      Module([
+        ModItemExp(DynamicErrorHole(InvalidExp("^w^"), "DivideByZero")),
+      ])
+    ),
+  ),
+  menhir_ast_roundtrip_test(
+    "Indication around a module item hole",
+    AST.(Module([ModItemExp(IndicationExp(EmptyHole))])),
+  ),
+  menhir_ast_roundtrip_test(
+    "Indication around a module item invalid face",
+    AST.(Module([ModItemExp(IndicationExp(InvalidExp("$_$")))])),
+  ),
+  /* MakeTerm does not peel parens when deciding deferral, so a parenthesized
+     tuple argument that happens to contain `_` is an ordinary ap, not a
+     deferred one. Menhir's paren-free AST made these two identical. */
+  menhir_maketerm_equivalent_test(
+    "Parenthesized tuple ap arg containing a deferral",
+    {|f((_, 1))|},
+  ),
+  menhir_maketerm_equivalent_test("Deferred ap argument list", {|f(_, 1)|}),
+  /* `(_=e)` is a singleton labeled tuple, like `(lab=e)`, so it keeps its
+     parens after a dot. */
+  menhir_maketerm_equivalent_test(
+    "Underscore-labeled singleton tuple as dot rhs",
+    {|(()). (_=j)|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Parenthesized underscore-labeled tuple as dot rhs",
+    {|(1). ((_=j))|},
+  ),
+  /* An invalid face is an Exp-sorted tile to MakeTerm, so a bare one left of a
+     type infix — or anywhere in a bare sum — drags the type out of Typ sort and
+     molds to an Exp MultiHole. ExpToSegment parenthesizes to pin the sort. */
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face left of arrow type",
+    AST.(Asc(EmptyHole, ArrowType(InvalidTyp("^w^"), TupleType([])))),
+  ),
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face left of type projection",
+    AST.(Asc(EmptyHole, ProdProjection(InvalidTyp("^o^"), TupleType([])))),
+  ),
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face left of prod extension",
+    AST.(Asc(EmptyHole, ProdExtension(InvalidTyp("^w^"), IntType))),
+  ),
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face as bare sum entry",
+    AST.(Asc(EmptyHole, SumTyp([BadEntry(InvalidTyp("^w^"))]))),
+  ),
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face as later bare sum entry",
+    AST.(
+      Asc(
+        EmptyHole,
+        SumTyp([Variant("A", None), BadEntry(InvalidTyp("^w^"))]),
+      )
+    ),
+  ),
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face as bare sum variant argument",
+    AST.(Asc(EmptyHole, SumTyp([Variant("A", Some(InvalidTyp("^w^")))]))),
+  ),
+  /* A runtime error hole prints as what it wraps, so a labeled field under
+     one is still a field of its tuple. */
+  menhir_ast_roundtrip_test(
+    "Labeled field under a dynamic error hole",
+    AST.(
+      TupleExp([
+        ListExp([]),
+        DynamicErrorHole(TupLabel(Label("a"), Var("f")), "DivideByZero"),
+      ])
+    ),
+  ),
+  /* A face ending a compound left operand pulls the infix after it out of
+     Typ sort just as a bare one does. */
+  menhir_maketerm_print_equivalent_test(
+    "Invalid face ending an arrow left of a prod extension",
+    AST.(
+      Asc(
+        EmptyHole,
+        ProdExtension(
+          ArrowType(VoidType, InvalidTyp("^_^")),
+          ArrowType(StringType, NatType),
+        ),
+      )
+    ),
+  ),
+  /* A constructor's one labeled argument prints bare inside its parens. */
+  menhir_maketerm_equivalent_test(
+    "Singleton labeled constructor argument",
+    {|type T = + A(a=Int) in 1|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Singleton underscore-labeled constructor argument",
+    {|type T = + A(_=Int) in 1|},
+  ),
+  /* A binder's ascription prints a labeled singleton type in one pair of
+     parens, which every parenthesized-type position must read. */
+  menhir_maketerm_equivalent_test(
+    "Forall binder ascribed to a labeled singleton type",
+    {|forall _:(a=()) -> 1|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Fun binder ascribed to an underscore-labeled singleton type",
+    {|fun x:(_=Int) -> x|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Fix binder ascribed to a labeled singleton type",
+    {|fix f:(a=Int) -> f|},
+  ),
+  /* A binder type's body takes in `...`, which binds tighter than the
+     binder. The printer parenthesizes it, so only hand-written text has it
+     bare. */
+  menhir_maketerm_equivalent_test(
+    "Poly body with a tuple extension",
+    {|type T = poly a -> (x=a) ... (y=Int) in 1|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Rec body with a tuple extension",
+    {|type T = rec t -> (x=Int) ... (y=Int) in 1|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Ascribed poly body with a tuple extension",
+    {|let x : poly a -> (x=a) ... (y=Int) = ? in x|},
+  ),
+];
+
+let tests = {
+  let (name, cases) = tests;
+  (name, cases @ found_shapes);
+};

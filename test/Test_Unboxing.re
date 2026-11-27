@@ -14,6 +14,11 @@ let unboxed_testable = (inner_testable: testable('a)) =>
 let big_int_testable =
   testable(Fmt.using(Bigint.to_string, Fmt.string), Bigint.equal);
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
+let typed_list =
+  pair(
+    list(dhexp_typ),
+    option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
+  );
 
 let test_does_not_match = (name, type_testable, request, term) =>
   test_case(
@@ -68,10 +73,10 @@ let tests = (
       // ListLit requests
       test_matches(
         "ListLit to ListLit",
-        list(dhexp_typ),
+        typed_list,
         ListLit,
-        list_lit([1, 2, 3] |> List.map(~f=int)),
-        [1, 2, 3] |> List.map(~f=int),
+        list_lit(~ty=Typ.int(), [1, 2, 3] |> List.map(~f=int)),
+        ([1, 2, 3] |> List.map(~f=int), Some(Typ.int())),
       ),
       test_does_not_match(
         "ListLit to ListLitn, incorrect length",
@@ -81,13 +86,13 @@ let tests = (
       ),
       test_indet_match(
         "Cons to ListLit",
-        list(dhexp_typ),
+        typed_list,
         ListLit,
         cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "Ascribed Hole to ListLit",
-        list(dhexp_typ),
+        typed_list,
         ListLit,
         asc(empty_hole(), Typ.(list(empty_hole()))),
       ),

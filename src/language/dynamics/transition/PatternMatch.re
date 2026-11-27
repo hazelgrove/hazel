@@ -19,21 +19,42 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
  * Collected during pattern matching when patterns are targeted. */
 type sample_closures = list((CallStack.t, int, int) => Sample.t);
 
-/* Core pattern matching logic - just a switch on pattern structure */
+/* Whether a value is a one-field record under a label other than `l`. */
+let rec other_record = (l: LabeledTuple.label, d: DHExp.t): bool =>
+  switch (DHExp.term_of(d)) {
+  | Closure(_, d) => other_record(l, d)
+  | Tuple([field]) =>
+    switch (Exp.match_tup_label(field)) {
+    | Some((l', _)) => !String.equal(l, l')
+    | None => false
+    }
+  | _ => false
+  };
+
+/* Core pattern matching logic - just a switch on pattern structure.
+
+   `arm` says the pattern is a `case` rule's. A binder's pattern (a `let`'s,
+   a parameter's) gives the value its type, so `(a=x)` takes any value that
+   isn't an `a` record as that record's field, as statics does when it knows
+   the value's type: `let (a=x) = (b=1) in x` is `(b=1)`. A rule's pattern
+   is checked against the scrutinee instead, and a record under another
+   label is another record: `case (b=1) | (a=x) => … | (b=y) => … end`
+   takes the second rule, whether or not the scrutinee's type is known. */
 let match_pattern =
-    (recur: (Pat.t, DHExp.t) => match_result, dp: Pat.t, d: DHExp.t)
+    (
+      ~arm: bool,
+      recur: (Pat.t, DHExp.t) => match_result,
+      dp: Pat.t,
+      d: DHExp.t,
+    )
     : match_result =>
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
-  | Wild => Matches([])
-  | ExplicitNonlabel =>
-    raise(
-      Failure(
-        "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
-      ),
-    )
+  | Wild
+  /* Elab rewrites bare pat ExplicitNonlabel to Wild; treat leftovers the same. */
+  | ExplicitNonlabel => Matches([])
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
@@ -64,9 +85,28 @@ let match_pattern =
   | TupLabel(_, x) =>
     let* x' = Unboxing.unbox(TupLabel(dp), d);
     recur(x, x');
+  | Tuple([{term: TupLabel({term: Label(l), _}, p), _}])
+      when Ascriptions.lifts_into(l, d) && !(arm && other_record(l, d)) =>
+    recur(p, d)
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2_exn(ps, ds, ~f=recur)
+    /* Elaboration takes the `_=` off a pattern's field and leaves it on an
+       expression's, so a pattern with no label of its own matches a field
+       marked `_=` as the value it holds: `let (_=x) = (_=1) in x` binds
+       `x` to `1`. A labeled pattern (`a=x`) meets the field as it is, and
+       doesn't match it. */
+    let labeled = (p: Pat.t): bool =>
+      switch (Pat.strip_wrappers(p).term) {
+      | TupLabel(_)
+      | Tuple([{term: TupLabel(_), _}]) => true
+      | _ => false
+      };
+    let unmarked = (p: Pat.t, d: DHExp.t): DHExp.t =>
+      switch (DHExp.term_of(d)) {
+      | TupLabel({term: ExplicitNonlabel, _}, value) when !labeled(p) => value
+      | _ => d
+      };
+    List.map2_exn(ps, ds, ~f=(p, d) => recur(p, unmarked(p, d)))
     |> List.fold_left(~f=combine_result, ~init=Matches([]));
   | Parens(p)
   | Projector(_, p) => recur(p, d)
@@ -106,6 +146,7 @@ let record_sample =
 /* Main matching function - coordinates pattern matching and sample recording */
 let rec matches_inner =
         (
+          ~arm: bool,
           targets: Sample.targets,
           sample_closures: ref(sample_closures),
           dp: Pat.t,
@@ -115,9 +156,9 @@ let rec matches_inner =
   let d = Ascriptions.transition_multiple(d);
   let pat_id = Pat.rep_id(dp);
   let maybe_spec = Id.Map.find_opt(pat_id, targets);
-  let recur = matches_inner(targets, sample_closures);
+  let recur = matches_inner(~arm, targets, sample_closures);
 
-  let result = match_pattern(recur, dp, d);
+  let result = match_pattern(~arm, recur, dp, d);
   record_sample(sample_closures, pat_id, maybe_spec, d, result);
   result;
 };
@@ -128,9 +169,10 @@ type matches_and_samples = {
 };
 
 let matches =
-    (targets: Sample.targets, dp: Pat.t, d: DHExp.t): matches_and_samples => {
+    (~arm=false, targets: Sample.targets, dp: Pat.t, d: DHExp.t)
+    : matches_and_samples => {
   let sample_closures = ref([]);
-  let result = matches_inner(targets, sample_closures, dp, d);
+  let result = matches_inner(~arm, targets, sample_closures, dp, d);
   {
     matches: result,
     samples: sample_closures^,

@@ -175,6 +175,39 @@ let shape_affix =
   go((d == Left ? List.rev : Fn.id)(affix), r);
 };
 
+/* Whether no sort has a form for the tile (`!!!`, `^w^`). Such a tile has
+   no say in which sort's run it sits in: the run goes on past it, so what
+   follows `!!!` in a type is still read as a type, as what follows a `?`
+   there is. A tile with a form at another sort ends the run instead: it
+   is where that sort's run begins. */
+let is_unmolded = (t: Tile.t): bool =>
+  List.is_empty(Form.base_candidates(Tile.label(t)));
+
+/* Whether a tile molded as the start of a longer delimiter (the `-` of an
+   `->` still being typed) is an infix operator of its own in an
+   expression. After a type in an expression it is that operator, as `+`
+   is: an ascription binds tighter, so `1 : Int - 2` subtracts, as Menhir
+   reads it, and the `-` of an arrow becomes one once its `>` is typed. A
+   word that starts a keyword (`th`, `in`) is no operator, and stays. */
+let is_exp_op_backup = (t: Tile.t): bool =>
+  switch (t.form) {
+  | TokInfix(_) =>
+    List.exists(
+      Form.base_candidates(Tile.label(t)), ~f=((form, m: Mold.t)) =>
+      Sort.equal(m.out, Sort.Exp)
+      && Mold.is_infix_op(m)
+      && (
+        switch (form) {
+        | TokInfix(_) => false
+        | Tok(_)
+        | Compound(_) => true
+        }
+      )
+    )
+  | Tok(_)
+  | Compound(_) => false
+  };
+
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
@@ -206,23 +239,62 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         fun
         | [_] as ts => ts
         | ts =>
-          ts
-          |> List.filter(~f=t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+          /* Shape picks among candidates (a prefix or an infix `-`, parens
+             or an application). When none fits, the piece before is
+             missing an operand, or this one follows an operand it can't
+             join; regrouting puts a hole between them either way, so shape
+             has nothing to pick by and the first candidate stands, as a
+             lone one does. Keeping the tile's old mold instead would make
+             its sort depend on whether that hole is written: the `=` of
+             `fun (a + = _) ->` stayed an expression's, and of
+             `fun (a + ? = _) ->` became a pattern's. */
+          switch (
+            List.filter(ts, ~f=t =>
+              Nib.Shape.fits(shape, fst(Tile.shapes(t)))
+            )
+          ) {
+          | [] => ts
+          | fitting => fitting
+          }
       )
       |> ListUtil.hd_opt
     };
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
+  /* A kid is revisited when its expected sort changes, and also when it
+     carries a mold left over from another context: the Any fallback (a
+     `| =>` rule inside `{ case … end }`), or a module/signature separator
+     where neither belongs (the `;` of `{ (9; 8) }`, molded while typing
+     inside the braces). Remolding every kid instead costs ~4x in the
+     editor parser; these two are what goes stale. */
+  let has_stale_mold = (expected: Sort.t, child: t) =>
+    List.exists(
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(kid) =>
+            let is = Sort.equal(kid.sort);
+            let expects = Sort.equal(expected);
+            is(Sort.Any)
+            || (is(Mod) || is(Sig))
+            && !expects(Mod)
+            && !expects(Sig);
+          | Grout(_)
+          | Secondary(_)
+          | Projector(_) => false
+          },
+      child,
+    );
   let children =
     List.fold_right(
       ~f=
         ((l, child, r), children) => {
           let child =
-            if (l
-                + 1 == r
-                && List.nth_exn(remolded_mold.in_, l)
-                != List.nth_exn(orig_mold.in_, l)) {
-              remold(child, List.nth_exn(remolded_mold.in_, l));
+            if (l + 1 == r) {
+              let expected = List.nth_exn(remolded_mold.in_, l);
+              Sort.equal(List.nth_exn(orig_mold.in_, l), expected)
+              && !has_stale_mold(expected, child)
+                ? child : remold(child, expected);
             } else {
               child;
             };
@@ -289,6 +361,9 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(sort, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) = remold_uni(snd(Tile.shapes(t)), tl);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -362,6 +437,10 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           shape,
           seg,
         )
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_typ_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -371,7 +450,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       | Some(t)
           when
             Tile.has_label_of(t, Comma)
-            || Tile.has_label_of(t, Plus)
+            || (Tile.has_label_of(t, Plus) || is_exp_op_backup(t))
             && List.exists(~f=y => Sort.equal(Sort.Exp, y), parent_sorts) => (
           [],
           shape,
@@ -399,6 +478,10 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_pat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -462,6 +545,10 @@ and remold_tpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_tpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -522,6 +609,10 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_exp_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -609,7 +700,11 @@ and remold_rul = (shape, seg: t): t =>
         let (remolded, shape, rest) =
           remold_exp_uni(shape, [hd, ...tl], []);
         switch (remolded) {
-        | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
+        | [] =>
+          /* Keep the unremoldable tile and continue from its right nib:
+             the incoming shape made `()` after an operand mold as Parens
+             rather than Ap. */
+          [Piece.Tile(t), ...remold_rul(snd(Tile.shapes(t)), tl)]
         | [_, ..._] => remolded @ remold_rul(shape, rest)
         };
       }
@@ -669,6 +764,10 @@ and remold_mod_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Mod, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_mod_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -722,6 +821,13 @@ and remold_mod = (shape, seg: t): t =>
       | None =>
         /* No Mod form - try Exp since bare expressions are valid module items */
         switch (remold_tile(Exp, shape, t)) {
+        /* A token no sort reads (`^w^`, `!!!`) starts an expression item
+           all the same: what follows it keeps an expression's sorts (the
+           type after the `:` of `{ ^w^:T }`), as it does inside one. */
+        | None when is_unmolded(t) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
+          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest);
         | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
         | Some(t) =>
           let (remolded, shape, rest) =
@@ -872,7 +978,8 @@ module Trim = {
   let add_grout = (shape: Nib.Shape.t, (wss, gs): t): t =>
     cons_g(Grout.mk_fits_shape(shape), (wss, gs));
 
-  // assumes grout in trim fit r but may not fit l
+  // grout in trim usually fits r but may not fit l; grout left over from
+  // before a neighbor changed shape may fit neither (see below)
   let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (_, gs) = trim;
@@ -883,10 +990,27 @@ module Trim = {
         };
       Aba.mk([List.concat(trim |> fst) @ extra], []);
     } else {
-      let (_, gs) as merged = merge(trim);
+      let (wss, gs) as merged = merge(trim);
       switch (gs) {
       | [] => add_grout(l, merged)
-      | [_, ..._] => merged
+      /* Two shapes that don't fit are alike, and one shape of grout fits
+         between them. Grout left from before a neighbor changed shape (a
+         delimiter completed, a tile remolded: the hole after `| _` once
+         the rule gets its `=>`) takes that shape and keeps its id.
+         Skel.mk reads a segment whose shapes all fit. */
+      | [g, ...rest] =>
+        Grout.fits_shape(g, l)
+          ? merged
+          : (
+            wss,
+            [
+              {
+                ...g,
+                shape: Grout.shape_fitting(l),
+              },
+              ...rest,
+            ],
+          )
       };
     };
 

@@ -18,8 +18,287 @@ let tests = (
     test_case("Ascription removal for labels in let pattern", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|let x : (a=Int) = (a=1) in x|})
     }),
+    /* An empty label matches any label, so the cast is pushed in. */
+    test_case("A cast to a label pushes into a wildcard label", `Quick, () =>
+      evaluation_test(
+        "(=1) : (a=Int)",
+        tup_label(label(""), int(1)),
+        asc(
+          tup_label(label(""), int(1)),
+          Typ.tup_label(Typ.label("a"), Typ.int()),
+        ),
+      )
+    ),
+    /* Both entries are kept. The second `a` is not field `b`, so its cast
+       to `b`'s type stays rather than relabeling the value. */
     test_case("Repeated label ascribed to a labeled tuple type", `Quick, () =>
-      parse_and_evaluate_test("(a=1, a=2)", {|((a=1, a=2) : (a=Int, b=Int))|})
+      check(
+        dhexp_typ,
+        "((a=1, a=2) : (a=Int, b=Int))",
+        tuple([
+          tup_label(label("a"), int(1)),
+          asc(
+            tup_label(label("a"), int(2)),
+            Typ.tup_label(Typ.label("b"), Typ.int()),
+          ),
+        ]),
+        parse_and_evaluate({|((a=1, a=2) : (a=Int, b=Int))|}),
+      )
+    ),
+    /* Elaboration takes the `_=` off a pattern's field and leaves it on an
+       expression's; the pattern binds what the field holds. */
+    test_case("A pattern binds the value of a field marked _=", `Quick, () =>
+      List.iter(
+        [
+          ("2", {|let (_=x) = (_=1) in x + 1|}),
+          ("3", {|let (x, y) = (_=1, 2) in x + y|}),
+          ("2", {|case (_=1) | (_=x) => x + 1 end|}),
+          ("3", {|(fun (x, y) -> x + y)(_=1, 2)|}),
+          ("3", {|let (a=x, y) = (a=1, _=2) in x + y|}),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    /* Only a pattern with no label of its own does: one that names a label
+       meets the `_=` field as it is, and doesn't match it. */
+    test_case("A labeled pattern doesn't bind a field marked _=", `Quick, () =>
+      List.iter(
+        [
+          (
+            "0",
+            {|let t : ? = (_=1, 2) in case t | (a=x, y) => x | _ => 0 end|},
+          ),
+          (
+            "0",
+            {|let t : ? = ((_=1), 2) in case t | ((a=x), y) => x | _ => 0 end|},
+          ),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    /* Which label a `_=` field takes at a labeled entry is undecided. Met
+       at run time, each field's value is left under its entry's type,
+       stuck. */
+    test_case(
+      "Known gap: _= fields cast to a labeled tuple type at run time",
+      `Quick,
+      () =>
+      check(
+        /* compared with the `_=` marks kept: the casts are on the bare
+           values, not on `_=` fields */
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: true,
+            })
+          ).
+            exp,
+        ),
+        "let t : ? = (_=1, _=2) in (t : (a=Int, b=Int))",
+        tuple([
+          asc(int(1), Typ.tup_label(Typ.label("a"), Typ.int())),
+          asc(int(2), Typ.tup_label(Typ.label("b"), Typ.int())),
+        ]),
+        parse_and_evaluate(
+          {|let t : ? = (_=1, _=2) in (t : (a=Int, b=Int))|},
+        ),
+      )
+    ),
+    /* A cast pushed onto a labeled field goes on to what the field holds,
+       all the way down when evaluating in one go. */
+    test_case("A cast on a lifted field finishes", `Quick, () =>
+      List.iter(
+        [
+          ("(x=())", {|() : (x=?)|}),
+          ("(x=())", {|let p : (x=?) = () in p|}),
+          ("(a=(b=1))", {|(a=(b=1)) : (a=(b=?))|}),
+          ("(a=1, b=(c=2))", {|(a=1, b=(c=2)) : (a=?, b=(c=Int))|}),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    /* A deferred application is a function, so it becomes the field of a
+       one-field record it is cast to, as a `fun` does. */
+    test_case(
+      "A deferred application lifts into a singleton label", `Quick, () =>
+      List.iter(
+        [
+          (
+            "3",
+            {|let add = fun (x, y) -> x + y in let v : ? = add(_, 1) in let r : (a=Int -> Int) = v in r.a(2)|},
+          ),
+          (
+            "3",
+            {|let add = fun (x, y) -> x + y in let r : (a=Int -> Int) = add(_, 1) in r.a(2)|},
+          ),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    /* Whether a value takes a one-field record's label is decided by the
+       head of its own type, with a recursive type unrolled: `rec t -> ?`
+       is unknown, and `rec t -> (x=Int)` already has the label. */
+    test_case(
+      "A recursive type is unrolled to decide a singleton lift", `Quick, () =>
+      List.iter(
+        [
+          ("(x=1)", {|let p : (rec t -> ?) = (x=1) in p|}),
+          ("(x=1)", {|case (x=1) | (p : (rec t -> ?)) => p end|}),
+          ("1", {|let p : (rec t -> ?) = (x=1) in p.x|}),
+          ("1", {|let p : (rec t -> (x=Int)) = (x=1) in p.x|}),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    /* Labels stack: a tuple expected at a one-field label becomes that
+       field, rather than the label being refused for arity. */
+    test_case("Wide tuple lifted into a singleton label", `Quick, () =>
+      parse_and_evaluate_test("(a=(1, 2))", {|(1, 2) : (a=(Int, Int))|})
+    ),
+    test_case("Wide tuple pattern lifted into a singleton label", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f : (a=(Int, Int)) -> Int = fun (x, y) -> x in f((1, 2))|},
+      )
+    ),
+    /* A value that already has the labeled type must not be lifted into a
+       further field: the label is in its type, not in its syntax. */
+    test_case(
+      "Ascribing a variable that already has the record type", `Quick, () =>
+      parse_and_evaluate_test("(a=1)", {|let r = (a=1) in r : (a=Int)|})
+    ),
+    test_case(
+      "Annotating a variable that already has the record type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let r = (a=1) in let x : (a=Int) = r in x|},
+      )
+    ),
+    test_case(
+      "Ascribing a call that already returns the record type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let f = fun _ -> (a=1) in f(()) : (a=Int)|},
+      )
+    ),
+    /* Of unknown type, it may still be the record at runtime: the cast
+       decides, so it isn't wrapped again. */
+    test_case(
+      "Ascribing a variable of unknown type that is the record", `Quick, () =>
+      parse_and_evaluate_test("(a=1)", {|let r : ? = (a=1) in r : (a=Int)|})
+    ),
+    test_case(
+      "Annotating a variable of unknown type that is the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let r : ? = (a=1) in let x : (a=Int) = r in x|},
+      )
+    ),
+    test_case(
+      "Ascribing a call of unknown type that returns the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let f : ? -> ? = fun x -> (a=x) in f(1) : (a=Int)|},
+      )
+    ),
+    /* One that isn't the record is lifted when the cast or the pattern
+       meets it, as it would have been by its type. */
+    test_case(
+      "Annotating a variable of unknown type that isn't the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let v : ? = 1 in let r : (a=Int) = v in r.a|},
+      )
+    ),
+    test_case(
+      "Matching a variable of unknown type that isn't the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f = fun (y : ?) -> let (a=x) = y in x in f(1)|},
+      )
+    ),
+    test_case(
+      "Matching a case scrutinee of unknown type that isn't the record",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f = fun (y : ?) -> case y | (a=x) => x | _ => 0 end in f(1)|},
+      )
+    ),
+    /* A binder's pattern gives the value its type, so it takes a record
+       under another label as its field, as statics does when the value's
+       type is known. A rule's pattern is checked against the scrutinee:
+       there a record under another label is another record, and the
+       rules tell them apart, as they do on a typed scrutinee. */
+    test_case(
+      "A record under another label: a binder takes it, a rule passes it",
+      `Quick,
+      () =>
+      List.iter(
+        [
+          ("(b=1)", {|let (a=x) = (b=1) in x|}),
+          (
+            "(b=1)",
+            {|let f = fun (y : ?) -> let (a=x) = y in x in f((b=1))|},
+          ),
+          (
+            {|"b"|},
+            {|let t : ? = (b=1) in case t | (a=x) => "a" | (b=y) => "b" end|},
+          ),
+          (
+            "0",
+            {|let f = fun (y : ?) -> case y | (a=x) => x | _ => 0 end in f((b=1))|},
+          ),
+          (
+            "2",
+            {|let t : ? = (c=(b=1), d=2) in case t | (c=(a=x), d=y) => 0 | (c=(b=x), d=y) => x + 1 end|},
+          ),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    test_case("Ascribing a record of other labels of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=(b=1))",
+        {|let v : ? = (b=1) in v : (a=(b=Int))|},
+      )
+    ),
+    /* A function value is a closure: the whole closure becomes the field,
+       or the record is stuck inside it. */
+    test_case("Lifting a function of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "2",
+        {|let v : ? = fun z -> z + 1 in let r : (a=Int -> Int) = v in r.a(1)|},
+      )
+    ),
+    test_case("Matching a lifted function of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "2",
+        {|let v : ? = fun z -> z + 1 in let r : (a=Int -> Int) = v in case r | (a=g) => g(1) end|},
+      )
+    ),
+    test_case("Ascribing a tuple of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=(1, 2))",
+        {|let v : ? = (1, 2) in v : (a=(Int, Int))|},
+      )
+    ),
+    /* Statics lifts at a one-field labeled type, not at a recursive type
+       that unrolls to one, which would lift without end. */
+    test_case("A cast to a recursive labeled type doesn't lift", `Quick, () =>
+      parse_and_evaluate_test(
+        "1 : rec t -> (a=t)",
+        {|let v : ? = 1 in v : rec t -> (a=t)|},
+      )
     ),
     test_case("Labeled tuple field access", `Quick, () =>
       parse_and_evaluate_test("1", {|(a=1,b=2).a|})
@@ -40,10 +319,23 @@ in fn("hello")|},
           in fn("hello")|},
       )
     }),
+    /* A field whose label differs from the type's keeps its cast, labels
+       and all: the value doesn't have that type, so it isn't relabelled
+       (`(a=3 : Bool, b="" : Float)`). */
     test_case("Inconsistent labels", `Quick, () => {
-      parse_and_evaluate_test(
-        {|(a=3 : Bool, b= "": Float)|}, // TODO This is a bug
-        {|(a=3, b="") : (c=Bool, d=Float)|},
+      evaluation_test(
+        "(a=3, b=\"\") : (c=Bool, d=Float)",
+        tuple([
+          asc(
+            tup_label(label("a"), int(3)),
+            Typ.tup_label(Typ.label("c"), Typ.bool()),
+          ),
+          asc(
+            tup_label(label("b"), string("")),
+            Typ.tup_label(Typ.label("d"), Typ.float()),
+          ),
+        ]),
+        elaborate(parse_exp({|(a=3, b="") : (c=Bool, d=Float)|})),
       )
     }),
     test_case("Dot operation for missing label", `Quick, () =>
