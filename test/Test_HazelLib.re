@@ -451,6 +451,33 @@ let tests = (
         );
       },
     ),
+    /* (^ticket(896)) a function typed on its let, called from JS through
+       the interpreter with whole numbers where its type says Float: they
+       come in as Floats (an Int there stopped the arithmetic) */
+    test_case(
+      "a function typed on its let takes whole numbers as Floats where its type says Float",
+      `Quick,
+      () => {
+        let f =
+          value("let f : (x = Float) -> Float = fun r -> r.x +. 0.5 in f");
+        check(
+          string,
+          "{x: 2}",
+          "2.5",
+          json(call(f, [as_js("{\"x\": 2}")])),
+        );
+        let g =
+          value(
+            "let g : (Float, (y = Float, n = Int)) -> Float = fun (a, b) -> a +. b.y in g",
+          );
+        check(
+          string,
+          "3, {y: 4, n: 1}",
+          "7",
+          json(call(g, [num(3.), as_js("{\"y\": 4, \"n\": 1}")])),
+        );
+      },
+    ),
     /* ^ticket(520): the panel's modules as one program, built by Hazel from
        their texts rather than joined by the page */
     test_case(

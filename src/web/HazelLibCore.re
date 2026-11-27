@@ -151,7 +151,13 @@ let rec param_type = (f: Exp.t): option(Typ.t) =>
   | Fun(p, _, t, _) =>
     switch (pat_type(p), t) {
     | (Some(t), _) => Some(t)
-    | (None, Some(t)) => arrow_domain(t)
+    /* (^ticket(896)) the elaborated Fun's type is its parameter's
+       (Statics: Fun(p, e, Some(p.ty), n)), not the function's: so a
+       function typed on its let (let f : (x = Float) -> Float = fun r ->
+       ...) has its parameter's type here. Read as an arrow, it gave none,
+       and a whole number came in as an Int where a Float is declared,
+       which the interpreter's arithmetic then stopped on */
+    | (None, Some(t)) => Some(t)
     | (None, None) => None
     }
   | Closure(_, e)
