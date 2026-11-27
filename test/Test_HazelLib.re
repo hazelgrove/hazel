@@ -168,6 +168,61 @@ let tests = (
         );
       },
     ),
+    /* (^ticket(792)) a big Int from JS comes in whole: an int is 32 bits
+       under js_of_ocaml, and 4293918720 passed in came in as -1048576; and
+       one past a safe integer goes out a BigInt, as compiled code has it */
+    test_case(
+      "an Int past 2^31 from JS comes in whole",
+      `Quick,
+      () => {
+        let untyped = value("fun x -> x + 1");
+        check(
+          string,
+          "4293918720, untyped",
+          "4293918721",
+          json(call(untyped, [num(4293918720.)])),
+        );
+        check(
+          string,
+          "-4293918720, untyped",
+          "-4293918719",
+          json(call(untyped, [num(-4293918720.)])),
+        );
+        check(
+          string,
+          "2^53 - 2, untyped: an Int, not a Float",
+          "9007199254740991",
+          json(call(untyped, [num(9007199254740990.)])),
+        );
+        let typed = value("fun (x : Int) -> x + 1");
+        check(
+          string,
+          "4293918720, as an Int",
+          "4293918721",
+          json(call(typed, [num(4293918720.)])),
+        );
+        let big =
+          call(
+            typed,
+            [
+              Js.Unsafe.fun_call(
+                Js.Unsafe.js_expr("BigInt"),
+                [|Js.Unsafe.inject(Js.string("18446744073709551615"))|],
+              ),
+            ],
+          );
+        check(
+          string,
+          "a BigInt in, as an Int, and past 2^53 a BigInt out",
+          "bigint 18446744073709551616",
+          Js.to_string(Js.typeof(big))
+          ++ " "
+          ++ Js.to_string(
+               Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|big|]),
+             ),
+        );
+      },
+    ),
     test_case(
       "an object goes to Hazel as a labeled tuple",
       `Quick,

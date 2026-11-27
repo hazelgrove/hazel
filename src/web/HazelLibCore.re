@@ -100,10 +100,30 @@ let js_array = (xs: list(Js.Unsafe.any)): Js.Unsafe.any =>
 let js_object = (fields: list((string, Js.Unsafe.any))): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.Unsafe.obj(Array.of_list(fields)));
 
+/* (^ticket(792)) an Int or a Nat as compiled code holds it (HazelJitValue):
+   a number while it is a safe integer, a BigInt past that, so a big one
+   goes out whole and comes back in whole */
 let number_of_bigint = (b: Bigint.t): Js.Unsafe.any =>
-  Js.Unsafe.inject(
-    Js.number_of_float(float_of_string(Bigint.to_string(b))),
+  HazelJit.safe_int(b)
+    ? Js.Unsafe.inject(
+        Js.number_of_float(float_of_string(Bigint.to_string(b))),
+      )
+    : Js.Unsafe.fun_call(
+        Js.Unsafe.js_expr("BigInt"),
+        [|Js.Unsafe.inject(Js.string(Bigint.to_string(b)))|],
+      );
+
+/* (^ticket(792)) a JS BigInt's digits */
+let bigint_of_js = (j: Js.Unsafe.any): Bigint.t =>
+  Bigint.of_string(
+    Js.to_string(Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|j|])),
   );
+
+/* (^ticket(792)) a JS number that is a whole number and a safe integer
+   (|n| < 2^53), which a Hazel Int holds exactly. Not through int_of_float:
+   an int is 32 bits under js_of_ocaml, so 4293918720 came in as -1048576. */
+let safe_whole = (f: float): bool =>
+  Float.is_integer(f) && Float.(abs(f) <= 9007199254740991.);
 
 let js_is_array = (j: Js.Unsafe.any): bool =>
   Js.to_bool(
@@ -234,9 +254,10 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
   switch (kind) {
   | "number" =>
     let f: float = Js.float_of_number(Js.Unsafe.coerce(j));
-    Float.is_integer(f) && Float.(abs(f) < 1e15)
-      ? Exp.fresh(Atom(Int(Bigint.of_int(int_of_float(f)))))
+    safe_whole(f)
+      ? Exp.fresh(Atom(Int(HazelJitValue.whole(f))))
       : Exp.fresh(Atom(Float(f)));
+  | "bigint" => Exp.fresh(Atom(Int(bigint_of_js(j))))
   | "boolean" => Exp.fresh(Atom(Bool(Js.to_bool(Js.Unsafe.coerce(j)))))
   | "string" => Exp.fresh(Atom(String(Js.to_string(Js.Unsafe.coerce(j)))))
   | "undefined" => Exp.fresh(Tuple([]))
@@ -320,13 +341,17 @@ and of_js_at =
   | Atom(Float) when String.equal(kind, "number") =>
     Exp.fresh(Atom(Float(number())))
   | Atom(Int) when whole() =>
-    Exp.fresh(
-      Atom(Int(Bigint.of_string(Printf.sprintf("%.0f", number())))),
-    )
+    Exp.fresh(Atom(Int(HazelJitValue.whole(number()))))
   | Atom(Nat) when whole() && Float.(number() >= 0.) =>
-    Exp.fresh(
-      Atom(Nat(Bigint.of_string(Printf.sprintf("%.0f", number())))),
-    )
+    Exp.fresh(Atom(Nat(HazelJitValue.whole(number()))))
+  /* (^ticket(792)) a JS BigInt, as compiled code gives one past 2^53 */
+  | Atom(Int) when String.equal(kind, "bigint") =>
+    Exp.fresh(Atom(Int(bigint_of_js(j))))
+  | Atom(Nat)
+      when
+        String.equal(kind, "bigint")
+        && Bigint.compare(bigint_of_js(j), Bigint.zero) >= 0 =>
+    Exp.fresh(Atom(Nat(bigint_of_js(j))))
   | Atom(SInt) when whole() =>
     Exp.fresh(Atom(SInt(int_of_float(number()))))
   | List(t) when js_is_array(j) =>
