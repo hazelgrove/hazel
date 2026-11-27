@@ -47,9 +47,9 @@ let tests = (
       () => {
         let code = nested_function_lets(12);
         let exp = parse_exp(code);
-        let t0 = Sys.time();
+        let t0 = Stdlib.Sys.time();
         let s = statics(exp);
-        let dt = Sys.time() -. t0;
+        let dt = Stdlib.Sys.time() -. t0;
         Alcotest.check(Alcotest.int, "no static errors", 0, List.length(errors(s)));
         Alcotest.check(
           Alcotest.option(testable_typ),
