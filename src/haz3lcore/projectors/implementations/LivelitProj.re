@@ -1617,7 +1617,15 @@ module M: Projector = {
     | Some((d, m, a))
         when
           (d === def_elab || Exp.fast_equal(d, def_elab))
-          && (m === view_model || Exp.fast_equal(m, view_model)) => a
+          && (m === view_model || Exp.fast_equal(m, view_model)) =>
+      /* (^ticket(887)) found equal but not the very objects: kept with
+         these, so that the next look finds them by identity; else every
+         later look compares the whole model again, a picture's 9 to 13 ms
+         a frame, for as long as the memo holds the older objects */
+      if (d !== def_elab || m !== view_model) {
+        Hashtbl.replace(view_memo, id, (def_elab, view_model, a));
+      };
+      a;
     | _ =>
       let a = compute();
       if (Option.is_some(a.js)
