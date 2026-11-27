@@ -1,0 +1,17 @@
+# The net this page runs and draws: two processes sharing one lock, the classic small net. #
+# Places by name; an arc names its place by its index in places. #
+let places = ["idle1", "busy1", "idle2", "busy2", "lock"];
+let arc = fun p : Int -> (place = p, weight = 1);
+let transitions : [Transition] = [
+  (name = "enter1", inputs = [arc(0), arc(4)], outputs = [arc(1)]),
+  (name = "leave1", inputs = [arc(1)], outputs = [arc(0), arc(4)]),
+  (name = "enter2", inputs = [arc(2), arc(4)], outputs = [arc(3)]),
+  (name = "leave2", inputs = [arc(3)], outputs = [arc(2), arc(4)])
+];
+# the tokens in each place at the start, and after Reset the net #
+let marking = [1, 0, 1, 0, 1];
+# where each place and each transition is drawn, in order: x to the right and y down, in a picture 700 wide and 330 high #
+let place_at = [(x = 150, y = 50), (x = 150, y = 250), (x = 550, y = 50), (x = 550, y = 250), (x = 350, y = 150)];
+let transition_at = [(x = 238, y = 150), (x = 62, y = 150), (x = 462, y = 150), (x = 638, y = 150)];
+# what the page calls with each event: the rule #
+let on_event : (Net, Event) -> Cmd = Rules.on_event

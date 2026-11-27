@@ -1,0 +1,18 @@
+# The reading so far, from the lines cast, bottom first: after three lines, the lower trigram; after six, the hexagram, its changing lines, and the relating hexagram they turn it into #
+let reading : [Line] -> Reading = fun ls ->
+  let changing = Lines.changing_from(ls, 1) in
+  case ls
+  | a :: b :: c :: d :: e :: f :: _ =>
+    let lo = Book.trigram(a, b, c) in
+    let up = Book.trigram(d, e, f) in
+    let lo2 = Book.trigram(Lines.becomes(a), Lines.becomes(b), Lines.becomes(c)) in
+    let up2 = Book.trigram(Lines.becomes(d), Lines.becomes(e), Lines.becomes(f)) in
+    (cast = 6, lower = lo, upper = up, primary = Book.hexagram(lo, up), changing = changing,
+     relating = case changing | [] => Book.unknown | _ => Book.hexagram(lo2, up2) end)
+  | a :: b :: c :: _ =>
+    (cast = Lines.length(ls), lower = Book.trigram(a, b, c), upper = Book.none, primary = Book.unknown,
+     changing = changing, relating = Book.unknown)
+  | _ =>
+    (cast = Lines.length(ls), lower = Book.none, upper = Book.none, primary = Book.unknown,
+     changing = changing, relating = Book.unknown)
+  end

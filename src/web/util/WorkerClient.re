@@ -208,18 +208,40 @@ let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) =>
     Util.ShareCodec.Client.reset();
   };
   share_reset := false;
-  let msg =
-    ClientMessage.EvaluateShared(
-      reset,
-      posted_of(~full, ~shared=true, request),
-    );
-  if (metrics) {
-    WorkerMetrics.record_request(request.request_id, msg);
+  /* (^report(46)) while the page keeps its benchmark timeline, so does the
+     worker, sent after each result (ServerMessage.Timeline) */
+  if (Util.BenchMarks.on()) {
+    worker##postMessage(Active.encode_request(ClientMessage.Record(true)));
   };
-  let encoded = Active.encode_request(msg);
-  EvalMetrics.record_sent(~request, ~encoded);
-  worker##postMessage(encoded);
-  hold(request);
+  /* (^report(46)) on the benchmark timeline: the request's pieces made,
+     encoded and posted, with its id and size */
+  let bytes = ref(0.);
+  Util.BenchMarks.time(
+    ~extra=
+      () =>
+        Util.BenchMarks.[
+          ("id", num(float_of_int(request.request_id))),
+          ("bytes", num(bytes^)),
+        ],
+    "post to worker",
+    () => {
+      let msg =
+        ClientMessage.EvaluateShared(
+          reset,
+          posted_of(~full, ~shared=true, request),
+        );
+      if (metrics) {
+        WorkerMetrics.record_request(request.request_id, msg);
+      };
+      let encoded = Active.encode_request(msg);
+      EvalMetrics.record_sent(~request, ~encoded);
+      if (Util.BenchMarks.on()) {
+        bytes := Core.Byte_units.bytes_float(Active.size_request(encoded));
+      };
+      worker##postMessage(encoded);
+      hold(request);
+    },
+  );
 };
 
 let fail_latest = latest => {
@@ -237,6 +259,46 @@ let fail_latest = latest => {
 let cancel = (): unit => {
   clear_timeouts();
   latest_request := None;
+};
+
+/* (^report(50)'s next step 4: leave the worker out when the compiled run has answered) A request made just after the
+   slide's compiled run answered a livelit's event (HazelJitRun.step), as the event's commit makes one: the page's
+   livelits are already drawn from that run, and the worker's answer would only draw them again, to the same picture.
+   So it is held [hold_ms] and replaced by any request made meanwhile: a run of steps costs the worker one run, after the
+   last, and the page takes none of its messages while the steps come. The request in flight, for a model before, is
+   dropped, as posting a newer one would drop it. Probes, tests and every other cell still get the worker's answer,
+   later. */
+let hold_ms = 400.;
+let held_timeout_id = ref(None);
+/* (^report(51)) set while a request held for the compiled run's answer is
+   posted: its reuse plan and stream updates restate what the compiled run
+   drew, so EvalRequest holds them for its result */
+let posted_after_answer = ref(false);
+
+let hold_if_answered = (batch: Request.batch, post: unit => unit): unit => {
+  clear_timer(held_timeout_id);
+  switch (batch) {
+  | [_, ..._] when Language.HazelJitRun.take_answered(~ms=1000.) =>
+    cancel();
+    Util.BenchMarks.mark("worker request held: the compiled run answered");
+    held_timeout_id :=
+      Some(
+        Dom_html.window##setTimeout(
+          Js.wrap_callback(() => {
+            held_timeout_id := None;
+            posted_after_answer := true;
+            switch (post()) {
+            | () => posted_after_answer := false
+            | exception e =>
+              posted_after_answer := false;
+              raise(e);
+            };
+          }),
+          hold_ms,
+        ),
+      );
+  | _ => post()
+  };
 };
 
 /* Shared responses (WorkerServer.post_message): after one named a value
@@ -278,9 +340,13 @@ let setup_worker_message_handler = worker => {
     Dom.handler(evt => {
       /* Stop the latency clock first thing, before any decode/benchmark. */
       let now = Util.JsUtil.precise_timestamp();
+      /* (^report(46)) a large answer kept as it came, for its breakdown */
+      AnswerParts.keep(evt##.data);
+      DataExperiment.keep(evt##.data);
       let handle = (msg: ServerMessage.t) =>
         switch (msg) {
         | ServerMessage.Shared(_) => () /* unshared before here */
+        | ServerMessage.WithData(_) => () /* made terms before here */
         | ServerMessage.Resend({request_id}) =>
           /* (^ticket(513)) a superseded request was missing pieces too:
              what the client counts the worker holding, and the share
@@ -323,8 +389,91 @@ let setup_worker_message_handler = worker => {
             },
           )
         | ServerMessage.Coverage(coverage) => live_coverage := Some(coverage)
+        | ServerMessage.Timeline(marks) =>
+          /* (^report(46)) the worker's own steps, on the page's clock */
+          let origin = Util.BenchMarks.time_origin();
+          List.iter(
+            (m: ServerMessage.mark) =>
+              Util.BenchMarks.(
+                mark(
+                  ~at=m.at -. origin,
+                  ~extra=[
+                    ("ms", num(m.ms)),
+                    ...List.map(((k, v)) => (k, num(v)), m.extra),
+                  ],
+                  "worker: " ++ m.what,
+                )
+              ),
+            marks,
+          );
         };
-      switch (unshare(Active.decode_response(evt##.data))) {
+      /* (^report(46)) on the benchmark timeline: each message from the
+         worker decoded, then handled, by kind; a result with the worker's
+         own evaluator time */
+      let decoded =
+        Util.BenchMarks.time(
+          ~extra=
+            () =>
+              Util.BenchMarks.[
+                (
+                  "bytes",
+                  num(
+                    Core.Byte_units.bytes_float(
+                      Active.size_response(evt##.data),
+                    ),
+                  ),
+                ),
+              ],
+          "worker message decoded",
+          () => unshare(Active.decode_response(evt##.data)),
+        );
+      /* (^ticket(718)) samples' values carried as data, made terms again */
+      let decoded =
+        switch (decoded) {
+        | Some(Ok(ServerMessage.WithData(_) as m)) =>
+          Some(
+            Ok(
+              Util.BenchMarks.time(
+                ~extra=
+                  () =>
+                    [("to_term ms", Util.BenchMarks.num(Wire.to_term_ms^))],
+                "samples' values made terms",
+                () => Wire.in_(m),
+              ),
+            ),
+          )
+        | d => d
+        };
+      let handle = (msg: ServerMessage.t) =>
+        Util.BenchMarks.time(
+          ~extra=
+            () =>
+              Util.BenchMarks.(
+                switch (msg) {
+                | ServerMessage.Result(result) => [
+                    ("kind", str("result")),
+                    ("id", num(float_of_int(result.request_id))),
+                    (
+                      "eval_ms",
+                      num(Core.Time_ns.Span.to_ms(result.eval_time)),
+                    ),
+                  ]
+                | ServerMessage.Stream(_) => [("kind", str("stream"))]
+                | ServerMessage.Ack(_) => [("kind", str("ack"))]
+                | ServerMessage.ReusePlan(_) => [
+                    ("kind", str("reuse plan")),
+                  ]
+                | ServerMessage.Resend(_) => [("kind", str("resend"))]
+                | ServerMessage.Coverage(_) => [("kind", str("coverage"))]
+                | ServerMessage.Timeline(_) => [("kind", str("timeline"))]
+                | ServerMessage.Shared(_) => [("kind", str("shared"))]
+                | ServerMessage.WithData(_) => [("kind", str("with data"))]
+                }
+              ),
+          "worker message handled",
+          () => handle(msg),
+        );
+      switch (decoded) {
       | Some(Ok(msg)) => handle(msg)
       | None => ()
       | Some(Error ()) =>

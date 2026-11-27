@@ -124,7 +124,15 @@ module Make = (E: Env) => {
 
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
+  /* (^ticket(721)) whether this cycle's Force is a projector commit's alone,
+     with no edit's statics pending: then the statics in hand are the
+     program's just before the commit, and a commit that changes only a
+     model's literals may patch them (ModelPatch) */
+  let clean_commit: ref(bool) = ref(false);
+
   let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
+    let was_pending = pending();
+    clean_commit := false;
     let force_now = force_on_next^;
     force_on_next := false;
     /* a projector commit is one discrete edit: run statics now rather
@@ -132,6 +140,7 @@ module Make = (E: Env) => {
     let projector_edit = Util.AgentPulse.projector_commit^;
     Util.AgentPulse.projector_commit := false;
     if (force_now || is_edited && projector_edit) {
+      clean_commit := is_edited && projector_edit && !was_pending;
       clear();
       Force;
     } else if (is_edited) {

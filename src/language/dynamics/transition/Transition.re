@@ -861,7 +861,13 @@ module Transition = (EV: EV_MODE) => {
             });
           } else {
             let builtin =
-              VarMap.lookup(Builtins.forms_init, ident)
+              (
+                switch (VarMap.lookup(Builtins.forms_init, ident)) {
+                | Some(_) as b => b
+                /* (^ticket(766)) mixed mode's compiled functions */
+                | None => Hashtbl.find_opt(Builtins.made_at_run_time, ident)
+                }
+              )
               |> OptUtil.get(() => {
                    /* This exception should never be raised because there is
                       no way for the user to create a BuiltinFun. They are all

@@ -125,18 +125,12 @@ let replace_literal =
   | (Int(n), Some(Nat), _) => L(Nat(n))
   | (Int(n), Some(Float), _) => L(Float(Bigint.to_float(n)))
   | (Int(n), Some(SInt), _) =>
-    switch (Bigint.to_int(n)) {
-    | Some(i) => L(SInt(i))
-    | None => R(BadInt(Bigint.to_string(n)))
-    }
+    Atom.sint_fits(n) ? L(SInt(n)) : R(BadInt(Bigint.to_string(n)))
   | (Int(n), _, Some(Int)) => L(Int(n))
   | (Int(n), _, Some(Nat)) => L(Nat(n))
   | (Int(n), _, Some(Float)) => L(Float(Bigint.to_float(n)))
   | (Int(n), _, Some(SInt)) =>
-    switch (Bigint.to_int(n)) {
-    | Some(i) => L(SInt(i))
-    | None => R(BadInt(Bigint.to_string(n)))
-    }
+    Atom.sint_fits(n) ? L(SInt(n)) : R(BadInt(Bigint.to_string(n)))
   | (Int(n), Some(Bool | String), None) => L(Int(n))
   | (SInt(n), _, _) => L(SInt(n))
   | (Float(n), _, _) => L(Float(n))
@@ -284,12 +278,16 @@ type un_semantics =
   | Undefined(string);
 
 let just = (f, x) => Either.L(f(x));
+/* an SInt result, computed exactly, if it fits in 64 bits (Atom.sint_fits); else IntegerOverflow */
+let sint_checked = (r: Bigint.t): Either.t(Bigint.t, InvalidOperationError.t) =>
+  Atom.sint_fits(r)
+    ? Either.L(r) : Either.R(InvalidOperationError.IntegerOverflow);
 
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
   | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
-  | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
+  | SInt(Minus) => Defined(SInt, SInt, x => sint_checked(Bigint.neg(x)))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
   };
@@ -312,11 +310,17 @@ let int_power = (x, y) =>
   } else {
     Either.L(Bigint.pow(x, y));
   };
+/* A power of 64 or more is past 64 bits unless the base is -1, 0 or 1, so it is not computed: those bases repeat
+   with period 2 from the second power on, and anything else overflows. */
 let sint_power = (x, y) =>
-  if (y < 0) {
+  if (Bigint.(y < zero)) {
     Either.R(InvalidOperationError.NegativeExponent);
+  } else if (Bigint.(y < of_int(64))) {
+    sint_checked(Bigint.pow(x, y));
+  } else if (Bigint.(abs(x) <= one)) {
+    sint_checked(Bigint.(pow(x, of_int(2) + rem(y, of_int(2)))));
   } else {
-    Either.L(IntUtil.ipow(x, y));
+    Either.R(InvalidOperationError.IntegerOverflow);
   };
 let int_divide = (x, y) =>
   if (Bigint.equal(y, Bigint.zero)) {
@@ -325,10 +329,14 @@ let int_divide = (x, y) =>
     Either.L(Bigint.(/)(x, y));
   };
 let sint_divide = (x, y) =>
-  if (y == 0) {
+  if (Bigint.equal(y, Bigint.zero)) {
     Either.R(InvalidOperationError.DivideByZero);
   } else {
-    Either.L(x / y);
+    /* truncated toward zero, as Int's; the one quotient too big is the
+       least SInt by -1 */
+    sint_checked(
+      Bigint.(/)(x, y),
+    );
   };
 
 let semantics_of_bin_op = (op: op_bin): bin_semantics =>
@@ -343,9 +351,12 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Int(GreaterThan) => Defined(Int, Int, Bool, just((>)))
   | Int(GreaterThanOrEqual) => Defined(Int, Int, Bool, just((>=)))
 
-  | SInt(Plus) => Defined(SInt, SInt, SInt, just((+)))
-  | SInt(Minus) => Defined(SInt, SInt, SInt, just((-)))
-  | SInt(Times) => Defined(SInt, SInt, SInt, just(( * )))
+  | SInt(Plus) =>
+    Defined(SInt, SInt, SInt, (x, y) => sint_checked(Bigint.(+)(x, y)))
+  | SInt(Minus) =>
+    Defined(SInt, SInt, SInt, (x, y) => sint_checked(Bigint.(-)(x, y)))
+  | SInt(Times) =>
+    Defined(SInt, SInt, SInt, (x, y) => sint_checked(Bigint.( * )(x, y)))
   | SInt(Power) => Defined(SInt, SInt, SInt, sint_power)
   | SInt(Divide) => Defined(SInt, SInt, SInt, sint_divide)
   | SInt(LessThan) => Defined(SInt, SInt, Bool, just((<)))

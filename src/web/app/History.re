@@ -133,6 +133,7 @@ module Update = {
   let restore = (~schedule_action: t => unit, m: Page.Model.t) => {
     Language.EvalWorklist.compute_enabled :=
       m.globals.settings.show_incremental_deco;
+    Language.HazelJitValue.enabled := m.globals.settings.jit_views;
     switch (m.editors) {
     | Scratch(_)
     | Documentation(_) =>

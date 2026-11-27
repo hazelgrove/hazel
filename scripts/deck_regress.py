@@ -94,20 +94,20 @@ class Driver:
             raise SystemExit("session failed: " + json.dumps(r)[:300])
         self.sid = r["value"]["sessionId"]
 
-    def _req(self, method, path, body=None):
+    def _req(self, method, path, body=None, timeout=90):
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(
             self.base + path, data=data, method=method,
             headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=90) as f:
+            with urllib.request.urlopen(req, timeout=timeout) as f:
                 return json.loads(f.read().decode())
         except urllib.error.HTTPError as e:
             return json.loads(e.read().decode())
 
-    def js(self, script, args=None):
+    def js(self, script, args=None, timeout=90):
         return visible(self._req("POST", f"/session/{self.sid}/execute/sync",
-                                 {"script": script, "args": args or []}).get("value"))
+                                 {"script": script, "args": args or []}, timeout=timeout).get("value"))
 
     def goto(self, path):
         self._req("POST", f"/session/{self.sid}/url", {"url": self.origin + path})

@@ -1082,14 +1082,20 @@ let shown_memo = Util.Slot.mk();
 
 /* the row holding the editor's caret, or where it shows when folded away
    (OutlineFollow) */
+/* (^report(51)) the last mark, by the slide and the caret's candidates:
+   while they are the same and the edited program's outline is not built
+   yet, the mark stands, and the outline is built after the paint, on its
+   own (Page's OutlineAsync), not in the page's view. After an edit of a
+   livelit's model on the Witch the mark built it, 5 to 14 ms of the view
+   (run 42820611040); the outline drawn next asks for it again and the
+   page is drawn again if it changed */
+let last_mark:
+  ref(option((option((string, string)), list(Id.t), option(E.key)))) =
+  ref(None);
 let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
   switch (program_of(deck)) {
   | None => None
   | Some(p) =>
-    let statics = Program.statics(p);
-    let outline = Program.outline(p);
-    let row_of = id =>
-      OutlineTree.enclosing_row(~info_map=statics.info_map, id, outline);
     /* the indicated term, else the enclosing tiles, else the
        neighbours (a caret in a comment or between items) */
     let candidates =
@@ -1103,24 +1109,38 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
         | (l, r) => List.filter_map(x => Option.map(Piece.id, x), [r, l])
         }
       );
-    let row =
-      switch (List.find_map(row_of, candidates), p) {
-      | (Some(r), _) => Some(r)
-      | (None, Divided(d)) => Option.map(fst, Divided.active(d))
-      | (None, Whole(_)) => None
-      };
-    let folds = folds(deck);
-    Option.map(
-      r =>
-        Util.Slot.get(
-          ~same=
-            ((t, r, f), (t', r', f')) => t === t' && r == r' && f === f',
-          shown_memo,
-          (outline, r, folds),
-          () => shown_row(~folds, r, outline),
-        ),
-      row,
-    );
+    let slide = Option.map(d => (fst(d), slide_name(d)), deck);
+    switch (last_mark^) {
+    | Some((s, c, m))
+        when s == slide && c == candidates && !Program.outline_made(p) => m
+    | _ =>
+      let statics = Program.statics(p);
+      let outline = Program.outline(p);
+      let row_of = id =>
+        OutlineTree.enclosing_row(~info_map=statics.info_map, id, outline);
+      let row =
+        switch (List.find_map(row_of, candidates), p) {
+        | (Some(r), _) => Some(r)
+        | (None, Divided(d)) => Option.map(fst, Divided.active(d))
+        | (None, Whole(_)) => None
+        };
+      let folds = folds(deck);
+      let m =
+        Option.map(
+          r =>
+            Util.Slot.get(
+              ~same=
+                ((t, r, f), (t', r', f')) =>
+                  t === t' && r == r' && f === f',
+              shown_memo,
+              (outline, r, folds),
+              () => shown_row(~folds, r, outline),
+            ),
+          row,
+        );
+      last_mark := Some((slide, candidates, m));
+      m;
+    };
   };
 
 /* the path of the row [k] names in [outline]: a run's is its tests' parent */
@@ -1140,14 +1160,72 @@ let memo = Util.Slot.mk();
 let refusals = Util.Slot.mk();
 let same =
     (
-      (((info_map, error_ids), outline), results, rest),
-      (((info_map', error_ids'), outline'), results', rest'),
+      (((info_map, error_ids), outline), statuses, rest),
+      (((info_map', error_ids'), outline'), statuses', rest'),
     ) =>
   info_map === info_map'
   && error_ids == error_ids'
   && outline === outline'
-  && Option.equal((===), results, results')
+  && statuses == statuses'
   && rest == rest';
+
+/* (^report(51)) the rows' ✓/✗: each test's joint status, by value. A run's
+   answer is a new results record every time, so keyed by identity the
+   outline was drawn again after every answer, tests or none */
+let statuses_of =
+    (results: option(Language.TestResults.t))
+    : option(list((Id.t, Language.TestStatus.t))) =>
+  Option.map(
+    (tr: Language.TestResults.t) =>
+      List.map(
+        ((id, instances)) =>
+          (id, Language.TestMap.joint_status(instances)),
+        tr.test_map,
+      ),
+    results,
+  );
+
+/* (^report(51)) for the check: which of the key's parts differ from the
+   last drawn outline's */
+let miss_why = (last, key): string =>
+  switch (last) {
+  | None => "first"
+  | Some(((((im, ei), o), st, rest), _)) =>
+    let (((im', ei'), o'), st', rest') = key;
+    /* each entry's own fields, not its level (which holds the program's
+       tiles: compared whole, with no stop at physical equality, it took
+       10 s on run 42737565018) */
+    let shape = (es: list(Outline.entry)) =>
+      List.map(
+        (e: Outline.entry) =>
+          (
+            e.id,
+            e.kind,
+            e.names,
+            e.hint,
+            e.test,
+            e.path,
+            List.length(e.children),
+          ),
+        Outline.flatten(es),
+      );
+    let entries_same =
+      o !== o'
+      && (
+        try(shape(o.Outline.entries) == shape(o'.Outline.entries)) {
+        | _ => false
+        }
+      );
+    [
+      (im !== im', "info_map"),
+      (ei != ei', "error_ids"),
+      (o !== o', entries_same ? "outline(entries same)" : "outline"),
+      (st != st', "statuses"),
+      (rest != rest', "rest"),
+    ]
+    |> List.filter_map(((b, s)) => b ? Some(s) : None)
+    |> String.concat(" ");
+  };
 
 /* the outline of the slide's whole program in Scratch and Documentation,
    else of the current editor's [statics] and [segment] */
@@ -1218,13 +1296,15 @@ let view =
     };
   /* this slide's program, never another document's */
   let outline =
-    switch (program) {
-    | Some(p) => Program.outline(p)
-    | None => Outline.of_program(~root=Sort.Exp, segment)
-    };
+    Util.BenchMarks.time("outline: its entries", () =>
+      switch (program) {
+      | Some(p) => Program.outline(p)
+      | None => Outline.of_program(~root=Sort.Exp, segment)
+      }
+    );
   let key = (
     ((statics.info_map, statics.error_ids), outline),
-    results,
+    statuses_of(results),
     (
       arrows,
       focused,
@@ -1243,16 +1323,29 @@ let view =
       statics_on,
     ),
   );
+  /* (^report(51)) a miss timed for the check, with which parts differ */
+  let why = Util.BenchMarks.on() ? miss_why(memo^, key) : "";
   Util.Slot.get(
     ~same,
+    ~on_miss=
+      Util.BenchMarks.time(
+        ~extra=() => [("why", Util.BenchMarks.str(why))],
+        "outline: drawn",
+      ),
     memo,
     key,
     () => {
+      /* (^report(51), step 1) the parts of a miss, timed for the check: the
+         error rows, the refusals, the livelit rows, each row's blank body
+         (summed), and the rows drawn */
+      let blank_ms = ref(0.);
       let (error_items, error_subtree) =
-        OutlineTree.error_rows(
-          ~info_map=statics.info_map,
-          ~rows=OutlineTree.collect(OutlineTree.rows(outline)),
-          statics.error_ids,
+        Util.BenchMarks.time("outline: error rows", () =>
+          OutlineTree.error_rows(
+            ~info_map=statics.info_map,
+            ~rows=OutlineTree.collect(OutlineTree.rows(outline)),
+            statics.error_ids,
+          )
         );
       let label = id =>
         switch (OutlineTree.node_of(id, outline)) {
@@ -1279,19 +1372,37 @@ let view =
                 refusals,
                 (program, outline),
                 () =>
-                  ScratchFocus.refusals(
-                    /* outside a slide, an editor is expression-rooted */
-                    ~root=
-                      Option.fold(
-                        ~none=Sort.Exp,
-                        ~some=Program.root,
-                        program,
+                  Util.BenchMarks.time(
+                    ~extra=
+                      () => {
+                        let (walked, asked) = ScratchFocus.refusals_walked^;
+                        Util.BenchMarks.[
+                          ("pieces", num(float_of_int(walked))),
+                          ("asked", num(float_of_int(asked))),
+                          (
+                            "tiles kept",
+                            num(float_of_int(ScratchFocus.refusals_reused^)),
+                          ),
+                        ];
+                      },
+                    "outline: refusals",
+                    () =>
+                      ScratchFocus.refusals(
+                        /* outside a slide, an editor is expression-rooted */
+                        ~root=
+                          Option.fold(
+                            ~none=Sort.Exp,
+                            ~some=Program.root,
+                            program,
+                          ),
+                        ~want=
+                          id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
+                        ~rows=OutlineTree.row_ids(outline),
+                        switch (program) {
+                        | Some(Divided(d)) => Divided.document(d)
+                        | _ => segment
+                        },
                       ),
-                    ~want=id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
-                    switch (program) {
-                    | Some(Divided(d)) => Divided.document(d)
-                    | _ => segment
-                    },
                   ),
               )
             );
@@ -1329,11 +1440,16 @@ let view =
             Language.TestMap.lookup(id, tr.test_map)
             |> Option.map(Language.TestMap.joint_status)
           ),
-        blank: id =>
-          switch (program) {
-          | Some(p) => blank_body(p, id)
-          | None => false
-          },
+        blank: id => {
+          let t0 = Util.BenchMarks.now();
+          let b =
+            switch (program) {
+            | Some(p) => blank_body(p, id)
+            | None => false
+            };
+          blank_ms := blank_ms^ +. (Util.BenchMarks.now() -. t0);
+          b;
+        },
         live,
         check:
           refusal(
@@ -1357,7 +1473,10 @@ let view =
           | Some(v) when is_deck =>
             Some({
               ux_mode: v.mode == SlideView.UX,
-              ux_rows: OutlineTree.livelit_row_ids(statics.term),
+              ux_rows:
+                Util.BenchMarks.time("outline: livelit rows", () =>
+                  OutlineTree.livelit_row_ids(statics.term)
+                ),
               ux_shown:
                 List.map(
                   (p: SlideView.pin) => p.p_id,
@@ -1630,7 +1749,11 @@ let view =
         get_menu_sel: () => menu_sel^,
         def_op: (op, id) => inject(DefOp(op, id)),
       };
-      OutlineSidebar.view(~props, ~on, outline);
+      Util.BenchMarks.time(
+        ~extra=() => [("blank ms", Util.BenchMarks.num(blank_ms^))],
+        "outline: rows drawn",
+        () => OutlineSidebar.view(~props, ~on, outline),
+      );
     },
   );
 };

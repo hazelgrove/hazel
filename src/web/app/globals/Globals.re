@@ -182,6 +182,10 @@ module Model = {
        have not been sent to stays as they left it. */
     let settings = Settings.Store.load() |> DeepLink.settings;
     Language.EvalWorklist.compute_enabled := settings.show_incremental_deco;
+    /* (^ticket(716)) Compiled views, as stored or as a link asks: until
+       this, the switch the views read stayed on after a reload with the
+       setting off, until the next history restore */
+    Language.HazelJitValue.enabled := settings.jit_views;
     init(~settings, ());
   };
 

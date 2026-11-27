@@ -126,7 +126,8 @@ let time_statics = f =>
         ...fr,
         statics: add(fr.statics, s),
       },
-    f,
+    /* (^report(46)) and on the benchmark timeline, when the page asks */
+    () => Util.BenchMarks.time("statics", f),
   );
 let time_syntax = f =>
   time(
@@ -135,7 +136,8 @@ let time_syntax = f =>
         ...fr,
         syntax: add(fr.syntax, s),
       },
-    f,
+    /* (^report(46)) and on the benchmark timeline, when the page asks */
+    () => Util.BenchMarks.time("syntax", f),
   );
 let time_cursor = f =>
   time(
@@ -144,7 +146,8 @@ let time_cursor = f =>
         ...fr,
         cursor_info: add(fr.cursor_info, s),
       },
-    f,
+    /* (^report(46)) and on the benchmark timeline, when the page asks */
+    () => Util.BenchMarks.time("cursor info", f),
   );
 let time_colors = f =>
   time(
@@ -153,7 +156,8 @@ let time_colors = f =>
         ...fr,
         color_map: add(fr.color_map, s),
       },
-    f,
+    /* (^report(46)) and on the benchmark timeline, when the page asks */
+    () => Util.BenchMarks.time("color map", f),
   );
 
 /* Like the stage timers, but also records the triggering action. Labelling it

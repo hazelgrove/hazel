@@ -130,6 +130,12 @@ jobs:
         # bounds it.
         timeout-minutes: 100
 
+      # (trial branches, 11-17) hazel-jit's trail, written as the tests ran, so a run killed at its time limit still
+      # shows where its time went
+      - name: hazel-jit's trail
+        if: ${{ always() }}
+        run: tail -n 300 _build/default/test/hazel-jit-trail.txt 2>/dev/null || echo "no trail"
+
       # Results UI, not the gate: the step above already fails on a red suite.
       - name: Test Report
         if: ${{ always() }}

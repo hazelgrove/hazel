@@ -262,6 +262,101 @@ module MapPiece = {
     put_siblings(sibs, z);
   };
 
+  /* (^ticket(721)) as [of_segment], but stepping only into the pieces
+     [within] says may hold the piece being updated; the others come back as
+     the very same objects, as [of_segment] gives them. A livelit's commit
+     on the Witch slide walked all 43,171 of its pieces to find one
+     projector: 11 to 20 ms of the edit after a slider's step (run
+     42826692242) */
+  let rec of_segment_within =
+          (f: updater, within: Piece.t => bool, seg: Segment.t): Segment.t => {
+    let changed = ref(false);
+    let out =
+      List.concat_map(
+        p =>
+          if (within(p)) {
+            let ps = List.map(of_piece_within(f, within), f(p));
+            switch (ps) {
+            | [q] when q === p => ()
+            | _ => changed := true
+            };
+            ps;
+          } else {
+            [p];
+          },
+        seg,
+      );
+    changed^ ? out : seg;
+  }
+  and of_piece_within =
+      (f: updater, within: Piece.t => bool, piece: Piece.t): Piece.t =>
+    switch (piece) {
+    | Tile(t) =>
+      let children = List.map(of_segment_within(f, within), t.children);
+      List.for_all2((a, b) => a === b, children, t.children)
+        ? piece
+        : Tile({
+            ...t,
+            children,
+          });
+    | Projector(pr) =>
+      let syntax = of_segment_within(f, within, pr.syntax);
+      syntax === pr.syntax
+        ? piece
+        : Projector({
+            ...pr,
+            syntax,
+          });
+    | Splice(sp) =>
+      let content = of_segment_within(f, within, sp.content);
+      content === sp.content
+        ? piece
+        : Splice({
+            ...sp,
+            content,
+          });
+    | Grout(_)
+    | Secondary(_) => piece
+    };
+
+  let go_within = (f: updater, within: Piece.t => bool, z: t): t => {
+    let seg = of_segment_within(f, within);
+    let sibs = ((l, r): Siblings.t): Siblings.t => (seg(l), seg(r));
+    let ancestor = (a: Ancestor.t): Ancestor.t =>
+      switch (a) {
+      | Tile(a) =>
+        Ancestor.Tile({
+          ...a,
+          children: (
+            List.map(seg, fst(a.children)),
+            List.map(seg, snd(a.children)),
+          ),
+        })
+      | Projector(a) =>
+        Ancestor.Projector({
+          ...a,
+          before: seg(a.before),
+          after: seg(a.after),
+        })
+      | Splice(_) => a
+      };
+    {
+      ...z,
+      selection: {
+        ...z.selection,
+        content: seg(z.selection.content),
+      },
+      relatives: {
+        ancestors:
+          List.map(
+            ((a, ss)) => (ancestor(a), sibs(ss)),
+            z.relatives.ancestors,
+          ),
+        siblings: sibs(z.relatives.siblings),
+      },
+    };
+  };
+
   let fast_local_seg = (f: Piece.t => Segment.t, id: Id.t, z: t): t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
@@ -275,6 +370,25 @@ module MapPiece = {
       update_right_sib(f, z);
     } else {
       go(f, z);
+    };
+
+  /* (^ticket(721)) [fast_local_seg] stepping only into the pieces [within]
+     says may hold piece [id]; the whole walk if that misses it (a piece
+     [within] cannot place, as one inside another projector's splice) */
+  let fast_local_seg_within =
+      (~within: Piece.t => bool, f: Piece.t => Segment.t, id: Id.t, z: t): t =>
+    if (left_sib_has_id(z, id) || right_sib_has_id(z, id)) {
+      fast_local_seg(f, id, z);
+    } else {
+      let hit = ref(false);
+      let f' = p => {
+        if (Piece.id(p) == id) {
+          hit := true;
+        };
+        f(p);
+      };
+      let z' = go_within(f', within, z);
+      hit^ ? z' : go(f, z);
     };
 };
 

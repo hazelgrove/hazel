@@ -271,17 +271,17 @@ let let_sint_exp_form = [
   exp_body,
 ];
 let let_sint_exp =
-    (~def_id: Id.t, ~pat_id: Id.t, ~i: int, ~body_id: Id.t): form => {
+    (~def_id: Id.t, ~pat_id: Id.t, ~i: Bigint.t, ~body_id: Id.t): form => {
   id: let_sint_exp_id,
   syntactic_form: let_sint_exp_form,
   colorings: let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("IntLit")])),
   explanation:
     Printf.sprintf(
-      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%d`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
-      i,
+      Bigint.to_string(i),
       Id.to_string(def_id),
       Id.to_string(body_id),
     ),
@@ -836,7 +836,8 @@ let lets_int =
   ],
 };
 
-let lets_sint = (~def_id: Id.t, ~pat_id: Id.t, ~i: int, ~body_id: Id.t): group => {
+let lets_sint =
+    (~def_id: Id.t, ~pat_id: Id.t, ~i: Bigint.t, ~body_id: Id.t): group => {
   id: LetExp(SInt),
   forms: [
     let_sint_exp(~def_id, ~pat_id, ~i, ~body_id),

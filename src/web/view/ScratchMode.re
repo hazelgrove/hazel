@@ -510,6 +510,9 @@ module View = {
     k_zoom_cell: bool,
     /* the ⇒ header names the program */
     k_program: string,
+    /* (^ticket(722)) the livelits' optimistic version: a drag's frames redraw
+       livelits without changing any cell's model */
+    k_livelits: int,
   };
   type cached_cell = {
     c_key: stack_cache_key,
@@ -624,6 +627,7 @@ module View = {
                     i == 0 ? globals.Globals.Model.visible_rows : None,
                   k_zoom_cell: zoom_cell,
                   k_program: current.name,
+                  k_livelits: Haz3lcore.LivelitProj.optimistic_version^,
                 };
                 let draws = (c: CellEditor.Model.t) =>
                   c.editor.editor.state.zipper.refractors.stepping != None

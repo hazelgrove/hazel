@@ -291,6 +291,11 @@ let of_source = (~root: Sort.t, source: Segment.t): t =>
     build(~root, fst(MakeTerm.semantic_segment(~root, source)))
   );
 
+/* (^report(51)) whether [of_source] has this very source's outline, so
+   asking costs nothing */
+let made = (~root: Sort.t, source: Segment.t): bool =>
+  List.exists(((r, s, _)) => r == root && s === source, sources^);
+
 /* every entry, each before its children */
 let rec flatten = (es: list(entry)): list(entry) =>
   List.concat_map(e => [e, ...flatten(e.children)], es);

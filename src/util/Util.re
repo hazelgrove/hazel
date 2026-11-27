@@ -15,6 +15,7 @@ module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
 module PerfTimer = PerfTimer;
+module BenchMarks = BenchMarks;
 module AgentPulse = AgentPulse;
 module Tree = Tree;
 module TimeUtil = TimeUtil;

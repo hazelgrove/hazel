@@ -1,0 +1,20 @@
+# Fire(i): fire transition i, if it can. #
+# Step: fire one of those that can, chosen by the app's draw. #
+let fire_at = fun (n, i) : (Net, Int) ->
+  case Common.pick(n.transitions, i)
+  | None => Say("there is no transition " ++ string_of_int(i), Done)
+  | Some(t) =>
+    if Common.enabled(n.marking, t) then Common.fire(t)
+    else Say(t.name ++ " cannot fire now", Done)
+  end;
+let on_event = fun (n, e) : (Net, Event) ->
+  case e
+  | Fire(i) => fire_at(n, i)
+  | Step =>
+    let r = Common.ready(n.marking, n.transitions, 0) in
+    let k = Common.len(r) in
+    if k == 0 then Say("deadlock: nothing can fire", Done)
+    else
+      let j = int_of_float(n.draw *. float_of_int(k)) in
+      fire_at(n, Common.nth(r, j))
+  end

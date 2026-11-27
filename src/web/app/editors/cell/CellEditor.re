@@ -100,12 +100,40 @@ module Model = {
 
   /* a cell's samples: its own and, for a stack cell, the whole program's,
      which win on conflict (they saw real call sites) */
+  /* (^ticket(722), the drag fast path) the union made again only when one of its maps changed, so the samples are
+     the same object from frame to frame: the projectors' caches compare them by identity */
+  let samples_memo:
+    ref(
+      list(
+        (
+          (Language.Dynamics.Map.t, Language.Dynamics.Map.t),
+          Language.Dynamics.Map.t,
+        ),
+      ),
+    ) =
+    ref([]);
   let samples =
       (~program: option(Language.Dynamics.Map.t), result: EvalResult.Model.t)
       : Language.Dynamics.Map.t => {
     let own = EvalResult.Model.dynamics(result);
     switch (program) {
-    | Some(program) => Id.Map.union((_, m, _) => Some(m), program, own)
+    | Some(program) =>
+      switch (
+        List.find_opt(
+          (((p, o), _)) => p === program && o === own,
+          samples_memo^,
+        )
+      ) {
+      | Some((_, u)) => u
+      | None =>
+        let u = Id.Map.union((_, m, _) => Some(m), program, own);
+        samples_memo :=
+          [
+            ((program, own), u),
+            ...List.filteri((i, _) => i < 15, samples_memo^),
+          ];
+        u;
+      }
     | None => own
     };
   };

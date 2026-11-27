@@ -210,13 +210,45 @@ module Update = {
       || probes_differ(editor.state.zipper, statics)
       || is_edited
       && statics_mode != StaticsMode.Defer;
+    /* (^ticket(721)) a livelit's commit that changed only its model's
+       literals: the statics worked out as usual, but the item holding them
+       patched rather than analyzed again (ModelPatch, DefStatics.item_patch),
+       12 to 28 ms after a slider's step on the Witch slide (run 42826692242) */
+    let item_patch =
+      is_edited
+      && (
+        statics_mode == StaticsMode.Normal
+        || statics_mode == StaticsMode.Force
+        && StaticsDebounce.clean_commit^
+      )
+      && Option.is_none(projected)
+      && !probes_differ(editor.state.zipper, statics)
+        ? Haz3lcore.ModelPatch.take(~zipper=editor.state.zipper)
+        : Stdlib.Option.None;
     /* A deferred edit can change external typing context even when this
        editor's source is unchanged. Implied-hole info must wait for refresh. */
     let statics =
       needs_refresh
-        ? switch (projected) {
-          | Some(p) => p
-          | None => do_init(editor)
+        ? switch (projected, item_patch) {
+          | (Some(p), _) => p
+          | (None, Some(c)) =>
+            Util.BenchMarks.time(
+              ~extra=
+                () =>
+                  Util.BenchMarks.[
+                    (
+                      "items patched",
+                      num(float_of_int(Haz3lcore.DefStatics.items_patched^)),
+                    ),
+                    ("refused", str(Haz3lcore.ModelPatch.refused^)),
+                  ],
+              "statics: an item patched",
+              () =>
+                Haz3lcore.ModelPatch.with_item_patch(c, () =>
+                  do_init(editor)
+                ),
+            )
+          | (None, None) => do_init(editor)
           }
         : is_edited
             ? {
