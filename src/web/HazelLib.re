@@ -37,6 +37,10 @@ let () =
       ),
       ("jitProgram", Js.Unsafe.inject(Js.wrap_callback(jit_program))),
       (
+        "jitProgramSaved",
+        Js.Unsafe.inject(Js.wrap_callback(jit_program_saved)),
+      ),
+      (
         "development",
         Js.Unsafe.inject(
           Js.wrap_callback((on: Js.Unsafe.any) =>

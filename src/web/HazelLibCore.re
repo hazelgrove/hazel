@@ -1649,3 +1649,66 @@ let jit_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
   let fields = jit_value(~ty=?a.ty, a.elab, compile_elab(a.elab));
   js_object(program_fields(a, ~ms=now() -. t0) @ fields);
 };
+
+/* (^ticket(890)) Hazel.jitProgramSaved(spec): jitProgram's answer, and with it, as saved, the program as text a page can keep
+   and run on its next load without Hazel's statics, which are nearly all of a build (Gnome world's rules: 6.4 s to build
+   cold in Node, 7 ms to run again from the text): hazel-jit's JavaScript and its runtime (compileProgram's js and runtime),
+   and for each field of the program's value that is a function, the source of the converters jitProgram wraps round it,
+   a factory (f, slow) => the function a page calls. A page makes the value again as
+     const R = eval("(" + saved.runtime + ")"), v = new Function("$R", saved.js)(R);
+     value[k] = (0, eval)(saved.wrap[k])(v[k], slow)
+   where slow(...args) is the call the old way, which needs the whole build (the page builds then, if it is ever called:
+   when the converters meet a value they cannot take, or the compiled code stops). wrap leaves out a field that is not a
+   function or whose types do not say enough for converters; saved is left out when the program did not compile. */
+let saved_wrappers =
+    (ty: option(Typ.t), c: HazelJit.compiled)
+    : list((string, Js.Unsafe.any)) => {
+  let ts = HazelJitValue.types_of(c);
+  switch (
+    Option.bind(ty, ~f=HazelJitValue.shape(ts, 0))
+    |> Option.map(~f=(t: Typ.t) => Typ.term_of(t))
+  ) {
+  | Some(Prod(fields)) =>
+    List.filter_map(fields, ~f=(t: Typ.t) =>
+      switch (Typ.term_of(t)) {
+      | TupLabel(l, ft) =>
+        switch (
+          Typ.term_of(l),
+          Option.map(HazelJitValue.shape(ts, 0, ft), ~f=(t: Typ.t) =>
+            Typ.term_of(t)
+          ),
+        ) {
+        | (Label(name), Some(Arrow(p, r))) =>
+          Option.map(Direct.source(ts, Some(p), Some(r)), ~f=src =>
+            (name, js_string(src))
+          )
+        | _ => None
+        }
+      | _ => None
+      }
+    )
+  | _ => []
+  };
+};
+
+let jit_program_saved = (spec: Js.Unsafe.any): Js.Unsafe.any => {
+  let t0 = now();
+  let a = analyze_program_spec(program_spec_of_js(spec));
+  let c = compile_elab(a.elab);
+  let fields = jit_value(~ty=?a.ty, a.elab, c);
+  let saved =
+    switch (c) {
+    | Ok(cc) => [
+        (
+          "saved",
+          js_object([
+            ("js", js_string(cc.HazelJit.src)),
+            ("runtime", js_string(HazelJit.Runtime.source)),
+            ("wrap", js_object(saved_wrappers(a.ty, cc))),
+          ]),
+        ),
+      ]
+    | Error(_) => []
+    };
+  js_object(program_fields(a, ~ms=now() -. t0) @ fields @ saved);
+};
