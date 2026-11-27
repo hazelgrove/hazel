@@ -359,6 +359,30 @@ let big_int_tests = [
     "divided toward zero on every sign",
     "(7 / (0 - 2), (0 - 7) / 2, (0 - 7) / (0 - 2), 9007199254740991 / (0 - 3))",
   ),
+  /* (^ticket(891)) arithmetic on Ints written out, folded at compile time: the same answers, and no call into the runtime */
+  agreement(
+    "folded: 0 - 1, and == against 0 - 3",
+    "let f : Int -> Int = fun x -> if x == 0 - 3 then 0 - 1 else x * (2 - 5) + 7 * (0 - 1) in (f(0 - 3), f(4), 9007199254740991 + 2 - 1)",
+  ),
+  test_case("folded: no runtime call for 0 - 3", `Quick, () =>
+    switch (
+      HazelJit.try_compile(
+        ~env=Builtins.env_init,
+        elaborate(
+          parse_exp("let f : Int -> Bool = fun x -> x == 0 - 3 in f(0 - 3)"),
+        ),
+      )
+    ) {
+    | Ok(js) =>
+      check(
+        bool,
+        "isub in the compiled code",
+        false,
+        String.is_substring(js, ~substring="$R.isub"),
+      )
+    | Error(why) => fail("not compiled: " ++ why)
+    }
+  ),
   agreement(
     "a quotient of 0 is never -0",
     "(1. /. float_of_int((0 - 1) / (0 - 2)), 1. /. float_of_int(0 / (0 - 5)))",
