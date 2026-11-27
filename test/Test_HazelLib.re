@@ -945,6 +945,61 @@ total|};
       },
     ),
     test_case(
+      "jitProgramSaved: the program as text, made again by a page without Hazel, gives the same answers",
+      `Quick,
+      () => {
+        /* (^ticket(890)) a page keeps saved and, on its next load, makes the value again from it alone: the compiled
+           JavaScript run with its runtime, and each function wrapped by its own converters' source */
+        let spec =
+          as_js(
+            {|{"preamble": "type G = (body = [Int], dir = Int, t = Int) in", "modules": [{"name": "M", "text": "let start : Int -> G = fun n -> (body = [n, n + 1], dir = 1, t = 0);\nlet mem : (Int, [Int]) -> Bool = fun (v, xs) -> case xs | [] => false | x :: rest => x == v || mem(v, rest) end;\nlet has : G -> Bool = fun g -> mem(5, g.body)"}], "tail": "(start = M.start, has = M.has)"}|},
+          );
+        let r = HazelLibCore.jit_program_saved(spec);
+        let saved = field(r, "saved");
+        let again =
+          Js.Unsafe.fun_call(
+            Js.Unsafe.pure_js_expr(
+              {|(s => { const R = (0, eval)("(" + s.runtime + ")"), v = new Function("$R", s.js)(R), out = {};
+                 for (const k of Object.keys(s.wrap)) out[k] = (0, eval)(s.wrap[k])(v[k], () => { throw new Error("the old way, " + k); });
+                 return out; })|},
+            ),
+            [|saved|],
+          );
+        check(
+          string,
+          "the fields wrapped",
+          {|["start","has"]|},
+          json(
+            Js.Unsafe.fun_call(
+              Js.Unsafe.pure_js_expr("(o => Object.keys(o))"),
+              [|again|],
+            ),
+          ),
+        );
+        let v = field(r, "value");
+        check(
+          string,
+          "start, made again",
+          json(call(field(v, "start"), [num(5.)])),
+          json(call(field(again, "start"), [num(5.)])),
+        );
+        let g = call(field(again, "start"), [num(5.)]);
+        check(
+          string,
+          "has, made again",
+          "true",
+          json(call(field(again, "has"), [g])),
+        );
+        let g4 = call(field(again, "start"), [num(1.)]);
+        check(
+          string,
+          "and false",
+          "false",
+          json(call(field(again, "has"), [g4])),
+        );
+      },
+    ),
+    test_case(
       "jit: under Hazel.development(true), what crosses is frozen; off, it is not",
       `Quick,
       () => {
