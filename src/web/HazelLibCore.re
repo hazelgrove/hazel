@@ -1216,8 +1216,14 @@ module Direct = {
   const $oI = v => typeof v === "number" ? v : typeof v === "bigint" ? Number(v) : fail();
   const $Uin = v => v == null || (Array.isArray(v) && v.length === 0) ? [] : fail();
   const $Uout = v => Array.isArray(v) && v.length === 0 ? null : fail();
-  const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); let r = null; for (let i = v.length - 1; i >= 0; i--) r = { $h: f(v[i]), $t: r }; return r; };
-  const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.$t) { if (typeof p !== "object" || !("$h" in p)) fail(); a.push(f(p.$h)); } return a; };
+  /* (^ticket(681), from Gnome world's port, ^report(64) #fresh) the elements the lists crossing have held so far, so that the
+     memo below links a page's object only for a conversion big enough to be worth it: a page that makes its data fresh each
+     call (a game's step) paid more to link small lists than to convert them (a bunny's step: 1.8 us to cross, 0.23 us of it
+     for an empty list), and never passed them again */
+  let $work = 0;
+  const MEMO_MIN = 16;
+  const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); $work += v.length; let r = null; for (let i = v.length - 1; i >= 0; i--) r = { $h: f(v[i]), $t: r }; return r; };
+  const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.$t) { if (typeof p !== "object" || !("$h" in p)) fail(); a.push(f(p.$h)); } $work += a.length; return a; };
   /* (^ticket(795), ^report(63) #runs) a type's memo as links on the objects themselves, not two WeakMaps: on the games'
      own runs the WeakMaps' lookups and inserts, and the collector's work for them, were most of the jit's crossing
      (Mahjong solitaire's run: 15.4 ms through the jit with WeakMaps, 6.1 ms with links, 6.4 ms ahead of time). A page's
@@ -1233,10 +1239,14 @@ module Direct = {
   const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { s: Symbol("hazel-jit.converted"), f: null }); else if (!m.s) { m.s = Symbol("hazel-jit.converted"); m.f = null; } return m; };
   const $plink = (m, a, b) => { if (Object.isExtensible(a)) Object.defineProperty(a, m.s, { value: b }); else (m.f || (m.f = new WeakMap())).set(a, b); };
   const $pseen = (m, a) => { const c = a[m.s]; return c !== undefined ? c : m.f ? m.f.get(a) : undefined; };
+  /* (^ticket(681)) The link on the page's object (defineProperty, about 0.19 us on an object it has not seen) only when the
+     conversion held MEMO_MIN list elements or more: a smaller one is converted again if the page passes it again, which costs
+     less. The link on the compiled value (a plain property on an object just made, a few ns) always, so a value handed back is
+     still the page's own object (Matthew, 2026-11-23: "converted-closed") */
   const $mi = (m, x, build) => { if (x === null || typeof x !== "object") return build(x); const c = $pseen(m, x); if (c !== undefined) return c;
-    const r = build(x); $plink(m, x, r); if (r !== null && typeof r === "object") r[m.s] = x; return r; };
+    const w = $work, r = build(x); if ($work - w >= MEMO_MIN) $plink(m, x, r); if (r !== null && typeof r === "object") r[m.s] = x; return r; };
   const $mo = (m, y, build) => { if (y === null || typeof y !== "object") return build(y); const p = y[m.s]; if (p !== undefined) return p;
-    const r = build(y); y[m.s] = r; if (r !== null && typeof r === "object") $plink(m, r, y); return r; };
+    const w = $work, r = build(y); y[m.s] = r; if ($work - w >= MEMO_MIN && r !== null && typeof r === "object") $plink(m, r, y); return r; };
 |};
   /* the factory: given the compiled function and the old way (slow), the function a page calls; None when the types
      give nothing to go by */
