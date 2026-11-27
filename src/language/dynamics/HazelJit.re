@@ -978,6 +978,29 @@ let rec pat_is = (x: string, p: Pat.t): bool =>
 let survey_examples: Stdlib.Hashtbl.t(string, string) =
   Stdlib.Hashtbl.create(8);
 
+/* (^ticket(891)) An Int written out, or +, - and * on such, its value at compile time: folded where it is written, so that
+   0 - 1, as Hazel writes -1 (it has no negative literal), is -1 in the compiled code, not a call into the runtime on every
+   pass, and == against it is ===. Division is left to run (a divisor of 0 must stop the run there), and so is a Nat's. */
+let rec int_const = (e: Exp.t): option(Bigint.t) =>
+  switch (Exp.term_of(e)) {
+  | Parens(e) => int_const(e)
+  | Atom(Int(n)) => Some(n)
+  | UnOp(Int(Minus), e) => Option.map(int_const(e), ~f=Bigint.neg)
+  | BinOp(Int(Plus), a, b) =>
+    Option.map(Option.both(int_const(a), int_const(b)), ~f=((x, y)) =>
+      Bigint.(+)(x, y)
+    )
+  | BinOp(Int(Minus), a, b) =>
+    Option.map(Option.both(int_const(a), int_const(b)), ~f=((x, y)) =>
+      Bigint.(-)(x, y)
+    )
+  | BinOp(Int(Times), a, b) =>
+    Option.map(Option.both(int_const(a), int_const(b)), ~f=((x, y)) =>
+      Bigint.( * )(x, y)
+    )
+  | _ => None
+  };
+
 let rec exp =
         (st: state, scope: scope, lex: list((string, string)), e: Exp.t)
         : string =>
@@ -1431,6 +1454,10 @@ and exp_inner =
         ~init="$R.nomatch(\"case\")",
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
+  | UnOp(Int(Minus), _)
+  | BinOp(Int(Plus | Minus | Times), _, _)
+      when Option.is_some(int_const(e)) =>
+    js_int(Option.value_exn(int_const(e)))
   | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ opw(go(e)) ++ ")"
   | UnOp(SInt(Minus), e) => "$R.sneg(" ++ opw(go(e)) ++ ")"
   | UnOp(Float(Minus), e) => "(-(" ++ opw(go(e)) ++ "))"
@@ -1449,6 +1476,9 @@ and exp_inner =
         true
       | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Float(Minus), e) =>
         literal(e)
+      /* (^ticket(891)) Int arithmetic on numbers written out, folded */
+      | BinOp(Int(Plus | Minus | Times), _, _) =>
+        Option.is_some(int_const(e))
       | _ => false
       };
     let infix = o => "(" ++ a ++ " " ++ o ++ " " ++ b ++ ")";
