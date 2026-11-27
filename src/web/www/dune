@@ -13,3 +13,13 @@
    prebundle.js
    --bundle
    --outfile=bundled.js)))
+
+(rule
+ (targets worker-algebrite.js)
+ (deps workerprelude.js)
+ (action
+  (run
+   %{project_root}/node_modules/esbuild/bin/esbuild
+   workerprelude.js
+   --bundle
+   --outfile=worker-algebrite.js)))

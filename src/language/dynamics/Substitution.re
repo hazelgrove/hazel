@@ -69,9 +69,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | FixF(p, e, None) =>
           let (env', p') = in_pat(env, env, p);
           FixF(p', in_exp(env', e), None) |> rewrap;
-        | Theorem(p, e1, e2) =>
-          let (env', p') = in_pat(env, env, p);
-          Theorem(p', in_exp(env, e1), in_exp(env', e2)) |> rewrap;
+        // A theorem's name is in the theorem namespace and binds no variable
+        | Theorem(p, e1, pf, e2) =>
+          Theorem(p, in_exp(env, e1), pf, in_exp(env, e2)) |> rewrap
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
@@ -112,7 +112,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | BuiltinFun(_)
         | Asc(_)
         | LivelitName(_)
-        | ProofObject(_)
         | Undefined
         | Module(_)
         | ModuleExp(_) => cont(e)
@@ -124,7 +123,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
 // Updates a pattern to avoid variable capture
 and in_pat =
     (
-      env_outer: Environment.t(Exp.t), // The environment outside the binding form, used in ProofOfs
+      env_outer: Environment.t(Exp.t), // The environment outside the binding form
       env_acc: Environment.t(Exp.t), // The environment being built up to avoid capture
       p: Pat.t,
     )
@@ -231,10 +230,54 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Poly(_, _)
         | ProdProjection(_, _)
         | ProdExtension(_, _)
-        | ProofOf(_)
         | Sig(_)
         | DrvQuoteTy(_) => cont(t)
         };
       },
     typ,
   );
+
+/* The environment for `in_exp` that substitutes `bindings` into `into`
+ * and nothing else. Every other variable free in `into` or in a bound
+ * value maps to itself, which is what lets `in_exp` rename a binder of
+ * `into` that would capture it. When every bound value is closed there is
+ * nothing to capture, so those entries, which cost a pass over `into` per
+ * name, are left out. */
+let env_for =
+    (bindings: list(Environment.binding(Exp.t)), ~into: Exp.t)
+    : Environment.t(Exp.t) => {
+  let names = (e: Exp.t): list(Var.t) => {
+    let found = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (Exp.term_of(e)) {
+            | Var(y) => found := [y, ...found^]
+            | _ => ()
+            };
+            continue(e);
+          },
+        e,
+      );
+    found^;
+  };
+  let values = List.map(~f=snd, bindings);
+  let is_closed = v => !Exp.occurs_free_any(names(v), v);
+  if (List.for_all(~f=is_closed, values)) {
+    Environment.of_bindings(bindings);
+  } else {
+    let free =
+      List.dedup_and_sort(
+        ~compare=String.compare,
+        List.concat_map(~f=names, [into, ...values]),
+      )
+      |> List.filter(~f=y =>
+           !List.Assoc.mem(bindings, y, ~equal=String.equal)
+           && List.exists(~f=Exp.occurs_free_any([y]), [into, ...values])
+         );
+    Environment.of_bindings(
+      List.map(~f=y => (y, Exp.fresh(Var(y))), free) @ bindings,
+    );
+  };
+};

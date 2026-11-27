@@ -36,6 +36,37 @@
   animation: jello 1s ease 0s 1 normal none;
 }
 
+.theorem-status.false {
+  background-color: var(--test-fail-active);
+}
+
 .theorem-status.unknown {
   color: var(--light-page-color);
+}
+
+/* Proven, relying on unfinished theorems it cites: proven's colours,
+ * without the `jello`, as the star says it isn't the whole story. */
+.theorem-status.relying {
+  background-color: var(--test-pass);
+  color: var(--test-percent-text);
+  cursor: help;
+}
+
+/* Incomplete with conditions open: their quiet count finds the first
+ * when clicked. */
+.theorem-status.unknown[title] {
+  cursor: pointer;
+}
+
+/* A theorem the program no longer reaches, drawn as it was last checked
+ * until it is back. */
+.theorem.stale > :not(.theorem-header) {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.theorem-status.stale {
+  background-color: transparent;
+  border: 1px dashed var(--cell-result-text);
+  color: var(--cell-result-text);
 }

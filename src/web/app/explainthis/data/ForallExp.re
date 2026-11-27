@@ -21,11 +21,17 @@ let forall_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   expandable_id: Some((Piece.id(tpat), [exp_arg])),
   explanation:
     sprintf(
-      "The forall expression asserts that for every value of the [*variables*](%s) the inside of the forall always returns true [*inner type*](%s). This expression does not work at runtime (it would take forever if it did!), but is useful for specifying properties of functions and data types.",
+      "Asserts that for every total value of the [*variable*](%s) the [*body*](%s) denotes `true`. Quantifiers range over total values only — terminating, error-free ones — which is what makes a proven `forall` an operational guarantee: every closed instance of it really evaluates to `true`. It states a property rather than computing one, so it does not run (that would take forever).",
       Id.to_string(pat_id),
       Id.to_string(body_id),
     ),
-  examples: [],
+  examples: [
+    {
+      sub_id: Forall,
+      term: mk_example("theorem t = forall x -> x + 0 == x proof ? in 0"),
+      message: "The statement of `t` quantifies over every Int `x`. Proving it means proving `x + 0 == x` for an arbitrary `x`, not for any particular one.",
+    },
+  ],
 };
 
 let forall = (~pat_id: Id.t, ~body_id: Id.t): group =>

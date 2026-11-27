@@ -363,6 +363,7 @@ let start = default_model => {
 };
 
 CoverageExport.install();
+CasJs.install();
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()

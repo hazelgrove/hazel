@@ -66,31 +66,66 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         view_type(expansion_t),
       ],
     )
+  | TheoremEntry({name, _}) =>
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code", "hypothesis-entry"]),
+      ],
+      [
+        div_name([text(name)]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
+        div(~attrs=[clss(["prop"])], [text("theorem")]),
+      ],
+    )
   };
 };
+
+let is_axiom: Language.Ctx.entry => bool =
+  fun
+  | TheoremEntry({id, _}) =>
+    List.exists(
+      ~f=(axiom: Language.Ctx.theorem_entry) => Util.Id.equal(axiom.id, id),
+      Language.Statics.initial_theorems,
+    )
+  | VarEntry(_)
+  | ConstructorEntry(_)
+  | TVarEntry(_)
+  | LivelitEntry(_) => false;
+
+/* The built-in axioms are listed only where a proof can cite them: on a
+   proof step, or on a term inside a proof the checker has reached. */
+let lists_axioms = (~proof_map, ci: Language.Info.t): bool =>
+  switch (ci) {
+  | InfoProof(_) => true
+  | _ =>
+    List.exists(
+      ~f=id => Option.is_some(Language.ProofMap.lookup(id, proof_map)),
+      Language.Info.ancestors_of(ci),
+    )
+  };
+
+let entries = (~axioms: bool, ctx: Language.Ctx.t): list(Language.Ctx.entry) =>
+  ctx
+  |> Language.Ctx.filter_shadowed
+  |> Language.Ctx.filter_stepper_filter_variables
+  |> (x => x.entries)
+  |> List.filter(~f=entry => axioms || !is_axiom(entry))
+  |> List.rev;
 
 let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
   div(
     ~attrs=[clss(["context-inspector"])],
-    List.map(
-      ~f=context_entry_view(~globals),
-      ctx
-      |> Language.Ctx.filter_shadowed
-      |> Language.Ctx.filter_stepper_filter_variables
-      |> (x => x.entries)
-      |> List.rev,
-    ),
+    List.map(~f=context_entry_view(~globals), entries(~axioms=true, ctx)),
   );
 
-let ctx_sorts_view = (~globals, ci: Language.Statics.Info.t) =>
-  Language.Info.ctx_of(ci)
-  |> Language.Ctx.filter_shadowed
-  |> Language.Ctx.filter_stepper_filter_variables
-  |> (x => x.entries)
-  |> List.rev
-  |> List.map(~f=context_entry_view(~globals));
-
-let view = (~globals: Globals.t, ci: option(Language.Statics.Info.t)): Node.t => {
+let view =
+    (
+      ~globals: Globals.t,
+      ~proof_map: Language.ProofMap.t,
+      ci: option(Language.Statics.Info.t),
+    )
+    : Node.t => {
   let clss =
     clss(
       ["context-inspector"]
@@ -98,7 +133,14 @@ let view = (~globals: Globals.t, ci: option(Language.Statics.Info.t)): Node.t =>
     );
   switch (ci) {
   | Some(ci) when globals.settings.context_inspector =>
-    div(~attrs=[clss], ctx_sorts_view(~globals, ci))
+    div(
+      ~attrs=[clss],
+      entries(
+        ~axioms=lists_axioms(~proof_map, ci),
+        Language.Info.ctx_of(ci),
+      )
+      |> List.map(~f=context_entry_view(~globals)),
+    )
   | _ => div([])
   };
 };

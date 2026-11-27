@@ -41,8 +41,24 @@ let find_ancestor_with_class:
   option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
 let adjust_scroll:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), float) => unit;
+/** The box a cell's code scrolls sideways in. */
+module CodeScroll: {
+  let class_name: string;
+  let containing:
+    Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) =>
+    option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
+  /** The viewport x-range in which the scroller shows code. */
+  let visible_x:
+    Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => (float, float);
+  let scroll_by:
+    (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), float) => unit;
+};
 let caret_in_view: unit => bool;
 let scroll_cursor_into_view_if_needed: unit => unit;
+/** Scrolls the element into view in each scrolling ancestor, vertically
+ * only. */
+let scroll_vertically_into_view_ancestors:
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => unit;
 let main_scroll_top: unit => float;
 let set_main_scroll_top: float => unit;
 module Fragment: {
