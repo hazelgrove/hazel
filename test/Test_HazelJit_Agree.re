@@ -340,6 +340,15 @@ let same_value = (a: Exp.t, b: Exp.t): bool =>
     a,
     b,
   );
+/* (^ticket(903)) random programs, run both ways (Test_HazelJit's property): how many were made, had no static error, the
+   interpreter finished within its step limit, hazel-jit compiled, and gave the interpreter's answer (or stopped where it did);
+   and how many the interpreter left as something not a value, which is not compared */
+let random_made = ref(0);
+let random_typed = ref(0);
+let random_finished = ref(0);
+let random_compiled = ref(0);
+let random_agreed = ref(0);
+let random_not_values = ref(0);
 let mixed_programs = ref(0);
 let mixed_functions = ref(0);
 let mixed_agreed = ref(0);
@@ -347,17 +356,23 @@ let mixed_differs: ref(list(parting)) = ref([]);
 let mixed_failed: ref(list(parting)) = ref([]);
 let mixed_not_compiled: Stdlib.Hashtbl.t(string, int) =
   Stdlib.Hashtbl.create(8);
-let mixed_sweep = (test: string, elab: Exp.t, result: Exp.t): unit =>
-  switch (HazelJitMixed.rewrite(elab)) {
-  | exception exn =>
+/* (^ticket(903); Cyrus at the meeting of 2026-11-27, the interpreter as the specification: "we want to ensure semantic
+   equivalence systematically going forward") Mixed mode's answer must be the interpreter's: a different answer, a run that
+   raised, or a rewrite that raised fails the program's test, as the jit's own sweep does. Some(why) is a parting. */
+let mixed_sweep = (test: string, elab: Exp.t, result: Exp.t): option(string) => {
+  let failed = what => {
     mixed_failed :=
       [
         {
           test,
-          what: "the rewrite: " ++ Exn.to_string(exn),
+          what,
         },
         ...mixed_failed^,
-      ]
+      ];
+    Some(what);
+  };
+  switch (HazelJitMixed.rewrite(elab)) {
+  | exception exn => failed("the rewrite: " ++ Exn.to_string(exn))
   | rewritten =>
     List.iter(HazelJitMixed.not_compiled^, ~f=((_, why)) =>
       Stdlib.Hashtbl.replace(
@@ -371,40 +386,40 @@ let mixed_sweep = (test: string, elab: Exp.t, result: Exp.t): unit =>
       )
     );
     let names = HazelJitMixed.compiled_names^;
-    if (names != []) {
+    if (names == []) {
+      None;
+    } else {
       incr(mixed_programs);
       mixed_functions := mixed_functions^ + List.length(names);
       switch (Evaluator.evaluate(~env=Builtins.env_init, rewritten)) {
-      | exception exn =>
-        mixed_failed :=
-          [
-            {
-              test,
-              what: "the run: " ++ Exn.to_string(exn),
-            },
-            ...mixed_failed^,
-          ]
+      | exception exn => failed("the run: " ++ Exn.to_string(exn))
       | (got, _) =>
-        same_value(result, got)
-          ? incr(mixed_agreed)
-          : mixed_differs :=
-              [
-                {
-                  test,
-                  what:
-                    one_line(
-                      String.concat(~sep=", ", names)
-                      ++ " compiled; the interpreter: "
-                      ++ Exp.show(result)
-                      ++ "; mixed: "
-                      ++ Exp.show(got),
-                    ),
-                },
-                ...mixed_differs^,
-              ]
+        if (same_value(result, got)) {
+          incr(mixed_agreed);
+          None;
+        } else {
+          let what =
+            one_line(
+              String.concat(~sep=", ", names)
+              ++ " compiled; the interpreter: "
+              ++ Exp.show(result)
+              ++ "; mixed: "
+              ++ Exp.show(got),
+            );
+          mixed_differs :=
+            [
+              {
+                test,
+                what,
+              },
+              ...mixed_differs^,
+            ];
+          Some(what);
+        }
       };
     };
   };
+};
 
 /* (^ticket(756); Matthew, 2026-11-17: "please time the tests in interpreter vs jit and present those results in report 54")
    Each evaluator program that compiles and gives the interpreter's value, timed: the interpreter's first run (as the
@@ -497,9 +512,11 @@ let time_interp = (elab: Exp.t): (float, int) => {
 let sweep_one =
     (~interp_ms: option(float)=?, test: string, elab: Exp.t, result: Exp.t)
     : unit => {
-  try(mixed_sweep(test, elab, result)) {
-  | _ => ()
-  };
+  /* (^ticket(903)) mixed mode's verdict, kept for the end: the sweep's own trouble (not a parting) is passed over, as before */
+  let mixed =
+    try(mixed_sweep(test, elab, result)) {
+    | _ => None
+    };
   let verdict =
     try(
       {
@@ -612,11 +629,15 @@ let sweep_one =
       Fine;
     };
   /* (outside the guard above, which would catch Alcotest's failure too) */
-  switch (verdict) {
-  | Fine => ()
-  | Parts(why) =>
+  switch (verdict, mixed) {
+  | (Fine, None) => ()
+  | (Parts(why), _) =>
     Alcotest.fail(
       "hazel-jit parts from the interpreter (ticket 756): " ++ why,
+    )
+  | (Fine, Some(why)) =>
+    Alcotest.fail(
+      "hazel-jit's mixed mode parts from the interpreter (ticket 903): " ++ why,
     )
   };
 };
@@ -725,6 +746,17 @@ let report = () =>
       HazelJitMixed.calls^,
       HazelJitMixed.fallbacks^,
     );
+    if (random_made^ > 0) {
+      p(
+        "hazel-jit random programs (ticket 903): %d made; %d with no static error; %d finished by the interpreter; %d compiled; %d agreed, %d with an interpreter result that is not a value\n",
+        random_made^,
+        random_typed^,
+        random_finished^,
+        random_compiled^,
+        random_agreed^,
+        random_not_values^,
+      );
+    };
     Stdlib.Hashtbl.fold(
       (r, n, acc) => [(n, r), ...acc],
       mixed_not_compiled,

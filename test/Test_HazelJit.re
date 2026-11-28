@@ -1256,6 +1256,123 @@ let more_tests = [
   ),
 ];
 
+/* (^ticket(903); Cyrus at the meeting of 2026-11-27, on the interpreter as the specification; Matthew: "we want to ensure
+   semantic equivalence systematically going forward") Random programs, both ways: the evaluator's own generator
+   (QCheck_Util.arb_exp, as "Evaluator does not crash" uses it), each program with no static error that the interpreter
+   finishes within its step limit compiled where hazel-jit compiles it, run, and compared as the sweep compares (an error or
+   an indeterminate result where the interpreter stops at the same; a result that is not a value, counted and not compared).
+   A fixed seed, so a run is repeatable and a counterexample stays found. Slow (the full tests), as the generator's other
+   properties are; the counts at the end of the run, after the sweep's. */
+let random_agrees = (exp: Exp.t): bool => {
+  incr(random_made);
+  switch (Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp)) {
+  | exception _ => true
+  | (info_map, _) when Statics.Map.error_ids(info_map) != [] => true
+  | (_, elab) =>
+    incr(random_typed);
+    switch (
+      Evaluator.evaluate_and_limit(
+        ~env=Builtins.env_init,
+        ~step_limit=10000,
+        elab,
+      )
+    ) {
+    | exception _ => true
+    | Evaluator.StepLimitExceeded => true
+    | Evaluator.LimitedCompleted((result, _)) =>
+      incr(random_finished);
+      switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
+      | exception _ => true
+      | Error(_) => true
+      | Ok(js_src) =>
+        incr(random_compiled);
+        switch (run_js(HazelJit.Runtime.source, js_src)) {
+        | exception (Js_error.Exn(e))
+            when
+              switch (invalid_of(Js_error.message(e))) {
+              | Some(err) => stuck_at(result, err)
+              | None => false
+              } =>
+          incr(random_agreed);
+          true;
+        | exception (Js_error.Exn(e))
+            when indet_reached(Js_error.message(e), result) =>
+          incr(random_agreed);
+          true;
+        | exception (Js_error.Exn(e)) =>
+          QCheck.Test.fail_report(
+            "the compiled JS threw: "
+            ++ one_line(
+                 Js_error.message(e)
+                 ++ "; the interpreter: "
+                 ++ Exp.show(result),
+               ),
+          )
+        | got =>
+          switch (agree(result, got)) {
+          | None =>
+            incr(random_agreed);
+            true;
+          | Some(d) when starts_with(not_a_value, d) =>
+            incr(random_not_values);
+            true;
+          | Some(d) =>
+            QCheck.Test.fail_report(
+              "differs from the interpreter: " ++ one_line(d),
+            )
+          }
+        };
+      };
+    };
+  };
+};
+let random_programs =
+  QCheck_alcotest.to_alcotest(
+    ~rand=Stdlib.Random.State.make([|903|]),
+    QCheck.Test.make(
+      ~name=
+        "hazel-jit gives the interpreter's answer on random programs (ticket 903)",
+      ~count=2000,
+      QCheck_Util.arb_exp(~minimal_idents=true, 30),
+      random_agrees,
+    ),
+  );
+
+/* (^ticket(903)) A floor on what the sweep compiles: a change that leaves more of the evaluator's programs to the
+   interpreter fails here, where before it went unnoticed (a program not compiled cannot disagree). The floor is the count
+   of 2026-11-27 (CI run 46079274764: 234 of 289 compiled; mixed mode, 6 programs with a function compiled); raise it as
+   more compiles. Checked only when the whole sweep ran (a run of some tests alone sweeps fewer). This suite runs after
+   the evaluator's (haz3ltest.re), so the sweep is done. */
+let compiled_floor = 234;
+let mixed_floor = 6;
+let floor_test =
+  test_case(
+    "the sweep compiles no fewer programs than before (ticket 903)", `Quick, () =>
+    if (swept^ >= 289) {
+      check(
+        bool,
+        Printf.sprintf(
+          "compiled %d of %d evaluator programs; the floor is %d",
+          compiled^,
+          swept^,
+          compiled_floor,
+        ),
+        true,
+        compiled^ >= compiled_floor,
+      );
+      check(
+        bool,
+        Printf.sprintf(
+          "mixed mode: %d programs with a function compiled; the floor is %d",
+          mixed_programs^,
+          mixed_floor,
+        ),
+        true,
+        mixed_programs^ >= mixed_floor,
+      );
+    }
+  );
+
 let tests = (
   "HazelJit",
   loop_tests
@@ -1414,5 +1531,6 @@ let tests = (
       "let f : [Int] -> ? = fun xs -> xs in f([1.0, 2.0] : ?)",
       "a type hole",
     ),
-  ],
+  ]
+  @ [floor_test, random_programs],
 );
