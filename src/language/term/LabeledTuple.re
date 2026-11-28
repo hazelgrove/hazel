@@ -34,18 +34,20 @@ let separate_and_keep_labels:
   (list(option(label)), list('a))
  =
   (get_label, es) => {
-    let results =
+    /* (^ticket(791)) built backwards and turned round once: appending each element to the end made this quadratic, and
+       Typ.meet calls it on both tuples at every meet (with get_duplicate_labels, 13% of building Gnome world's rules) */
+    let (ls, ns) =
       List.fold_left(
         ~f=
           ((ls, ns), e) =>
             switch (get_label(e)) {
-            | Some((s1, _)) => (ls @ [Some(s1)], ns @ [e])
-            | None => (ls @ [None], ns @ [e])
+            | Some((s1, _)) => ([Some(s1), ...ls], [e, ...ns])
+            | None => ([None, ...ls], [e, ...ns])
             },
         ~init=([], []),
         es,
       );
-    results;
+    (List.rev(ls), List.rev(ns));
   };
 
 // Keeps the labels in x that exist in y. Maintains the order from x.
@@ -57,20 +59,21 @@ let intersect = (xs: list(label), ys: list(label)) => {
 // Can also be modified to get unique labels.
 let get_duplicate_labels_base: list(label) => list(label) =
   labels => {
+    /* (^ticket(791)) as before, the duplicates in the order they are first met again; built backwards, no appending */
     let (duplicates, _seen) =
       List.fold_left(
         ~f=
           ((dupes, seen), label) =>
             if (List.exists(~f=l => String.equal(label, l), seen)) {
               List.exists(~f=l => String.equal(label, l), dupes)
-                ? (dupes, seen) : (dupes @ [label], seen);
+                ? (dupes, seen) : ([label, ...dupes], seen);
             } else {
-              (dupes, seen @ [label]);
+              (dupes, [label, ...seen]);
             },
         ~init=([], []),
         labels,
       );
-    duplicates;
+    List.rev(duplicates);
   };
 
 let get_duplicate_labels:
@@ -78,9 +81,10 @@ let get_duplicate_labels:
   ('a => option((label, 'b)), list('a)) => list(label)
  =
   (get_label, es) => {
-    separate_and_keep_labels(get_label, es)
-    |> fst
-    |> List.filter_map(~f=Fn.id)
+    /* (^ticket(791)) the labels in order, in one pass: not both of separate_and_keep_labels's lists, of which this kept
+       only the labels present */
+    es
+    |> List.filter_map(~f=e => Option.map(get_label(e), ~f=fst))
     |> get_duplicate_labels_base;
   };
 
